@@ -3,10 +3,10 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { PerformLogin } from "@/app/actions";
-// import { useAuth } from "@/app/hooks/useAuth";
+import { useAuth } from "@/app/hooks/useAuth";
 
 export default function LoginForm() {
-  // const { setAuth } = useAuth();
+  const { setAuth } = useAuth();
   const router = useRouter();
   const [error, setError] = useState("");
 
@@ -16,7 +16,7 @@ export default function LoginForm() {
       const formData = new FormData(event.currentTarget);
       const found = await PerformLogin(formData);
       if (found) {
-        // setAuth(found);
+        setAuth(found);
         router.push("/");
       } else {
         setError("Please provide valid login credentials");

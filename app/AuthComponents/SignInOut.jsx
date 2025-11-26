@@ -14,7 +14,7 @@ export default function SignInOut() {
     setAuth(null);
     router.push("/login");
   };
-
+console.log("Auth",auth)
   return (
     <div className="flex items-center justify-center">
       {auth ? (

@@ -305,16 +305,16 @@ export async function POST(req) {
     console.error("Error stack:", err?.stack);
 
     // Handle duplicate key errors (unique index violation)
-    if (err.code === 11000 || err.name === "MongoServerError") {
-      return NextResponse.json(
-        {
-          success: false,
-          message:
-            "An entry for this hour and date already exists. Please edit the existing entry instead.",
-        },
-        { status: 409 }
-      );
-    }
+    // In your POST function, update the duplicate error handling
+if (err.code === 11000 || err.name === "MongoServerError") {
+  return NextResponse.json(
+    {
+      success: false,
+      message: "An entry for this hour, line, and building already exists. Please edit the existing entry instead.",
+    },
+    { status: 409 }
+  );
+}
 
     // Handle validation errors
     if (err.name === "ValidationError") {

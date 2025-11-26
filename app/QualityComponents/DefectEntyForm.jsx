@@ -436,7 +436,8 @@ export default function EndlineDashboard() {
             <h1 className="text-xl font-bold">
               Endline Hourly Dashboard —{" "}
               <span className="text-indigo-600">
-                {auth?.user_name || "User"}
+                {auth?.user_name || "User"}{" "}
+                {auth?.assigned_building && `(${auth?.assigned_building})`}
               </span>
             </h1>
             <p className="text-sm text-gray-600">Today: {todayLabel}</p>

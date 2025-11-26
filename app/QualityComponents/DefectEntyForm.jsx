@@ -252,146 +252,142 @@ export default function EndlineDashboard() {
     }
   };
 
-  const save = async () => {
-    const msg = validate();
-    if (msg) {
-      showToast(msg, "error");
-      return;
-    }
+ const save = async () => {
+  const msg = validate();
+  if (msg) {
+    showToast(msg, "error");
+    return;
+  }
 
-    // ---- ADD DUPLICATE VALIDATION HERE ----
-    // Check for duplicate entry (same hour + same line + same building)
-    const isDuplicate = rows.some(
-      (row) =>
-        row.hourLabel === form.hour &&
-        row.line === form.line &&
-        row.building === (auth?.assigned_building || auth?.building || "") &&
-        row._id !== editingId // Exclude current entry if editing
-    );
+  // ---- ADD DUPLICATE VALIDATION HERE ----
+  // Check for duplicate entry (same hour + same line + same building)
+  const isDuplicate = rows.some(row => 
+    row.hourLabel === form.hour && 
+    row.line === form.line &&
+    row.building === (auth?.assigned_building || auth?.building || "") &&
+    row._id !== editingId // Exclude current entry if editing
+  );
+  
+  if (isDuplicate && !editingId) {
+    showToast(`An entry for ${form.hour} - ${form.line} already exists. Please edit the existing entry instead of creating a new one.`, "error");
+    return;
+  }
+  // ---- END DUPLICATE VALIDATION ----
 
-    if (isDuplicate && !editingId) {
+  if (!userId) {
+    showToast("Missing user identity (auth).", "error");
+    return;
+  }
+
+  try {
+    setSaving(true);
+
+    const building = auth?.assigned_building || auth?.building || "";
+    if (!building) {
       showToast(
-        `An entry for ${form.hour} - ${form.line} already exists. Please edit the existing entry instead of creating a new one.`,
+        "Building information is missing. Please login again.",
         "error"
       );
       return;
     }
-    // ---- END DUPLICATE VALIDATION ----
 
-    if (!userId) {
-      showToast("Missing user identity (auth).", "error");
-      return;
-    }
+    const payload = {
+      hour: form.hour,
+      line: form.line,
+      building: building,
+      inspectedQty: Number(form.inspectedQty || 0),
+      passedQty: Number(form.passedQty || 0),
+      defectivePcs: Number(form.defectivePcs || 0),
+      afterRepair: Number(form.afterRepair || 0),
+      selectedDefects: (form.selectedDefects || []).map((d) => ({
+        name: d.name,
+        quantity: Number(d.quantity || 0),
+      })),
+    };
 
-    try {
-      setSaving(true);
+    let res;
+    let json;
 
-      const building = auth?.assigned_building || auth?.building || "";
-      if (!building) {
-        showToast(
-          "Building information is missing. Please login again.",
-          "error"
-        );
-        return;
+    if (editingId) {
+      // Update existing entry
+      res = await fetch(`/api/hourly-inspections?id=${editingId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+      json = await res.json();
+      if (!res.ok) {
+        console.error("Update error:", json);
+        throw new Error(json?.message || "Failed to update");
       }
-
-      const payload = {
-        hour: form.hour,
-        line: form.line,
+      showToast("Entry updated successfully!", "success");
+    } else {
+      // Create new entry
+      const requestBody = {
+        userId: userId,
+        userName: auth?.user_name || auth?.user?.user_name || "User",
         building: building,
-        inspectedQty: Number(form.inspectedQty || 0),
-        passedQty: Number(form.passedQty || 0),
-        defectivePcs: Number(form.defectivePcs || 0),
-        afterRepair: Number(form.afterRepair || 0),
-        selectedDefects: (form.selectedDefects || []).map((d) => ({
-          name: d.name,
-          quantity: Number(d.quantity || 0),
-        })),
+        entries: [payload],
+        reportDate: new Date().toISOString(),
       };
 
-      let res;
-      let json;
+      console.log("Sending POST request:", requestBody);
 
-      if (editingId) {
-        // Update existing entry
-        res = await fetch(`/api/hourly-inspections?id=${editingId}`, {
-          method: "PATCH",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(payload),
-        });
-        json = await res.json();
-        if (!res.ok) {
-          console.error("Update error:", json);
-          throw new Error(json?.message || "Failed to update");
-        }
-        showToast("Entry updated successfully!", "success");
-      } else {
-        // Create new entry
-        const requestBody = {
-          userId: userId,
-          userName: auth?.user_name || auth?.user?.user_name || "User",
-          building: building,
-          entries: [payload],
-          reportDate: new Date().toISOString(),
-        };
+      res = await fetch("/api/hourly-inspections", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(requestBody),
+      });
 
-        console.log("Sending POST request:", requestBody);
+      // Get response text first to see what we're actually receiving
+      const responseText = await res.text();
+      console.log("POST response status:", res.status);
+      console.log("POST response text (raw):", responseText);
 
-        res = await fetch("/api/hourly-inspections", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(requestBody),
-        });
-
-        // Get response text first to see what we're actually receiving
-        const responseText = await res.text();
-        console.log("POST response status:", res.status);
-        console.log("POST response text (raw):", responseText);
-
-        // Try to parse JSON, but handle empty or invalid JSON
-        let json = {};
-        try {
-          json =
-            responseText && responseText.trim() ? JSON.parse(responseText) : {};
-        } catch (parseError) {
-          console.error("Failed to parse response as JSON:", parseError);
-          console.error("Response text was:", responseText);
-          // If parsing fails, create a meaningful error
-          throw new Error(
-            `Invalid response from server: ${responseText.substring(0, 100)}`
-          );
-        }
-
-        console.log("POST response parsed:", json);
-
-        if (!res.ok) {
-          console.error("Save error - Status:", res.status);
-          console.error("Save error - Response text:", responseText);
-          console.error("Save error - Parsed JSON:", json);
-
-          // Try multiple ways to extract error message
-          const errorMessage =
-            json?.message ||
-            json?.error ||
-            (responseText &&
-            responseText.length > 0 &&
-            !responseText.startsWith("{")
-              ? responseText
-              : null) ||
-            `Failed to save (Status: ${res.status})`;
-          throw new Error(errorMessage);
-        }
-        showToast("Entry created successfully!", "success");
+      // Try to parse JSON, but handle empty or invalid JSON
+      let json = {};
+      try {
+        json =
+          responseText && responseText.trim() ? JSON.parse(responseText) : {};
+      } catch (parseError) {
+        console.error("Failed to parse response as JSON:", parseError);
+        console.error("Response text was:", responseText);
+        // If parsing fails, create a meaningful error
+        throw new Error(
+          `Invalid response from server: ${responseText.substring(0, 100)}`
+        );
       }
 
-      await fetchToday();
-      resetForm();
-    } catch (e) {
-      showToast(e.message || "Save failed", "error");
-    } finally {
-      setSaving(false);
+      console.log("POST response parsed:", json);
+
+      if (!res.ok) {
+        console.error("Save error - Status:", res.status);
+        console.error("Save error - Response text:", responseText);
+        console.error("Save error - Parsed JSON:", json);
+
+        // Try multiple ways to extract error message
+        const errorMessage =
+          json?.message ||
+          json?.error ||
+          (responseText &&
+          responseText.length > 0 &&
+          !responseText.startsWith("{")
+            ? responseText
+            : null) ||
+          `Failed to save (Status: ${res.status})`;
+        throw new Error(errorMessage);
+      }
+      showToast("Entry created successfully!", "success");
     }
-  };
+
+    await fetchToday();
+    resetForm();
+  } catch (e) {
+    showToast(e.message || "Save failed", "error");
+  } finally {
+    setSaving(false);
+  }
+};
 
   const validate = () => {
     if (!form.hour) return "Please select Working Hour.";

@@ -677,7 +677,7 @@ export default function EndlineDashboard() {
           return (
             <div key={line} className="border-b border-gray-100 pb-4 last:border-b-0 last:pb-0">
               {/* Line Header with Metrics */}
-              <div className="mb-3 rounded-lg border border-blue-200 bg-blue-50 p-3">
+              <div className="mb-3 rounded-lg border border-blue-300 bg-blue-200 p-3">
                 <div className="flex flex-wrap items-center justify-between gap-3">
                   <div className="flex items-center gap-3">
                     <h3 className="text-sm font-semibold text-gray-800">

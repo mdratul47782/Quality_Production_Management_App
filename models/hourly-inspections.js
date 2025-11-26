@@ -36,9 +36,10 @@ const HourlyInspectionSchema = new Schema(
 );
 
 // Index to avoid duplicate entries for the same user, date, hour, and building
+// Replace the existing index with:
 HourlyInspectionSchema.index(
-  { "user.id": 1, reportDate: 1, hourIndex: 1, building: 1 },
-  { unique: true }
+  { "user.id": 1, reportDate: 1, hourIndex: 1, building: 1, line: 1 },
+  { unique: true, name: "user_date_hour_building_line_unique" }
 );
 
 // Pre-save hook to calculate total defects (only for single document saves)

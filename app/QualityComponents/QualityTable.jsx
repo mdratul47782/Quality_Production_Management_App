@@ -38,6 +38,7 @@ function toLocalDateLabelFromInput(inputValue) {
   });
 }
 
+
 export default function QualityTable() {
   const { auth } = useAuth();
 

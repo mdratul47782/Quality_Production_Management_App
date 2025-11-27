@@ -32,24 +32,13 @@ const HourlyInspectionSchema = new Schema(
     line: { type: String, required: true },
     building: { type: String, required: true, trim: true }, // Add building field
   },
-  { timestamps: true, collection: "endline_hour_entries" } //endline_hour_entries
+  { timestamps: true, collection: "endline_hour_entries" }
 );
 
 // Index to avoid duplicate entries for the same user, date, hour, and building
-// Replace the existing index with:
-// In your hourly-inspections model file
 HourlyInspectionSchema.index(
-  { 
-    "user.id": 1, 
-    reportDate: 1, 
-    hourIndex: 1, 
-    building: 1, 
-    line: 1 
-  },
-  { 
-    unique: true, 
-    name: "unique_user_date_hour_building_line" 
-  }
+  { "user.id": 1, reportDate: 1, hourIndex: 1, building: 1 },
+  { unique: true }
 );
 
 // Pre-save hook to calculate total defects (only for single document saves)

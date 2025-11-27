@@ -99,11 +99,10 @@ function SearchableDefectPicker({
                 key={opt}
                 onMouseDown={(e) => e.preventDefault()}
                 onClick={() => selectValue(opt)}
-                className={`block w-full text-left px-2 py-1.5 text-sm ${
-                  idx === hi
-                    ? "bg-emerald-50 text-emerald-700"
-                    : "hover:bg-gray-50"
-                }`}
+                className={`block w-full text-left px-2 py-1.5 text-sm ${idx === hi
+                  ? "bg-emerald-50 text-emerald-700"
+                  : "hover:bg-gray-50"
+                  }`}
               >
                 {opt}
               </button>
@@ -220,9 +219,9 @@ export default function EndlineDashboard() {
       line: row.line || "",
       selectedDefects: Array.isArray(row.selectedDefects)
         ? row.selectedDefects.map((d) => ({
-            name: d.name || "",
-            quantity: String(d.quantity || ""),
-          }))
+          name: d.name || "",
+          quantity: String(d.quantity || ""),
+        }))
         : [],
       inspectedQty: String(row.inspectedQty || ""),
       passedQty: String(row.passedQty || ""),
@@ -252,142 +251,142 @@ export default function EndlineDashboard() {
     }
   };
 
- const save = async () => {
-  const msg = validate();
-  if (msg) {
-    showToast(msg, "error");
-    return;
-  }
-
-  // ---- ADD DUPLICATE VALIDATION HERE ----
-  // Check for duplicate entry (same hour + same line + same building)
-  const isDuplicate = rows.some(row => 
-    row.hourLabel === form.hour && 
-    row.line === form.line &&
-    row.building === (auth?.assigned_building || auth?.building || "") &&
-    row._id !== editingId // Exclude current entry if editing
-  );
-  
-  if (isDuplicate && !editingId) {
-    showToast(`An entry for ${form.hour} - ${form.line} already exists. Please edit the existing entry instead of creating a new one.`, "error");
-    return;
-  }
-  // ---- END DUPLICATE VALIDATION ----
-
-  if (!userId) {
-    showToast("Missing user identity (auth).", "error");
-    return;
-  }
-
-  try {
-    setSaving(true);
-
-    const building = auth?.assigned_building || auth?.building || "";
-    if (!building) {
-      showToast(
-        "Building information is missing. Please login again.",
-        "error"
-      );
+  const save = async () => {
+    const msg = validate();
+    if (msg) {
+      showToast(msg, "error");
       return;
     }
 
-    const payload = {
-      hour: form.hour,
-      line: form.line,
-      building: building,
-      inspectedQty: Number(form.inspectedQty || 0),
-      passedQty: Number(form.passedQty || 0),
-      defectivePcs: Number(form.defectivePcs || 0),
-      afterRepair: Number(form.afterRepair || 0),
-      selectedDefects: (form.selectedDefects || []).map((d) => ({
-        name: d.name,
-        quantity: Number(d.quantity || 0),
-      })),
-    };
+    // ---- ADD DUPLICATE VALIDATION HERE ----
+    // Check for duplicate entry (same hour + same line + same building)
+    const isDuplicate = rows.some(row =>
+      row.hourLabel === form.hour &&
+      row.line === form.line &&
+      row.building === (auth?.assigned_building || auth?.building || "") &&
+      row._id !== editingId // Exclude current entry if editing
+    );
 
-    let res;
-    let json;
+    if (isDuplicate && !editingId) {
+      showToast(`An entry for ${form.hour} - ${form.line} already exists. Please edit the existing entry instead of creating a new one.`, "error");
+      return;
+    }
+    // ---- END DUPLICATE VALIDATION ----
 
-    if (editingId) {
-      // Update existing entry
-      res = await fetch(`/api/hourly-inspections?id=${editingId}`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload),
-      });
-      json = await res.json();
-      if (!res.ok) {
-        console.error("Update error:", json);
-        throw new Error(json?.message || "Failed to update");
-      }
-      showToast("Entry updated successfully!", "success");
-    } else {
-      // Create new entry
-      const requestBody = {
-        userId: userId,
-        userName: auth?.user_name || auth?.user?.user_name || "User",
-        building: building,
-        entries: [payload],
-        reportDate: new Date().toISOString(),
-      };
-
-      console.log("Sending POST request:", requestBody);
-
-      res = await fetch("/api/hourly-inspections", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(requestBody),
-      });
-
-      // Get response text first to see what we're actually receiving
-      const responseText = await res.text();
-      console.log("POST response status:", res.status);
-      console.log("POST response text (raw):", responseText);
-
-      // Try to parse JSON, but handle empty or invalid JSON
-      let json = {};
-      try {
-        json =
-          responseText && responseText.trim() ? JSON.parse(responseText) : {};
-      } catch (parseError) {
-        console.error("Failed to parse response as JSON:", parseError);
-        console.error("Response text was:", responseText);
-        // If parsing fails, create a meaningful error
-        throw new Error(
-          `Invalid response from server: ${responseText.substring(0, 100)}`
-        );
-      }
-
-      console.log("POST response parsed:", json);
-
-      if (!res.ok) {
-        console.error("Save error - Status:", res.status);
-        console.error("Save error - Response text:", responseText);
-        console.error("Save error - Parsed JSON:", json);
-
-        // Try multiple ways to extract error message
-        const errorMessage =
-          json?.message ||
-          json?.error ||
-          (responseText &&
-          responseText.length > 0 &&
-          !responseText.startsWith("{")
-            ? responseText
-            : null) ||
-          `Failed to save (Status: ${res.status})`;
-        throw new Error(errorMessage);
-      }
-      showToast("Entry created successfully!", "success");
+    if (!userId) {
+      showToast("Missing user identity (auth).", "error");
+      return;
     }
 
-    await fetchToday();
-    resetForm();
-  } catch (e) {
-    showToast(e.message || "Save failed", "error");
-  } finally {
-    setSaving(false);
-  }
-};
+    try {
+      setSaving(true);
+
+      const building = auth?.assigned_building || auth?.building || "";
+      if (!building) {
+        showToast(
+          "Building information is missing. Please login again.",
+          "error"
+        );
+        return;
+      }
+
+      const payload = {
+        hour: form.hour,
+        line: form.line,
+        building: building,
+        inspectedQty: Number(form.inspectedQty || 0),
+        passedQty: Number(form.passedQty || 0),
+        defectivePcs: Number(form.defectivePcs || 0),
+        afterRepair: Number(form.afterRepair || 0),
+        selectedDefects: (form.selectedDefects || []).map((d) => ({
+          name: d.name,
+          quantity: Number(d.quantity || 0),
+        })),
+      };
+
+      let res;
+      let json;
+
+      if (editingId) {
+        // Update existing entry
+        res = await fetch(`/api/hourly-inspections?id=${editingId}`, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(payload),
+        });
+        json = await res.json();
+        if (!res.ok) {
+          console.error("Update error:", json);
+          throw new Error(json?.message || "Failed to update");
+        }
+        showToast("Entry updated successfully!", "success");
+      } else {
+        // Create new entry
+        const requestBody = {
+          userId: userId,
+          userName: auth?.user_name || auth?.user?.user_name || "User",
+          building: building,
+          entries: [payload],
+          reportDate: new Date().toISOString(),
+        };
+
+        console.log("Sending POST request:", requestBody);
+
+        res = await fetch("/api/hourly-inspections", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(requestBody),
+        });
+
+        // Get response text first to see what we're actually receiving
+        const responseText = await res.text();
+        console.log("POST response status:", res.status);
+        console.log("POST response text (raw):", responseText);
+
+        // Try to parse JSON, but handle empty or invalid JSON
+        let json = {};
+        try {
+          json =
+            responseText && responseText.trim() ? JSON.parse(responseText) : {};
+        } catch (parseError) {
+          console.error("Failed to parse response as JSON:", parseError);
+          console.error("Response text was:", responseText);
+          // If parsing fails, create a meaningful error
+          throw new Error(
+            `Invalid response from server: ${responseText.substring(0, 100)}`
+          );
+        }
+
+        console.log("POST response parsed:", json);
+
+        if (!res.ok) {
+          console.error("Save error - Status:", res.status);
+          console.error("Save error - Response text:", responseText);
+          console.error("Save error - Parsed JSON:", json);
+
+          // Try multiple ways to extract error message
+          const errorMessage =
+            json?.message ||
+            json?.error ||
+            (responseText &&
+              responseText.length > 0 &&
+              !responseText.startsWith("{")
+              ? responseText
+              : null) ||
+            `Failed to save (Status: ${res.status})`;
+          throw new Error(errorMessage);
+        }
+        showToast("Entry created successfully!", "success");
+      }
+
+      await fetchToday();
+      resetForm();
+    } catch (e) {
+      showToast(e.message || "Save failed", "error");
+    } finally {
+      setSaving(false);
+    }
+  };
 
   const validate = () => {
     if (!form.hour) return "Please select Working Hour.";
@@ -418,20 +417,19 @@ export default function EndlineDashboard() {
       {toast && (
         <div className="fixed right-4 top-4 z-50">
           <div
-            className={`flex items-start gap-2 rounded-lg border px-4 py-3 shadow-lg ${
-              toast.type === "success"
-                ? "border-emerald-200 bg-emerald-50 text-emerald-800"
-                : toast.type === "error"
+            className={`flex items-start gap-2 rounded-lg border px-4 py-3 shadow-lg ${toast.type === "success"
+              ? "border-emerald-200 bg-emerald-50 text-emerald-800"
+              : toast.type === "error"
                 ? "border-red-200 bg-red-50 text-red-800"
                 : "border-blue-200 bg-blue-50 text-blue-800"
-            }`}
+              }`}
           >
             <span className="text-lg">
               {toast.type === "success"
                 ? "✅"
                 : toast.type === "error"
-                ? "⚠️"
-                : "ℹ️"}
+                  ? "⚠️"
+                  : "ℹ️"}
             </span>
             <div className="text-sm">
               <p className="font-medium">{toast.message}</p>
@@ -647,287 +645,283 @@ export default function EndlineDashboard() {
           </div>
           {/* Right: Entries */}
           <div>
-  <div className="rounded-lg border border-gray-200 bg-white p-4 shadow-sm">
-    <div className="mb-3 flex items-center justify-between">
-      <h2 className="text-sm font-semibold text-gray-700">
-        Today&apos;s Entries ({rows.length})
-      </h2>
-      {loading && (
-        <span className="text-xs text-gray-500">Loading...</span>
-      )}
-    </div>
-
-    {rows.length === 0 ? (
-      <div className="rounded border border-dashed border-gray-300 p-6 text-center text-sm text-gray-500">
-        No entries yet for {todayLabel}.
-      </div>
-    ) : (
-      <div className="space-y-6">
-        {/* Group entries by line */}
-        {lineOptions.map((line) => {
-          const lineEntries = rows.filter((r) => r.line === line);
-          
-          if (lineEntries.length === 0) return null;
-
-          const lineInspected = lineEntries.reduce((acc, r) => acc + (r.inspectedQty || 0), 0);
-          const linePassed = lineEntries.reduce((acc, r) => acc + (r.passedQty || 0), 0);
-          const lineDefects = lineEntries.reduce((acc, r) => acc + (r.totalDefects || 0), 0);
-          const lineRFT = lineInspected > 0 ? ((linePassed / lineInspected) * 100).toFixed(1) : 0;
-
-          return (
-            <div key={line} className="border-b border-gray-100 pb-4 last:border-b-0 last:pb-0">
-              {/* Line Header with Metrics */}
-              <div className="mb-3 rounded-lg border border-blue-300 bg-blue-200 p-3">
-                <div className="flex flex-wrap items-center justify-between gap-3">
-                  <div className="flex items-center gap-3">
-                    <h3 className="text-sm font-semibold text-gray-800">
-                      {line} - Hourly Entries
-                    </h3>
-                    <span className="text-xs text-gray-500 bg-white px-2 py-1 rounded">
-                      {lineEntries.length} {lineEntries.length === 1 ? 'entry' : 'entries'}
-                    </span>
-                  </div>
-                  
-                  <div className="flex flex-wrap gap-4">
-                    <div className="text-center">
-                      <div className="text-xs text-gray-500">Inspected</div>
-                      <div className="text-sm font-semibold text-blue-600">{lineInspected}</div>
-                    </div>
-                    <div className="text-center">
-                      <div className="text-xs text-gray-500">Passed</div>
-                      <div className="text-sm font-semibold text-green-600">{linePassed}</div>
-                    </div>
-                    <div className="text-center">
-                      <div className="text-xs text-gray-500">Defects</div>
-                      <div className="text-sm font-semibold text-red-600">{lineDefects}</div>
-                    </div>
-                    <div className="text-center">
-                      <div className="text-xs text-gray-500">RFT%</div>
-                      <div className={`text-sm font-semibold ${
-                        lineRFT >= 95 ? 'text-green-600' : 
-                        lineRFT >= 90 ? 'text-yellow-600' : 'text-red-600'
-                      }`}>
-                        {lineRFT}%
-                      </div>
-                    </div>
-                  </div>
-                </div>
+            <div className="rounded-lg border border-gray-200 bg-white p-4 shadow-sm">
+              <div className="mb-3 flex items-center justify-between">
+                <h2 className="text-sm font-semibold text-gray-700">
+                  Today&apos;s Entries ({rows.length})
+                </h2>
+                {loading && (
+                  <span className="text-xs text-gray-500">Loading...</span>
+                )}
               </div>
 
-              {/* Entries for this line */}
-              <ul className="space-y-3">
-                {lineEntries.map((r) => (
-                  <li
-                    key={r._id}
-                    className={`rounded border p-3 ${
-                      editingId === r._id
-                        ? "border-indigo-300 bg-indigo-50"
-                        : "border-gray-200 hover:bg-gray-50"
-                    }`}
-                  >
-                    <div className="mb-1 flex items-center justify-between">
-                      <div className="text-sm font-semibold text-gray-800">
-                        {r.hourLabel}
-                        {r.building && ` (${r.building})`}
-                      </div>
-                      <div className="flex items-center gap-2">
-                        <span className="text-xs text-gray-500">
-                          {new Date(
-                            r.updatedAt || r.createdAt
-                          ).toLocaleTimeString()}
-                        </span>
-                        <button
-                          onClick={() => handleEdit(r)}
-                          className="rounded bg-blue-100 px-2 py-0.5 text-xs text-blue-700 hover:bg-blue-200"
-                          title="Edit"
-                        >
-                          Edit
-                        </button>
-                        <button
-                          onClick={() => handleDelete(r._id)}
-                          disabled={deleting === r._id}
-                          className="rounded bg-red-100 px-2 py-0.5 text-xs text-red-700 hover:bg-red-200 disabled:opacity-50"
-                          title="Delete"
-                        >
-                          {deleting === r._id ? "..." : "Delete"}
-                        </button>
-                      </div>
-                    </div>
-                    <div className="grid grid-cols-2 gap-2 text-xs text-gray-700 md:grid-cols-5">
-                      <div>
-                        <span className="text-gray-500">Inspected:</span>{" "}
-                        {r.inspectedQty}
-                      </div>
-                      <div>
-                        <span className="text-gray-500">Passed:</span>{" "}
-                        {r.passedQty}
-                      </div>
-                      <div>
-                        <span className="text-gray-500">Def.Pcs:</span>{" "}
-                        {r.defectivePcs}
-                      </div>
-                      <div>
-                        <span className="text-gray-500">After Repair:</span>{" "}
-                        {r.afterRepair}
-                      </div>
-                      <div>
-                        <span className="text-gray-500">Total Defects:</span>{" "}
-                        {r.totalDefects}
-                      </div>
-                    </div>
-                    {Array.isArray(r.selectedDefects) &&
-                      r.selectedDefects.length > 0 && (
-                        <div className="mt-2 flex flex-wrap gap-1">
-                          {r.selectedDefects.map((d, i) => (
-                            <span
-                              key={`${d.name}-${i}`}
-                              className="rounded bg-gray-100 px-2 py-0.5 text-[11px] text-gray-700"
-                            >
-                              {d.name}: {d.quantity}
-                            </span>
-                          ))}
-                        </div>
-                      )}
-                  </li>
-                ))}
-              </ul>
-            </div>
-          );
-        })}
-
-        {/* Show entries without line (if any) */}
-        {(() => {
-          const noLineEntries = rows.filter((r) => !r.line || !lineOptions.includes(r.line));
-          if (noLineEntries.length === 0) return null;
-
-          const otherInspected = noLineEntries.reduce((acc, r) => acc + (r.inspectedQty || 0), 0);
-          const otherPassed = noLineEntries.reduce((acc, r) => acc + (r.passedQty || 0), 0);
-          const otherDefects = noLineEntries.reduce((acc, r) => acc + (r.totalDefects || 0), 0);
-          const otherRFT = otherInspected > 0 ? ((otherPassed / otherInspected) * 100).toFixed(1) : 0;
-
-          return (
-            <div className="border-b border-gray-100 pb-4 last:border-b-0 last:pb-0">
-              {/* Other Entries Header with Metrics */}
-              <div className="mb-3 rounded-lg border border-yellow-200 bg-yellow-50 p-3">
-                <div className="flex flex-wrap items-center justify-between gap-3">
-                  <div className="flex items-center gap-3">
-                    <h3 className="text-sm font-semibold text-gray-800">
-                      Other Entries
-                    </h3>
-                    <span className="text-xs text-gray-500 bg-white px-2 py-1 rounded">
-                      {noLineEntries.length} {noLineEntries.length === 1 ? 'entry' : 'entries'}
-                    </span>
-                  </div>
-                  
-                  <div className="flex flex-wrap gap-4">
-                    <div className="text-center">
-                      <div className="text-xs text-gray-500">Inspected</div>
-                      <div className="text-sm font-semibold text-blue-600">{otherInspected}</div>
-                    </div>
-                    <div className="text-center">
-                      <div className="text-xs text-gray-500">Passed</div>
-                      <div className="text-sm font-semibold text-green-600">{otherPassed}</div>
-                    </div>
-                    <div className="text-center">
-                      <div className="text-xs text-gray-500">Defects</div>
-                      <div className="text-sm font-semibold text-red-600">{otherDefects}</div>
-                    </div>
-                    <div className="text-center">
-                      <div className="text-xs text-gray-500">RFT%</div>
-                      <div className={`text-sm font-semibold ${
-                        otherRFT >= 95 ? 'text-green-600' : 
-                        otherRFT >= 90 ? 'text-yellow-600' : 'text-red-600'
-                      }`}>
-                        {otherRFT}%
-                      </div>
-                    </div>
-                  </div>
+              {rows.length === 0 ? (
+                <div className="rounded border border-dashed border-gray-300 p-6 text-center text-sm text-gray-500">
+                  No entries yet for {todayLabel}.
                 </div>
-              </div>
+              ) : (
+                <div className="space-y-6">
+                  {/* Group entries by line */}
+                  {lineOptions.map((line) => {
+                    const lineEntries = rows.filter((r) => r.line === line);
 
-              <ul className="space-y-3">
-                {noLineEntries.map((r) => (
-                  <li
-                    key={r._id}
-                    className={`rounded border p-3 ${
-                      editingId === r._id
-                        ? "border-indigo-300 bg-indigo-50"
-                        : "border-gray-200 hover:bg-gray-50"
-                    }`}
-                  >
-                    <div className="mb-1 flex items-center justify-between">
-                      <div className="text-sm font-semibold text-gray-800">
-                        {r.hourLabel} - {r.line || "No Line"}{" "}
-                        {r.building && `(${r.building})`}
-                      </div>
-                      <div className="flex items-center gap-2">
-                        <span className="text-xs text-gray-500">
-                          {new Date(
-                            r.updatedAt || r.createdAt
-                          ).toLocaleTimeString()}
-                        </span>
-                        <button
-                          onClick={() => handleEdit(r)}
-                          className="rounded bg-blue-100 px-2 py-0.5 text-xs text-blue-700 hover:bg-blue-200"
-                          title="Edit"
-                        >
-                          Edit
-                        </button>
-                        <button
-                          onClick={() => handleDelete(r._id)}
-                          disabled={deleting === r._id}
-                          className="rounded bg-red-100 px-2 py-0.5 text-xs text-red-700 hover:bg-red-200 disabled:opacity-50"
-                          title="Delete"
-                        >
-                          {deleting === r._id ? "..." : "Delete"}
-                        </button>
-                      </div>
-                    </div>
-                    <div className="grid grid-cols-2 gap-2 text-xs text-gray-700 md:grid-cols-5">
-                      <div>
-                        <span className="text-gray-500">Inspected:</span>{" "}
-                        {r.inspectedQty}
-                      </div>
-                      <div>
-                        <span className="text-gray-500">Passed:</span>{" "}
-                        {r.passedQty}
-                      </div>
-                      <div>
-                        <span className="text-gray-500">Def.Pcs:</span>{" "}
-                        {r.defectivePcs}
-                      </div>
-                      <div>
-                        <span className="text-gray-500">After Repair:</span>{" "}
-                        {r.afterRepair}
-                      </div>
-                      <div>
-                        <span className="text-gray-500">Total Defects:</span>{" "}
-                        {r.totalDefects}
-                      </div>
-                    </div>
-                    {Array.isArray(r.selectedDefects) &&
-                      r.selectedDefects.length > 0 && (
-                        <div className="mt-2 flex flex-wrap gap-1">
-                          {r.selectedDefects.map((d, i) => (
-                            <span
-                              key={`${d.name}-${i}`}
-                              className="rounded bg-gray-100 px-2 py-0.5 text-[11px] text-gray-700"
-                            >
-                              {d.name}: {d.quantity}
-                            </span>
-                          ))}
+                    if (lineEntries.length === 0) return null;
+
+                    const lineInspected = lineEntries.reduce((acc, r) => acc + (r.inspectedQty || 0), 0);
+                    const linePassed = lineEntries.reduce((acc, r) => acc + (r.passedQty || 0), 0);
+                    const lineDefects = lineEntries.reduce((acc, r) => acc + (r.totalDefects || 0), 0);
+                    const lineRFT = lineInspected > 0 ? ((linePassed / lineInspected) * 100).toFixed(1) : 0;
+
+                    return (
+                      <div key={line} className="border-b border-gray-100 pb-4 last:border-b-0 last:pb-0">
+                        {/* Line Header with Metrics */}
+                        <div className="mb-3 rounded-lg border border-blue-300 bg-blue-200 p-3">
+                          <div className="flex flex-wrap items-center justify-between gap-3">
+                            <div className="flex items-center gap-3">
+                              <h3 className="text-sm font-semibold text-gray-800">
+                                {line} - Hourly Entries
+                              </h3>
+                              <span className="text-xs text-gray-500 bg-white px-2 py-1 rounded">
+                                {lineEntries.length} {lineEntries.length === 1 ? 'entry' : 'entries'}
+                              </span>
+                            </div>
+
+                            <div className="flex flex-wrap gap-4">
+                              <div className="text-center">
+                                <div className="text-xs text-gray-500">Inspected</div>
+                                <div className="text-sm font-semibold text-blue-600">{lineInspected}</div>
+                              </div>
+                              <div className="text-center">
+                                <div className="text-xs text-gray-500">Passed</div>
+                                <div className="text-sm font-semibold text-green-600">{linePassed}</div>
+                              </div>
+                              <div className="text-center">
+                                <div className="text-xs text-gray-500">Defects</div>
+                                <div className="text-sm font-semibold text-red-600">{lineDefects}</div>
+                              </div>
+                              <div className="text-center">
+                                <div className="text-xs text-gray-500">RFT%</div>
+                                <div className={`text-sm font-semibold ${lineRFT >= 95 ? 'text-green-600' :
+                                  lineRFT >= 90 ? 'text-yellow-600' : 'text-red-600'
+                                  }`}>
+                                  {lineRFT}%
+                                </div>
+                              </div>
+                            </div>
+                          </div>
                         </div>
-                      )}
-                  </li>
-                ))}
-              </ul>
+
+                        {/* Entries for this line */}
+                        <ul className="space-y-3">
+                          {lineEntries.map((r) => (
+                            <li
+                              key={r._id}
+                              className={`rounded border p-3 ${editingId === r._id
+                                ? "border-indigo-300 bg-indigo-50"
+                                : "border-gray-200 hover:bg-gray-50"
+                                }`}
+                            >
+                              <div className="mb-1 flex items-center justify-between">
+                                <div className="text-sm font-semibold text-gray-800">
+                                  {r.hourLabel}
+                                  {r.building && ` (${r.building})`}
+                                </div>
+                                <div className="flex items-center gap-2">
+                                  <span className="text-xs text-gray-500">
+                                    {new Date(
+                                      r.updatedAt || r.createdAt
+                                    ).toLocaleTimeString()}
+                                  </span>
+                                  <button
+                                    onClick={() => handleEdit(r)}
+                                    className="rounded bg-blue-100 px-2 py-0.5 text-xs text-blue-700 hover:bg-blue-200"
+                                    title="Edit"
+                                  >
+                                    Edit
+                                  </button>
+                                  <button
+                                    onClick={() => handleDelete(r._id)}
+                                    disabled={deleting === r._id}
+                                    className="rounded bg-red-100 px-2 py-0.5 text-xs text-red-700 hover:bg-red-200 disabled:opacity-50"
+                                    title="Delete"
+                                  >
+                                    {deleting === r._id ? "..." : "Delete"}
+                                  </button>
+                                </div>
+                              </div>
+                              <div className="grid grid-cols-2 gap-2 text-xs text-gray-700 md:grid-cols-5">
+                                <div>
+                                  <span className="text-gray-500">Inspected:</span>{" "}
+                                  {r.inspectedQty}
+                                </div>
+                                <div>
+                                  <span className="text-gray-500">Passed:</span>{" "}
+                                  {r.passedQty}
+                                </div>
+                                <div>
+                                  <span className="text-gray-500">Def.Pcs:</span>{" "}
+                                  {r.defectivePcs}
+                                </div>
+                                <div>
+                                  <span className="text-gray-500">After Repair:</span>{" "}
+                                  {r.afterRepair}
+                                </div>
+                                <div>
+                                  <span className="text-gray-500">Total Defects:</span>{" "}
+                                  {r.totalDefects}
+                                </div>
+                              </div>
+                              {Array.isArray(r.selectedDefects) &&
+                                r.selectedDefects.length > 0 && (
+                                  <div className="mt-2 flex flex-wrap gap-1">
+                                    {r.selectedDefects.map((d, i) => (
+                                      <span
+                                        key={`${d.name}-${i}`}
+                                        className="rounded bg-gray-100 px-2 py-0.5 text-[11px] text-gray-700"
+                                      >
+                                        {d.name}: {d.quantity}
+                                      </span>
+                                    ))}
+                                  </div>
+                                )}
+                            </li>
+                          ))}
+                        </ul>
+                      </div>
+                    );
+                  })}
+
+                  {/* Show entries without line (if any) */}
+                  {(() => {
+                    const noLineEntries = rows.filter((r) => !r.line || !lineOptions.includes(r.line));
+                    if (noLineEntries.length === 0) return null;
+
+                    const otherInspected = noLineEntries.reduce((acc, r) => acc + (r.inspectedQty || 0), 0);
+                    const otherPassed = noLineEntries.reduce((acc, r) => acc + (r.passedQty || 0), 0);
+                    const otherDefects = noLineEntries.reduce((acc, r) => acc + (r.totalDefects || 0), 0);
+                    const otherRFT = otherInspected > 0 ? ((otherPassed / otherInspected) * 100).toFixed(1) : 0;
+
+                    return (
+                      <div className="border-b border-gray-100 pb-4 last:border-b-0 last:pb-0">
+                        {/* Other Entries Header with Metrics */}
+                        <div className="mb-3 rounded-lg border border-yellow-200 bg-yellow-50 p-3">
+                          <div className="flex flex-wrap items-center justify-between gap-3">
+                            <div className="flex items-center gap-3">
+                              <h3 className="text-sm font-semibold text-gray-800">
+                                Other Entries
+                              </h3>
+                              <span className="text-xs text-gray-500 bg-white px-2 py-1 rounded">
+                                {noLineEntries.length} {noLineEntries.length === 1 ? 'entry' : 'entries'}
+                              </span>
+                            </div>
+
+                            <div className="flex flex-wrap gap-4">
+                              <div className="text-center">
+                                <div className="text-xs text-gray-500">Inspected</div>
+                                <div className="text-sm font-semibold text-blue-600">{otherInspected}</div>
+                              </div>
+                              <div className="text-center">
+                                <div className="text-xs text-gray-500">Passed</div>
+                                <div className="text-sm font-semibold text-green-600">{otherPassed}</div>
+                              </div>
+                              <div className="text-center">
+                                <div className="text-xs text-gray-500">Defects</div>
+                                <div className="text-sm font-semibold text-red-600">{otherDefects}</div>
+                              </div>
+                              <div className="text-center">
+                                <div className="text-xs text-gray-500">RFT%</div>
+                                <div className={`text-sm font-semibold ${otherRFT >= 95 ? 'text-green-600' :
+                                  otherRFT >= 90 ? 'text-yellow-600' : 'text-red-600'
+                                  }`}>
+                                  {otherRFT}%
+                                </div>
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+
+                        <ul className="space-y-3">
+                          {noLineEntries.map((r) => (
+                            <li
+                              key={r._id}
+                              className={`rounded border p-3 ${editingId === r._id
+                                ? "border-indigo-300 bg-indigo-50"
+                                : "border-gray-200 hover:bg-gray-50"
+                                }`}
+                            >
+                              <div className="mb-1 flex items-center justify-between">
+                                <div className="text-sm font-semibold text-gray-800">
+                                  {r.hourLabel} - {r.line || "No Line"}{" "}
+                                  {r.building && `(${r.building})`}
+                                </div>
+                                <div className="flex items-center gap-2">
+                                  <span className="text-xs text-gray-500">
+                                    {new Date(
+                                      r.updatedAt || r.createdAt
+                                    ).toLocaleTimeString()}
+                                  </span>
+                                  <button
+                                    onClick={() => handleEdit(r)}
+                                    className="rounded bg-blue-100 px-2 py-0.5 text-xs text-blue-700 hover:bg-blue-200"
+                                    title="Edit"
+                                  >
+                                    Edit
+                                  </button>
+                                  <button
+                                    onClick={() => handleDelete(r._id)}
+                                    disabled={deleting === r._id}
+                                    className="rounded bg-red-100 px-2 py-0.5 text-xs text-red-700 hover:bg-red-200 disabled:opacity-50"
+                                    title="Delete"
+                                  >
+                                    {deleting === r._id ? "..." : "Delete"}
+                                  </button>
+                                </div>
+                              </div>
+                              <div className="grid grid-cols-2 gap-2 text-xs text-gray-700 md:grid-cols-5">
+                                <div>
+                                  <span className="text-gray-500">Inspected:</span>{" "}
+                                  {r.inspectedQty}
+                                </div>
+                                <div>
+                                  <span className="text-gray-500">Passed:</span>{" "}
+                                  {r.passedQty}
+                                </div>
+                                <div>
+                                  <span className="text-gray-500">Def.Pcs:</span>{" "}
+                                  {r.defectivePcs}
+                                </div>
+                                <div>
+                                  <span className="text-gray-500">After Repair:</span>{" "}
+                                  {r.afterRepair}
+                                </div>
+                                <div>
+                                  <span className="text-gray-500">Total Defects:</span>{" "}
+                                  {r.totalDefects}
+                                </div>
+                              </div>
+                              {Array.isArray(r.selectedDefects) &&
+                                r.selectedDefects.length > 0 && (
+                                  <div className="mt-2 flex flex-wrap gap-1">
+                                    {r.selectedDefects.map((d, i) => (
+                                      <span
+                                        key={`${d.name}-${i}`}
+                                        className="rounded bg-gray-100 px-2 py-0.5 text-[11px] text-gray-700"
+                                      >
+                                        {d.name}: {d.quantity}
+                                      </span>
+                                    ))}
+                                  </div>
+                                )}
+                            </li>
+                          ))}
+                        </ul>
+                      </div>
+                    );
+                  })()}
+                </div>
+              )}
             </div>
-          );
-        })()}
-      </div>
-    )}
-  </div>
-</div>
+          </div>
         </div>
       </div>
     </div>

@@ -19,7 +19,7 @@ const buyers = [
   "Fifth Avenur",
 ];
 
-const lines = ["Line-1", "Line-2", "Line-3"];
+const lines = ["Line-1", "Line-2", "Line-3"]
 
 function getTodayDateString() {
   return new Date().toISOString().slice(0, 10);
@@ -46,21 +46,24 @@ export default function LineInfoRegisterPage() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
 
-  useEffect(() => {
-    if (!auth) return;
-    if (!auth.assigned_building) {
-      setLoading(false);
-      return;
-    }
 
-    setFormValues((prev) => ({
-      ...prev,
-      assigned_building: auth.assigned_building,
-    }));
+ useEffect(() => {
+  if (!auth) return;
+  if (!auth.assigned_building) {
+    setLoading(false);
+    return;
+  }
 
-    fetchRecords(auth.assigned_building);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [auth?.assigned_building]);
+  setFormValues((prev) => ({
+    ...prev,
+    assigned_building: auth.assigned_building,
+    // date আলাদা selectedDate থেকে না, নিজের ভেতরেই থাকবে
+  }));
+
+  fetchRecords(auth.assigned_building);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+}, [auth?.assigned_building]);
+
 
   const fetchRecords = async (assignedBuilding) => {
     setLoading(true);
@@ -68,10 +71,12 @@ export default function LineInfoRegisterPage() {
       const params = new URLSearchParams();
       if (assignedBuilding)
         params.set("assigned_building", assignedBuilding);
+     
 
-      const res = await fetch(`/api/line-info-register?${params.toString()}`, {
-        cache: "no-store",
-      });
+      const res = await fetch(
+        `/api/line-info-register?${params.toString()}`,
+        { cache: "no-store" }
+      );
       const result = await res.json();
       if (result.success) {
         setRecords(result.data || []);
@@ -89,6 +94,7 @@ export default function LineInfoRegisterPage() {
     setFormValues({
       ...makeEmptyForm(),
       assigned_building: auth?.assigned_building || "",
+      date: selectedDate,
     });
   };
 
@@ -170,19 +176,19 @@ export default function LineInfoRegisterPage() {
   };
 
   const handleEditClick = (record) => {
-    setEditingId(record._id);
-    setFormValues({
-      buyer: record.buyer || "",
-      assigned_building: record.assigned_building || "",
-      line: record.line || "",
-      style: record.style || "",
-      item: record.item || "",
-      color: record.color || "",
-      smv: record.smv || "",
-      runDay: record.runDay || "",
-      date: record.date || getTodayDateString(),
-    });
-  };
+  setEditingId(record._id);
+  setFormValues({
+    buyer: record.buyer || "",
+    assigned_building: record.assigned_building || "",
+    line: record.line || "",
+    style: record.style || "",
+    item: record.item || "",
+    color: record.color || "",
+    smv: record.smv || "",
+    runDay: record.runDay || "",
+    date: record.date || getTodayDateString(),
+  });
+};
 
   if (!auth) {
     return (
@@ -246,7 +252,7 @@ export default function LineInfoRegisterPage() {
 
             {records.length === 0 ? (
               <p className="text-xs text-gray-500">
-                No line info saved yet for this building.
+                No line info saved yet for this date & building.
               </p>
             ) : (
               <ul className="space-y-2 max-h-[360px] overflow-auto text-sm">
@@ -291,7 +297,10 @@ export default function LineInfoRegisterPage() {
             </h3>
             <dl className="mt-2 text-xs text-gray-600 space-y-1">
               <Row label="Date" value={formValues.date} />
-              <Row label="Assigned Building" value={auth.assigned_building} />
+              <Row
+                label="Assigned Building"
+                value={auth.assigned_building}
+              />
               <Row label="Buyer" value={formValues.buyer} />
               <Row label="Line" value={formValues.line} />
               <Row label="Style" value={formValues.style} />
@@ -318,6 +327,7 @@ export default function LineInfoRegisterPage() {
               value={formValues.date}
               onChange={(e) => {
                 setFormValues({ ...formValues, date: e.target.value });
+                
               }}
               className="w-full rounded-lg border px-3 py-2 focus:ring-2 focus:ring-sky-400 outline-none"
             />

@@ -1,5 +1,6 @@
 "use client";
 import { useAuth } from "@/app/hooks/useAuth";
+import Image from "next/image";
 import React, { useEffect, useMemo, useState } from "react";
 
 // -------- helpers --------
@@ -11,7 +12,7 @@ const defectOptions = [
   "303 - RUN OFF STITCH",
 ];
 
-const lineOptions = ["Line-1", "Line-2", "Line-3"];
+const lineOptions = ["Line-1", "Line-2", "Line-3"]; // Adding line options
 
 function toLocalDateLabel(d = new Date()) {
   return d.toLocaleDateString(undefined, {
@@ -30,7 +31,7 @@ function getUserIdFromAuth(auth) {
   return auth?.user?.id || auth?.user?._id || auth?.id || auth?._id || null;
 }
 
-// Searchable Defect Picker Component (dark themed)
+// Searchable Defect Picker Component
 function SearchableDefectPicker({
   options,
   onSelect,
@@ -83,7 +84,7 @@ function SearchableDefectPicker({
             setOpen(false);
           }
         }}
-        className="w-full rounded-xl border border-emerald-500/30 bg-slate-900/60 px-3 py-2 text-sm text-slate-100 placeholder:text-slate-500 focus:border-emerald-400 focus:outline-none focus:ring-2 focus:ring-emerald-500/60"
+        className="w-full rounded-xl border border-slate-700 bg-slate-900/60 px-3 py-2 text-sm text-slate-100 placeholder:text-slate-500 focus:border-cyan-500 focus:outline-none focus:ring-2 focus:ring-cyan-500/40"
         placeholder={placeholder}
         role="combobox"
         aria-expanded={open}
@@ -91,7 +92,7 @@ function SearchableDefectPicker({
       />
 
       {open && (
-        <div className="absolute z-20 mt-2 max-h-60 w-full overflow-auto rounded-xl border border-slate-700 bg-slate-900/95 shadow-xl backdrop-blur">
+        <div className="absolute z-20 mt-1 max-h-60 w-full overflow-auto rounded-xl border border-slate-700 bg-slate-950/95 shadow-xl shadow-black/40">
           {filtered.length ? (
             filtered.map((opt, idx) => (
               <button
@@ -101,15 +102,15 @@ function SearchableDefectPicker({
                 onClick={() => selectValue(opt)}
                 className={`block w-full px-3 py-2 text-left text-sm transition ${
                   idx === hi
-                    ? "bg-emerald-500/20 text-emerald-300"
-                    : "text-slate-200 hover:bg-slate-800/80"
+                    ? "bg-cyan-500/15 text-cyan-200"
+                    : "text-slate-100 hover:bg-slate-800/80"
                 }`}
               >
                 {opt}
               </button>
             ))
           ) : (
-            <div className="px-3 py-3 text-sm text-slate-400">No results</div>
+            <div className="px-3 py-2 text-sm text-slate-400">No results</div>
           )}
         </div>
       )}
@@ -309,6 +310,7 @@ export default function EndlineDashboard() {
       };
 
       let res;
+      let json;
 
       if (editingId) {
         // Update existing entry
@@ -317,7 +319,7 @@ export default function EndlineDashboard() {
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify(payload),
         });
-        const json = await res.json();
+        json = await res.json();
         if (!res.ok) {
           console.error("Update error:", json);
           throw new Error(json?.message || "Failed to update");
@@ -345,9 +347,9 @@ export default function EndlineDashboard() {
         console.log("POST response status:", res.status);
         console.log("POST response text (raw):", responseText);
 
-        let json = {};
+        let parsed = {};
         try {
-          json =
+          parsed =
             responseText && responseText.trim()
               ? JSON.parse(responseText)
               : {};
@@ -358,6 +360,7 @@ export default function EndlineDashboard() {
             `Invalid response from server: ${responseText.substring(0, 100)}`
           );
         }
+        json = parsed;
 
         console.log("POST response parsed:", json);
 
@@ -413,65 +416,17 @@ export default function EndlineDashboard() {
     setTimeout(() => setToast(null), 4000);
   };
 
-  // ---- GLOBAL SUMMARY (for top cards) ----
-  const {
-    totalInspected,
-    totalPassed,
-    totalDefects,
-    globalRFT,
-    distinctLines,
-  } = useMemo(() => {
-    if (!rows || !rows.length) {
-      return {
-        totalInspected: 0,
-        totalPassed: 0,
-        totalDefects: 0,
-        globalRFT: 0,
-        distinctLines: 0,
-      };
-    }
-
-    let inspected = 0;
-    let passed = 0;
-    let defects = 0;
-    const lineSet = new Set();
-
-    rows.forEach((r) => {
-      inspected += r.inspectedQty || 0;
-      passed += r.passedQty || 0;
-      defects += r.totalDefects || 0;
-      if (r.line) lineSet.add(r.line);
-    });
-
-    const rft = inspected > 0 ? (passed / inspected) * 100 : 0;
-
-    return {
-      totalInspected: inspected,
-      totalPassed: passed,
-      totalDefects: defects,
-      globalRFT: Number(rft.toFixed(1)),
-      distinctLines: lineSet.size,
-    };
-  }, [rows]);
-
-  const rftColor =
-    globalRFT >= 95
-      ? "text-emerald-400"
-      : globalRFT >= 90
-      ? "text-amber-300"
-      : "text-rose-400";
-
   return (
-    <div className="min-h-screen bg-gradient-to-b from-slate-950 via-slate-900 to-slate-950 text-slate-50">
+    <div className="flex min-h-screen items-center justify-center bg-gradient-to-br from-slate-950 via-slate-900 to-slate-950 px-4 py-6 text-slate-100">
       {toast && (
         <div className="fixed right-4 top-4 z-50">
           <div
-            className={`flex items-start gap-3 rounded-2xl border px-4 py-3 shadow-2xl backdrop-blur ${
+            className={`flex items-start gap-2 rounded-xl border px-4 py-3 shadow-2xl shadow-black/40 ${
               toast.type === "success"
-                ? "border-emerald-500/40 bg-slate-900/90 text-emerald-100"
+                ? "border-emerald-500/50 bg-emerald-900/80 text-emerald-50"
                 : toast.type === "error"
-                ? "border-rose-500/40 bg-slate-900/90 text-rose-100"
-                : "border-sky-500/40 bg-slate-900/90 text-sky-100"
+                ? "border-red-500/60 bg-red-900/80 text-red-50"
+                : "border-cyan-500/50 bg-slate-900/90 text-cyan-50"
             }`}
           >
             <span className="text-lg">
@@ -495,287 +450,257 @@ export default function EndlineDashboard() {
         </div>
       )}
 
-      <div className="mx-auto max-w-7xl px-4 py-6 md:px-6 md:py-8">
-        {/* Top hero + summary cards */}
-        <div className="mb-6 rounded-3xl border border-emerald-500/20 bg-slate-900/80 p-4 shadow-[0_18px_45px_rgba(0,0,0,0.45)] md:p-6">
-          <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
-            <div>
-              <p className="text-[11px] font-semibold uppercase tracking-[0.25em] text-emerald-400/80">
-                Quality · Endline Inspection
-              </p>
-              <h1 className="mt-2 text-2xl font-semibold md:text-3xl">
-                Endline Hourly Dashboard
-              </h1>
-              <p className="mt-1 text-sm text-slate-400">
+      <div className="relative mx-auto w-full max-w-7xl rounded-3xl border border-slate-800 bg-slate-900/80 p-4 shadow-[0_32px_100px_rgba(15,23,42,0.9)] backdrop-blur-xl md:p-8">
+        <div className="pointer-events-none absolute inset-y-0 right-0 hidden w-1/3 rounded-3xl bg-gradient-to-tr from-cyan-500/25 via-sky-500/5 to-emerald-500/10 blur-3xl md:block" />
+
+        {/* Header */}
+        <div className="mb-6 flex items-center justify-between gap-3">
+          <div>
+            <p className="text-[11px] font-medium uppercase tracking-[0.25em] text-cyan-400/80">
+              Welcome back
+            </p>
+            <h1 className="mt-1 text-2xl font-semibold">
+              Endline Hourly Dashboard{" "}
+              <span className="text-cyan-400">
                 {auth?.user_name || "User"}{" "}
-                {auth?.assigned_building && (
-                  <span className="text-slate-200">
-                    · {auth.assigned_building}
-                  </span>
-                )}
-              </p>
-              <p className="mt-1 text-xs text-slate-500">Today: {todayLabel}</p>
-            </div>
-
-            <div className="flex flex-wrap items-center gap-3">
-              <span className="rounded-full border border-emerald-500/30 bg-emerald-500/10 px-3 py-1 text-xs font-medium text-emerald-200">
-                {rows.length} hour entries
+                {auth?.assigned_building && `(${auth?.assigned_building})`}
               </span>
-              <button
-                onClick={fetchToday}
-                className="rounded-full border border-slate-700 bg-slate-900 px-4 py-2 text-xs font-medium text-slate-100 shadow-sm transition hover:border-emerald-500/60 hover:bg-slate-800"
-              >
-                Refresh
-              </button>
-            </div>
+            </h1>
+            <p className="text-xs text-slate-400">Today: {todayLabel}</p>
           </div>
-
-          {/* stats cards */}
-          <div className="mt-5 grid gap-3 md:grid-cols-4">
-            <div className="relative overflow-hidden rounded-2xl border border-slate-800 bg-slate-900/80 px-4 py-3 shadow-sm">
-              <div className="pointer-events-none absolute -right-6 -top-4 h-16 w-16 rounded-full bg-emerald-500/15 blur-xl" />
-              <p className="text-[11px] font-medium uppercase tracking-[0.18em] text-slate-500">
-                Inspected Today
-              </p>
-              <p className="mt-1 text-xl font-semibold text-slate-50">
-                {totalInspected}
-              </p>
-              <p className="mt-1 text-xs text-slate-500">Across all hours</p>
-            </div>
-
-            <div className="relative overflow-hidden rounded-2xl border border-emerald-500/40 bg-gradient-to-br from-emerald-500/20 via-emerald-500/10 to-transparent px-4 py-3 shadow-sm">
-              <div className="pointer-events-none absolute -right-10 -top-10 h-24 w-24 rounded-full bg-emerald-400/25 blur-2xl" />
-              <p className="text-[11px] font-medium uppercase tracking-[0.18em] text-emerald-200/90">
-                RFT %
-              </p>
-              <p className={`mt-1 text-2xl font-semibold ${rftColor}`}>
-                {globalRFT}%
-              </p>
-              <p className="mt-1 text-xs text-emerald-100/80">
-                {totalPassed} pcs passed
-              </p>
-            </div>
-
-            <div className="relative overflow-hidden rounded-2xl border border-slate-800 bg-slate-900/80 px-4 py-3 shadow-sm">
-              <div className="pointer-events-none absolute -right-6 -top-4 h-16 w-16 rounded-full bg-rose-500/15 blur-xl" />
-              <p className="text-[11px] font-medium uppercase tracking-[0.18em] text-slate-500">
-                Total Defects
-              </p>
-              <p className="mt-1 text-xl font-semibold text-rose-300">
-                {totalDefects}
-              </p>
-              <p className="mt-1 text-xs text-slate-500">
-                Sum of all defect types
-              </p>
-            </div>
-
-            <div className="relative overflow-hidden rounded-2xl border border-slate-800 bg-slate-900/80 px-4 py-3 shadow-sm">
-              <div className="pointer-events-none absolute -right-6 -top-4 h-16 w-16 rounded-full bg-sky-500/15 blur-xl" />
-              <p className="text-[11px] font-medium uppercase tracking-[0.18em] text-slate-500">
-                Active Lines
-              </p>
-              <p className="mt-1 text-xl font-semibold text-slate-50">
-                {distinctLines || 0}
-              </p>
-              <p className="mt-1 text-xs text-slate-500">
-                Reporting inspections today
-              </p>
-            </div>
-          </div>
+          <button
+            onClick={fetchToday}
+            className="rounded-full border border-slate-600 bg-slate-900/60 px-4 py-1.5 text-xs font-medium text-slate-100 shadow-sm shadow-black/40 hover:border-cyan-500 hover:bg-slate-900"
+          >
+            Refresh
+          </button>
         </div>
 
         {error && (
-          <div className="mb-4 rounded-2xl border border-rose-500/30 bg-rose-500/10 p-3 text-sm text-rose-100">
+          <div className="mb-4 rounded-xl border border-red-500/40 bg-red-950/60 p-3 text-sm text-red-100">
             {error}
           </div>
         )}
 
-        <div className="grid gap-5 md:grid-cols-[minmax(0,1.1fr)_minmax(0,1.4fr)]">
-          {/* Left: Form */}
-          <div className="md:sticky md:top-6 md:h-fit">
-            <div className="rounded-3xl border border-slate-800 bg-slate-900/80 p-4 shadow-xl md:p-5">
-              <div className="mb-3 flex items-center justify-between">
-                <h2 className="text-sm font-medium text-slate-200">
-                  {editingId ? "Edit Hour Entry" : "Add New Hour Entry"}
-                </h2>
-                {editingId && (
-                  <button
-                    onClick={resetForm}
-                    className="text-xs text-slate-500 underline underline-offset-2 hover:text-slate-300"
-                  >
-                    Cancel Edit
-                  </button>
-                )}
-              </div>
+        <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
+          {/* Left: Form + Illustration inside same card */}
+          <div className="md:sticky md:top-4 md:h-fit">
+            <div className="rounded-2xl border border-slate-700/80 bg-slate-950/70 p-4 shadow-lg shadow-black/50">
+              <div className="grid items-start gap-4 md:grid-cols-[minmax(0,1.4fr)_minmax(0,1fr)]">
+                {/* Illustration column */}
+                <div className="order-1 flex justify-center md:order-2">
+                  <div className="flex w-full max-w-xs flex-col items-center justify-center rounded-2xl border border-slate-700 bg-slate-900/80 px-4 py-6 text-center">
+                    <Image
+                      src="/Performance overview-bro.svg"
+                      alt="Hourly performance illustration"
+                      width={180}
+                      height={150}
+                      className="mb-3 drop-shadow-[0_18px_40px_rgba(6,182,212,0.7)]"
+                    />
+                    <p className="text-xs font-medium text-cyan-200">
+                      Track your hourly quality in one place.
+                    </p>
+                    <p className="mt-1 text-[11px] text-slate-400">
+                      Add line-wise inspections, see defects and RFT%
+                      instantly.
+                    </p>
+                  </div>
+                </div>
 
-              {/* Line Picker */}
-              <div className="mb-3">
-                <label className="mb-1 block text-[11px] font-medium text-slate-300">
-                  Select Line
-                </label>
-                <select
-                  value={form.line}
-                  onChange={(e) => setField("line", e.target.value)}
-                  className="w-full rounded-xl border border-slate-700 bg-slate-900/70 px-3 py-2 text-sm text-slate-100 focus:border-emerald-400 focus:outline-none focus:ring-2 focus:ring-emerald-500/40"
-                >
-                  <option value="">Select Line</option>
-                  {lineOptions.map((line) => (
-                    <option key={line} value={line}>
-                      {line}
-                    </option>
-                  ))}
-                </select>
-              </div>
+                {/* Form column */}
+                <div className="order-2 md:order-1">
+                  <div className="mb-3 flex items-center justify-between">
+                    <h2 className="text-sm font-semibold text-slate-100">
+                      {editingId ? "Edit Hour Entry" : "Add New Hour Entry"}
+                    </h2>
+                    {editingId && (
+                      <button
+                        onClick={resetForm}
+                        className="text-xs text-slate-400 underline hover:text-slate-200"
+                      >
+                        Cancel Edit
+                      </button>
+                    )}
+                  </div>
 
-              {/* Hour Picker */}
-              <div className="mb-3">
-                <label className="mb-1 block text-[11px] font-medium text-slate-300">
-                  Working Hour
-                </label>
-                <select
-                  value={form.hour}
-                  onChange={(e) => setField("hour", e.target.value)}
-                  className="w-full rounded-xl border border-slate-700 bg-slate-900/70 px-3 py-2 text-sm text-slate-100 focus:border-emerald-400 focus:outline-none focus:ring-2 focus:ring-emerald-500/40"
-                >
-                  <option value="">Select Hour</option>
-                  {hourOptions.map((h) => (
-                    <option key={h} value={h}>
-                      {h}
-                    </option>
-                  ))}
-                </select>
-              </div>
-
-              {/* Add Defect */}
-              <div className="mb-3">
-                <label className="mb-1 block text-[11px] font-medium text-slate-300">
-                  Add Defect
-                </label>
-                <SearchableDefectPicker
-                  options={defectOptions}
-                  onSelect={handleSelectDefect}
-                />
-              </div>
-
-              {/* Selected Defects */}
-              {form.selectedDefects.length > 0 && (
-                <div className="mb-3 space-y-1.5">
-                  {form.selectedDefects.map((d, i) => (
-                    <div
-                      key={`${d.name}-${i}`}
-                      className="flex items-center gap-2 rounded-xl border border-slate-700 bg-slate-900/70 px-2.5 py-1.5"
+                  {/* Line Picker */}
+                  <div className="mb-3">
+                    <label className="mb-1 block text-xs font-medium text-slate-200">
+                      Select Line
+                    </label>
+                    <select
+                      value={form.line}
+                      onChange={(e) => setField("line", e.target.value)}
+                      className="w-full rounded-xl border border-slate-700 bg-slate-900/70 px-3 py-2 text-sm text-slate-100 focus:border-cyan-500 focus:outline-none focus:ring-2 focus:ring-cyan-500/40"
                     >
-                      <span className="flex-1 truncate text-xs font-medium text-slate-100">
-                        {d.name}
-                      </span>
+                      <option value="">Select Line</option>
+                      {lineOptions.map((line) => (
+                        <option key={line} value={line}>
+                          {line}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+
+                  {/* Hour Picker */}
+                  <div className="mb-3">
+                    <label className="mb-1 block text-xs font-medium text-slate-200">
+                      Working Hour
+                    </label>
+                    <select
+                      value={form.hour}
+                      onChange={(e) => setField("hour", e.target.value)}
+                      className="w-full rounded-xl border border-slate-700 bg-slate-900/70 px-3 py-2 text-sm text-slate-100 focus:border-cyan-500 focus:outline-none focus:ring-2 focus:ring-cyan-500/40"
+                    >
+                      <option value="">Select Hour</option>
+                      {hourOptions.map((h) => (
+                        <option key={h} value={h}>
+                          {h}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+
+                  {/* Add Defect */}
+                  <div className="mb-3">
+                    <label className="mb-1 block text-xs font-medium text-slate-200">
+                      Add Defect
+                    </label>
+                    <SearchableDefectPicker
+                      options={defectOptions}
+                      onSelect={handleSelectDefect}
+                    />
+                  </div>
+
+                  {/* Selected Defects */}
+                  {form.selectedDefects.length > 0 && (
+                    <div className="mb-3 space-y-1">
+                      {form.selectedDefects.map((d, i) => (
+                        <div
+                          key={`${d.name}-${i}`}
+                          className="flex items-center gap-2 rounded-lg border border-slate-700 bg-slate-900/80 px-2 py-1"
+                        >
+                          <span className="flex-1 truncate text-xs font-medium text-slate-100">
+                            {d.name}
+                          </span>
+                          <input
+                            type="number"
+                            min="0"
+                            placeholder="Qty"
+                            value={d.quantity}
+                            onChange={(e) => handleDefectQty(i, e.target.value)}
+                            className="w-16 rounded-md border border-slate-700 bg-slate-900/80 px-1 py-0.5 text-xs text-slate-100 focus:border-cyan-500 focus:outline-none focus:ring-1 focus:ring-cyan-500/60"
+                          />
+                          <button
+                            type="button"
+                            onClick={() => removeDefect(i)}
+                            className="rounded-md border border-slate-600 px-2 py-0.5 text-xs text-slate-200 hover:border-red-500 hover:text-red-300"
+                            title="Remove"
+                          >
+                            ×
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+
+                  {/* Input Fields */}
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label className="mb-1 block text-xs font-medium text-slate-200">
+                        Inspected Qty
+                      </label>
                       <input
                         type="number"
                         min="0"
-                        placeholder="Qty"
-                        value={d.quantity}
-                        onChange={(e) => handleDefectQty(i, e.target.value)}
-                        className="w-16 rounded-lg border border-slate-700 bg-slate-900/80 px-1.5 py-0.5 text-xs text-slate-100 focus:border-emerald-400 focus:outline-none"
+                        value={form.inspectedQty}
+                        onChange={(e) =>
+                          setField("inspectedQty", e.target.value)
+                        }
+                        className="w-full rounded-xl border border-slate-700 bg-slate-900/70 px-3 py-2 text-sm text-slate-100 focus:border-cyan-500 focus:outline-none focus:ring-2 focus:ring-cyan-500/40"
                       />
-                      <button
-                        type="button"
-                        onClick={() => removeDefect(i)}
-                        className="rounded-lg border border-slate-700 px-2 py-0.5 text-xs text-slate-300 transition hover:border-rose-500 hover:bg-rose-500/10 hover:text-rose-200"
-                        title="Remove"
-                      >
-                        ×
-                      </button>
                     </div>
-                  ))}
-                </div>
-              )}
+                    <div>
+                      <label className="mb-1 block text-xs font-medium text-slate-200">
+                        Passed Qty
+                      </label>
+                      <input
+                        type="number"
+                        min="0"
+                        value={form.passedQty}
+                        onChange={(e) =>
+                          setField("passedQty", e.target.value)
+                        }
+                        className="w-full rounded-xl border border-slate-700 bg-slate-900/70 px-3 py-2 text-sm text-slate-100 focus:border-cyan-500 focus:outline-none focus:ring-2 focus:ring-cyan-500/40"
+                      />
+                    </div>
+                    <div>
+                      <label className="mb-1 block text-xs font-medium text-slate-200">
+                        Defective Pcs
+                      </label>
+                      <input
+                        type="number"
+                        min="0"
+                        value={form.defectivePcs}
+                        onChange={(e) =>
+                          setField("defectivePcs", e.target.value)
+                        }
+                        className="w-full rounded-xl border border-slate-700 bg-slate-900/70 px-3 py-2 text-sm text-slate-100 focus:border-cyan-500 focus:outline-none focus:ring-2 focus:ring-cyan-500/40"
+                      />
+                    </div>
+                    <div>
+                      <label className="mb-1 block text-xs font-medium text-slate-200">
+                        After Repair
+                      </label>
+                      <input
+                        type="number"
+                        min="0"
+                        value={form.afterRepair}
+                        onChange={(e) =>
+                          setField("afterRepair", e.target.value)
+                        }
+                        className="w-full rounded-xl border border-slate-700 bg-slate-900/70 px-3 py-2 text-sm text-slate-100 focus:border-cyan-500 focus:outline-none focus:ring-2 focus:ring-cyan-500/40"
+                      />
+                    </div>
+                  </div>
 
-              {/* Input Fields */}
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="mb-1 block text-[11px] font-medium text-slate-300">
-                    Inspected Qty
-                  </label>
-                  <input
-                    type="number"
-                    min="0"
-                    value={form.inspectedQty}
-                    onChange={(e) => setField("inspectedQty", e.target.value)}
-                    className="w-full rounded-xl border border-slate-700 bg-slate-900/70 px-3 py-2 text-sm text-slate-100 focus:border-emerald-400 focus:outline-none focus:ring-2 focus:ring-emerald-500/40"
-                  />
+                  {/* Submit */}
+                  <div className="mt-4 flex items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={save}
+                      disabled={saving}
+                      className="rounded-full bg-gradient-to-r from-cyan-500 to-blue-500 px-5 py-2 text-sm font-semibold text-slate-950 shadow-[0_14px_40px_rgba(34,211,238,0.7)] transition hover:from-cyan-400 hover:to-sky-500 disabled:opacity-60"
+                    >
+                      {saving ? "Saving..." : editingId ? "Update" : "Save"}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={resetForm}
+                      className="rounded-full border border-slate-600 bg-slate-900/60 px-4 py-2 text-sm text-slate-100 hover:border-slate-400"
+                    >
+                      Reset
+                    </button>
+                  </div>
                 </div>
-                <div>
-                  <label className="mb-1 block text-[11px] font-medium text-slate-300">
-                    Passed Qty
-                  </label>
-                  <input
-                    type="number"
-                    min="0"
-                    value={form.passedQty}
-                    onChange={(e) => setField("passedQty", e.target.value)}
-                    className="w-full rounded-xl border border-slate-700 bg-slate-900/70 px-3 py-2 text-sm text-slate-100 focus:border-emerald-400 focus:outline-none focus:ring-2 focus:ring-emerald-500/40"
-                  />
-                </div>
-                <div>
-                  <label className="mb-1 block text-[11px] font-medium text-slate-300">
-                    Defective Pcs
-                  </label>
-                  <input
-                    type="number"
-                    min="0"
-                    value={form.defectivePcs}
-                    onChange={(e) => setField("defectivePcs", e.target.value)}
-                    className="w-full rounded-xl border border-slate-700 bg-slate-900/70 px-3 py-2 text-sm text-slate-100 focus:border-emerald-400 focus:outline-none focus:ring-2 focus:ring-emerald-500/40"
-                  />
-                </div>
-                <div>
-                  <label className="mb-1 block text-[11px] font-medium text-slate-300">
-                    After Repair
-                  </label>
-                  <input
-                    type="number"
-                    min="0"
-                    value={form.afterRepair}
-                    onChange={(e) => setField("afterRepair", e.target.value)}
-                    className="w-full rounded-xl border border-slate-700 bg-slate-900/70 px-3 py-2 text-sm text-slate-100 focus:border-emerald-400 focus:outline-none focus:ring-2 focus:ring-emerald-500/40"
-                  />
-                </div>
-              </div>
-
-              {/* Submit */}
-              <div className="mt-4 flex items-center gap-2">
-                <button
-                  type="button"
-                  onClick={save}
-                  disabled={saving}
-                  className="rounded-xl bg-emerald-500 px-5 py-2 text-sm font-semibold text-slate-950 shadow-lg shadow-emerald-500/25 transition hover:bg-emerald-400 disabled:opacity-50"
-                >
-                  {saving ? "Saving..." : editingId ? "Update" : "Save"}
-                </button>
-                <button
-                  type="button"
-                  onClick={resetForm}
-                  className="rounded-xl border border-slate-700 bg-slate-900/60 px-4 py-2 text-sm text-slate-200 transition hover:border-slate-500 hover:bg-slate-800"
-                >
-                  Reset
-                </button>
               </div>
             </div>
           </div>
 
           {/* Right: Entries */}
           <div>
-            <div className="rounded-3xl border border-slate-800 bg-slate-900/80 p-4 shadow-xl md:p-5">
+            <div className="rounded-2xl border border-slate-700/80 bg-slate-950/70 p-4 shadow-lg shadow-black/50">
               <div className="mb-3 flex items-center justify-between">
-                <h2 className="text-sm font-medium text-slate-200">
+                <h2 className="text-sm font-semibold text-slate-100">
                   Today&apos;s Entries ({rows.length})
                 </h2>
                 {loading && (
-                  <span className="text-xs text-slate-500">Loading...</span>
+                  <span className="text-xs text-slate-400">Loading...</span>
                 )}
               </div>
 
               {rows.length === 0 ? (
-                <div className="rounded-2xl border border-dashed border-slate-700/80 bg-slate-900/60 p-8 text-center text-sm text-slate-400">
+                <div className="rounded-xl border border-dashed border-slate-700 bg-slate-900/50 p-6 text-center text-sm text-slate-400">
                   No entries yet for {todayLabel}.
                 </div>
               ) : (
@@ -803,26 +728,19 @@ export default function EndlineDashboard() {
                         ? ((linePassed / lineInspected) * 100).toFixed(1)
                         : 0;
 
-                    const lineRftColor =
-                      lineRFT >= 95
-                        ? "text-emerald-400"
-                        : lineRFT >= 90
-                        ? "text-amber-300"
-                        : "text-rose-400";
-
                     return (
                       <div
                         key={line}
                         className="border-b border-slate-800 pb-4 last:border-b-0 last:pb-0"
                       >
                         {/* Line Header with Metrics */}
-                        <div className="mb-3 rounded-2xl border border-emerald-500/25 bg-slate-900/80 p-3">
+                        <div className="mb-3 rounded-2xl border border-slate-700 bg-slate-900/80 p-3">
                           <div className="flex flex-wrap items-center justify-between gap-3">
                             <div className="flex items-center gap-3">
                               <h3 className="text-sm font-semibold text-slate-100">
                                 {line} - Hourly Entries
                               </h3>
-                              <span className="rounded-full bg-slate-900/80 px-2 py-1 text-xs text-slate-400">
+                              <span className="rounded-full bg-slate-800 px-2 py-1 text-xs text-slate-300">
                                 {lineEntries.length}{" "}
                                 {lineEntries.length === 1 ? "entry" : "entries"}
                               </span>
@@ -830,15 +748,15 @@ export default function EndlineDashboard() {
 
                             <div className="flex flex-wrap gap-4">
                               <div className="text-center">
-                                <div className="text-[11px] uppercase tracking-[0.12em] text-slate-500">
+                                <div className="text-xs text-slate-400">
                                   Inspected
                                 </div>
-                                <div className="text-sm font-semibold text-sky-300">
+                                <div className="text-sm font-semibold text-cyan-300">
                                   {lineInspected}
                                 </div>
                               </div>
                               <div className="text-center">
-                                <div className="text-[11px] uppercase tracking-[0.12em] text-slate-500">
+                                <div className="text-xs text-slate-400">
                                   Passed
                                 </div>
                                 <div className="text-sm font-semibold text-emerald-300">
@@ -846,7 +764,7 @@ export default function EndlineDashboard() {
                                 </div>
                               </div>
                               <div className="text-center">
-                                <div className="text-[11px] uppercase tracking-[0.12em] text-slate-500">
+                                <div className="text-xs text-slate-400">
                                   Defects
                                 </div>
                                 <div className="text-sm font-semibold text-rose-300">
@@ -854,11 +772,17 @@ export default function EndlineDashboard() {
                                 </div>
                               </div>
                               <div className="text-center">
-                                <div className="text-[11px] uppercase tracking-[0.12em] text-slate-500">
+                                <div className="text-xs text-slate-400">
                                   RFT%
                                 </div>
                                 <div
-                                  className={`text-sm font-semibold ${lineRftColor}`}
+                                  className={`text-sm font-semibold ${
+                                    lineRFT >= 95
+                                      ? "text-emerald-300"
+                                      : lineRFT >= 90
+                                      ? "text-amber-300"
+                                      : "text-rose-300"
+                                  }`}
                                 >
                                   {lineRFT}%
                                 </div>
@@ -872,10 +796,10 @@ export default function EndlineDashboard() {
                           {lineEntries.map((r) => (
                             <li
                               key={r._id}
-                              className={`rounded-2xl border p-3 transition ${
+                              className={`rounded-xl border p-3 transition ${
                                 editingId === r._id
-                                  ? "border-emerald-500 bg-emerald-500/10"
-                                  : "border-slate-800 bg-slate-900/60 hover:border-emerald-500/40 hover:bg-slate-900"
+                                  ? "border-cyan-500/60 bg-slate-900"
+                                  : "border-slate-700 bg-slate-950/60 hover:border-cyan-500/40 hover:bg-slate-900"
                               }`}
                             >
                               <div className="mb-1 flex items-center justify-between">
@@ -884,14 +808,14 @@ export default function EndlineDashboard() {
                                   {r.building && ` (${r.building})`}
                                 </div>
                                 <div className="flex items-center gap-2">
-                                  <span className="text-xs text-slate-500">
+                                  <span className="text-xs text-slate-400">
                                     {new Date(
                                       r.updatedAt || r.createdAt
                                     ).toLocaleTimeString()}
                                   </span>
                                   <button
                                     onClick={() => handleEdit(r)}
-                                    className="rounded-lg bg-slate-800 px-2 py-0.5 text-xs text-slate-100 transition hover:bg-emerald-500/20 hover:text-emerald-200"
+                                    className="rounded-full bg-cyan-500/10 px-2 py-0.5 text-xs text-cyan-300 hover:bg-cyan-500/20"
                                     title="Edit"
                                   >
                                     Edit
@@ -899,7 +823,7 @@ export default function EndlineDashboard() {
                                   <button
                                     onClick={() => handleDelete(r._id)}
                                     disabled={deleting === r._id}
-                                    className="rounded-lg bg-slate-800 px-2 py-0.5 text-xs text-rose-200 transition hover:bg-rose-500/20 disabled:opacity-50"
+                                    className="rounded-full bg-rose-500/10 px-2 py-0.5 text-xs text-rose-300 hover:bg-rose-500/20 disabled:opacity-50"
                                     title="Delete"
                                   >
                                     {deleting === r._id ? "..." : "Delete"}
@@ -982,23 +906,16 @@ export default function EndlineDashboard() {
                         ? ((otherPassed / otherInspected) * 100).toFixed(1)
                         : 0;
 
-                    const otherRftColor =
-                      otherRFT >= 95
-                        ? "text-emerald-400"
-                        : otherRFT >= 90
-                        ? "text-amber-300"
-                        : "text-rose-400";
-
                     return (
                       <div className="border-b border-slate-800 pb-4 last:border-b-0 last:pb-0">
                         {/* Other Entries Header with Metrics */}
-                        <div className="mb-3 rounded-2xl border border-amber-500/25 bg-slate-900/80 p-3">
+                        <div className="mb-3 rounded-2xl border border-cyan-500/40 bg-slate-900/80 p-3">
                           <div className="flex flex-wrap items-center justify-between gap-3">
                             <div className="flex items-center gap-3">
                               <h3 className="text-sm font-semibold text-slate-100">
                                 Other Entries
                               </h3>
-                              <span className="rounded-full bg-slate-900/80 px-2 py-1 text-xs text-slate-400">
+                              <span className="rounded-full bg-slate-800 px-2 py-1 text-xs text-slate-300">
                                 {noLineEntries.length}{" "}
                                 {noLineEntries.length === 1
                                   ? "entry"
@@ -1008,15 +925,15 @@ export default function EndlineDashboard() {
 
                             <div className="flex flex-wrap gap-4">
                               <div className="text-center">
-                                <div className="text-[11px] uppercase tracking-[0.12em] text-slate-500">
+                                <div className="text-xs text-slate-400">
                                   Inspected
                                 </div>
-                                <div className="text-sm font-semibold text-sky-300">
+                                <div className="text-sm font-semibold text-cyan-300">
                                   {otherInspected}
                                 </div>
                               </div>
                               <div className="text-center">
-                                <div className="text-[11px] uppercase tracking-[0.12em] text-slate-500">
+                                <div className="text-xs text-slate-400">
                                   Passed
                                 </div>
                                 <div className="text-sm font-semibold text-emerald-300">
@@ -1024,7 +941,7 @@ export default function EndlineDashboard() {
                                 </div>
                               </div>
                               <div className="text-center">
-                                <div className="text-[11px] uppercase tracking-[0.12em] text-slate-500">
+                                <div className="text-xs text-slate-400">
                                   Defects
                                 </div>
                                 <div className="text-sm font-semibold text-rose-300">
@@ -1032,11 +949,17 @@ export default function EndlineDashboard() {
                                 </div>
                               </div>
                               <div className="text-center">
-                                <div className="text-[11px] uppercase tracking-[0.12em] text-slate-500">
+                                <div className="text-xs text-slate-400">
                                   RFT%
                                 </div>
                                 <div
-                                  className={`text-sm font-semibold ${otherRftColor}`}
+                                  className={`text-sm font-semibold ${
+                                    otherRFT >= 95
+                                      ? "text-emerald-300"
+                                      : otherRFT >= 90
+                                      ? "text-amber-300"
+                                      : "text-rose-300"
+                                  }`}
                                 >
                                   {otherRFT}%
                                 </div>
@@ -1049,10 +972,10 @@ export default function EndlineDashboard() {
                           {noLineEntries.map((r) => (
                             <li
                               key={r._id}
-                              className={`rounded-2xl border p-3 transition ${
+                              className={`rounded-xl border p-3 transition ${
                                 editingId === r._id
-                                  ? "border-emerald-500 bg-emerald-500/10"
-                                  : "border-slate-800 bg-slate-900/60 hover:border-emerald-500/40 hover:bg-slate-900"
+                                  ? "border-cyan-500/60 bg-slate-900"
+                                  : "border-slate-700 bg-slate-950/60 hover:border-cyan-500/40 hover:bg-slate-900"
                               }`}
                             >
                               <div className="mb-1 flex items-center justify-between">
@@ -1061,14 +984,14 @@ export default function EndlineDashboard() {
                                   {r.building && `(${r.building})`}
                                 </div>
                                 <div className="flex items-center gap-2">
-                                  <span className="text-xs text-slate-500">
+                                  <span className="text-xs text-slate-400">
                                     {new Date(
                                       r.updatedAt || r.createdAt
                                     ).toLocaleTimeString()}
                                   </span>
                                   <button
                                     onClick={() => handleEdit(r)}
-                                    className="rounded-lg bg-slate-800 px-2 py-0.5 text-xs text-slate-100 transition hover:bg-emerald-500/20 hover:text-emerald-200"
+                                    className="rounded-full bg-cyan-500/10 px-2 py-0.5 text-xs text-cyan-300 hover:bg-cyan-500/20"
                                     title="Edit"
                                   >
                                     Edit
@@ -1076,7 +999,7 @@ export default function EndlineDashboard() {
                                   <button
                                     onClick={() => handleDelete(r._id)}
                                     disabled={deleting === r._id}
-                                    className="rounded-lg bg-slate-800 px-2 py-0.5 text-xs text-rose-200 transition hover:bg-rose-500/20 disabled:opacity-50"
+                                    className="rounded-full bg-rose-500/10 px-2 py-0.5 text-xs text-rose-300 hover:bg-rose-500/20 disabled:opacity-50"
                                     title="Delete"
                                   >
                                     {deleting === r._id ? "..." : "Delete"}

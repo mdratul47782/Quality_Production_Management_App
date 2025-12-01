@@ -4,7 +4,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useAuth } from "../hooks/useAuth";
 
-const lines = ["Line-1", "Line-2", "Line-3"];
+const lines = ["Line-1", "Line-2", "Line-3","Line-4","Line-5","Line-6","Line-7","Line-8","Line-9","Line-10","Line-11","Line-12","Line-13","Line-14","Line-15"];
 
 const buyers = [
   "Decathlon - knit",
@@ -22,6 +22,8 @@ const buyers = [
 const initialForm = {
   buyer: "",
   style: "",
+  run_day: "",
+  color_model: "",
   total_manpower: "",
   manpower_present: "",
   manpower_absent: "",
@@ -33,7 +35,12 @@ const initialForm = {
 };
 
 // ---------- helper ----------
-function computeTargetPreview({ manpower_present, working_hour, smv, plan_efficiency_percent }) {
+function computeTargetPreview({
+  manpower_present,
+  working_hour,
+  smv,
+  plan_efficiency_percent,
+}) {
   const mp = Number(manpower_present);
   const hr = Number(working_hour);
   const smvNum = Number(smv);
@@ -208,8 +215,8 @@ export default function ProductionInputForm() {
       return;
     }
 
-    if (!form.buyer || !form.style) {
-      setError("Buyer and style are required.");
+    if (!form.buyer || !form.style || !form.run_day || !form.color_model) {
+      setError("Buyer, Style, Run day and Color/Model are required.");
       return;
     }
 
@@ -222,6 +229,8 @@ export default function ProductionInputForm() {
         line: selectedLine,
         buyer: form.buyer,
         style: form.style,
+        run_day: Number(form.run_day),
+        color_model: form.color_model,
         total_manpower: Number(form.total_manpower),
         manpower_present: Number(form.manpower_present),
         manpower_absent:
@@ -299,6 +308,9 @@ export default function ProductionInputForm() {
     setForm({
       buyer: header.buyer || "",
       style: header.style || "",
+      run_day:
+        header.run_day != null ? header.run_day.toString() : "",
+      color_model: header.color_model || "",
       total_manpower:
         header.total_manpower != null
           ? header.total_manpower.toString()
@@ -324,7 +336,6 @@ export default function ProductionInputForm() {
         header.capacity != null ? header.capacity.toString() : "",
     });
 
-    // make sure filter controls remain aligned
     setSelectedLine(header.line);
     if (header.date) setSelectedDate(header.date);
   };
@@ -336,345 +347,408 @@ export default function ProductionInputForm() {
   };
 
   // ---------- delete ----------
- const handleDelete = async (id) => {
-  const ok = window.confirm("Delete this target header?");
-  if (!ok) return;
+  const handleDelete = async (id) => {
+    const ok = window.confirm("Delete this target header?");
+    if (!ok) return;
 
-  setError("");
-  setSuccess("");
-  setDeletingId(id);
+    setError("");
+    setSuccess("");
+    setDeletingId(id);
 
-  try {
-    const res = await fetch(`/api/target-setter-header/${id}`, {
-      method: "DELETE",
-    });
-
-    let json = {};
     try {
-      json = await res.json();
-    } catch (e) {
-      // ignore if no json
-    }
+      const res = await fetch(`/api/target-setter-header/${id}`, {
+        method: "DELETE",
+      });
 
-    // 🔹 If it's 404 (not found), treat as "already deleted"
-    if (res.status === 404) {
-      setSuccess("Header was already deleted (404). Syncing list.");
+      let json = {};
+      try {
+        json = await res.json();
+      } catch (e) {}
+
+      if (res.status === 404) {
+        setSuccess("Header was already deleted (404). Syncing list.");
+        setHeaders((prev) => prev.filter((h) => h._id !== id));
+        if (editingId === id) resetForm();
+        return;
+      }
+
+      if (!res.ok || !json.success) {
+        throw new Error(json.message || "Failed to delete header.");
+      }
+
+      setSuccess("Target header deleted.");
       setHeaders((prev) => prev.filter((h) => h._id !== id));
       if (editingId === id) resetForm();
-      return;
+    } catch (err) {
+      console.error(err);
+      setError(err.message || "Something went wrong while deleting.");
+    } finally {
+      setDeletingId(null);
     }
-
-    if (!res.ok || !json.success) {
-      throw new Error(json.message || "Failed to delete header.");
-    }
-
-    setSuccess("Target header deleted.");
-    setHeaders((prev) => prev.filter((h) => h._id !== id));
-    if (editingId === id) resetForm();
-  } catch (err) {
-    console.error(err);
-    setError(err.message || "Something went wrong while deleting.");
-  } finally {
-    setDeletingId(null);
-  }
-};
+  };
 
   // ---------- UI ----------
   return (
     <div className="space-y-4">
-      {/* Top info */}
-      <div className="flex flex-wrap items-center justify-between gap-2">
-        <div>
-          <h2 className="text-sm md:text-base font-semibold text-slate-900">
-            Target Setter Header
-          </h2>
-          <p className="text-xs text-slate-500">
-            Building:{" "}
-            <span className="font-medium">
-              {assignedBuilding || "— (not assigned)"}
-            </span>
-          </p>
-        </div>
-
-        <div className="flex flex-wrap items-center gap-2">
-          {/* Date */}
-          <div className="flex flex-col">
-            <label className="text-[11px] font-medium text-slate-600">
-              Date
-            </label>
-            <input
-              type="date"
-              value={selectedDate}
-              onChange={handleDateChange}
-              className="h-8 rounded-md border border-slate-300 px-2 text-xs text-slate-900"
-            />
+      {/* Card wrapper */}
+      <div className="card card-bordered shadow-md border-slate-200 bg-base-100">
+        {/* Card header strip */}
+        <div className="border-b border-slate-200 bg-gray-300 px-4 py-3 flex flex-wrap items-center justify-between gap-3 ">
+          <div>
+            <h2 className="text-sm md:text-base font-semibold text-slate-900">
+              Target Setter Header
+            </h2>
+            <p className="text-[11px] text-slate-600 mt-0.5">
+              Building:&nbsp;
+              <span className="badge badge-xs border-0 bg-amber-500/10 text-amber-700 font-semibold">
+                {assignedBuilding || "Not assigned"}
+              </span>
+            </p>
           </div>
 
-          {/* Line */}
-          <div className="flex flex-col">
-            <label className="text-[11px] font-medium text-slate-600">
-              Line
-            </label>
-            <select
-              value={selectedLine}
-              onChange={handleLineChange}
-              className="h-8 rounded-md border border-slate-300 px-2 text-xs text-slate-900 bg-white"
-            >
-              <option value="">Select line</option>
-              {lines.map((line) => (
-                <option key={line} value={line}>
-                  {line}
-                </option>
-              ))}
-            </select>
+          <div className="flex flex-wrap items-end gap-3">
+            {/* Date */}
+            <div className="flex flex-col gap-1">
+              <label className="text-[11px] font-semibold text-slate-900">
+                Date
+              </label>
+              <input
+                type="date"
+                value={selectedDate}
+                onChange={handleDateChange}
+                className="input input-sm bg-slate-50 border-slate-200 text-black font-semibold focus:border-amber-400 focus:outline-none focus:ring-1 focus:ring-amber-400"
+              />
+            </div>
+
+            {/* Line */}
+            <div className="flex flex-col gap-1">
+              <label className="text-[11px] font-semibold text-slate-900">
+                Line
+              </label>
+              <select
+                value={selectedLine}
+                onChange={handleLineChange}
+                className="select select-sm bg-slate-50 border-slate-200 text-black font-semibold focus:border-amber-400 focus:outline-none focus:ring-1 focus:ring-amber-400 min-w-[120px]"
+              >
+                <option value="">Select line</option>
+                {lines.map((line) => (
+                  <option key={line} value={line}>
+                    {line}
+                  </option>
+                ))}
+              </select>
+            </div>
           </div>
         </div>
-      </div>
 
-      {/* Messages */}
-      {error && (
-        <div className="text-xs text-red-600 bg-red-50 border border-red-200 rounded-md px-2 py-1.5">
-          {error}
-        </div>
-      )}
-      {success && (
-        <div className="text-xs text-emerald-700 bg-emerald-50 border border-emerald-200 rounded-md px-2 py-1.5">
-          {success}
-        </div>
-      )}
-
-      {/* Form Card */}
-      <form
-        onSubmit={handleSubmit}
-        className="rounded-2xl border border-slate-200 bg-white/90 shadow-sm p-3 md:p-4 space-y-3"
-      >
-        <div className="flex items-center justify-between gap-3">
-          <h3 className="text-xs md:text-sm font-semibold text-slate-900">
-            {editingId ? "Edit Target Header" : "New Target Header"}
-          </h3>
-          <p className="text-[11px] text-slate-500">
-            {selectedDate} • {selectedLine || "Select a line"}
-          </p>
-        </div>
-
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-          {/* Buyer */}
-          <div className="flex flex-col gap-1">
-            <label className="text-[11px] font-medium uppercase tracking-wide text-slate-600">
-              Buyer
-            </label>
-            <select
-              name="buyer"
-              value={form.buyer}
-              onChange={handleChange}
-              className="h-8 w-full rounded-md border border-slate-300 bg-white px-2 text-xs text-slate-900
-                         focus:outline-none focus:ring-1 focus:ring-emerald-500 focus:border-emerald-500"
-            >
-              <option value="">Select buyer</option>
-              {buyers.map((b) => (
-                <option key={b} value={b}>
-                  {b}
-                </option>
-              ))}
-            </select>
-          </div>
-
-          <Field
-            label="Style"
-            name="style"
-            value={form.style}
-            onChange={handleChange}
-            placeholder="Style no / name"
-          />
-
-          <Field
-            label="Total Man Power"
-            name="total_manpower"
-            value={form.total_manpower}
-            onChange={handleChange}
-            placeholder="32"
-            type="number"
-          />
-
-          <Field
-            label="Manpower Present"
-            name="manpower_present"
-            value={form.manpower_present}
-            onChange={handleChange}
-            placeholder="30"
-            type="number"
-          />
-
-          <Field
-            label="Manpower Absent (auto)"
-            name="manpower_absent"
-            value={form.manpower_absent}
-            onChange={handleChange}
-            placeholder="Auto = Total - Present"
-            type="number"
-            readOnly
-          />
-
-          <Field
-            label="Working Hour (for this style)"
-            name="working_hour"
-            value={form.working_hour}
-            onChange={handleChange}
-            placeholder="2.5"
-            type="number"
-          />
-
-          <Field
-            label="Plan Quantity"
-            name="plan_quantity"
-            value={form.plan_quantity}
-            onChange={handleChange}
-            placeholder="2000"
-            type="number"
-          />
-
-          <Field
-            label="Plan Efficiency (%)"
-            name="plan_efficiency_percent"
-            value={form.plan_efficiency_percent}
-            onChange={handleChange}
-            placeholder="90"
-            type="number"
-          />
-
-          <Field
-            label="SMV (minutes)"
-            name="smv"
-            value={form.smv}
-            onChange={handleChange}
-            placeholder="1.2"
-            type="number"
-          />
-
-          <Field
-            label="Capacity"
-            name="capacity"
-            value={form.capacity}
-            onChange={handleChange}
-            placeholder="1800"
-            type="number"
-          />
-
-          {/* Target preview (read-only; real value from backend) */}
-          <Field
-            label="Target (preview, auto)"
-            name="target_preview"
-            value={targetPreview === "" ? "" : targetPreview.toString()}
-            onChange={() => {}}
-            placeholder="Auto from manpower, hour, SMV, efficiency"
-            type="number"
-            readOnly
-          />
-        </div>
-
-        <div className="flex justify-end gap-2 pt-1">
-          {editingId && (
-            <button
-              type="button"
-              onClick={handleCancelEdit}
-              className="px-3 py-1.5 rounded-lg text-xs font-medium border border-slate-300 text-slate-700 hover:bg-slate-50"
-              disabled={busy}
-            >
-              Cancel
-            </button>
+        {/* Card body */}
+        <div className="card-body gap-4">
+          {/* Messages */}
+          {error && (
+            <div className="alert alert-error py-2 px-3 text-xs">
+              <span>{error}</span>
+            </div>
+          )}
+          {success && (
+            <div className="alert alert-success py-2 px-3 text-xs">
+              <span>{success}</span>
+            </div>
           )}
 
-          <button
-            type="submit"
-            className="px-3 py-1.5 rounded-lg text-xs font-semibold bg-emerald-600 text-white hover:bg-emerald-700 shadow-sm disabled:opacity-70"
-            disabled={busy || !selectedLine}
-          >
-            {saving
-              ? "Saving..."
-              : editingId
-              ? "Update Target"
-              : "Save Target"}
-          </button>
-        </div>
-      </form>
-
-      {/* Existing headers list */}
-      <div className="rounded-2xl border border-slate-200 bg-white/80 shadow-sm p-3 md:p-4 space-y-2">
-        <div className="flex items-center justify-between">
-          <h3 className="text-xs md:text-sm font-semibold text-slate-900">
-            Existing Targets
-          </h3>
-          <p className="text-[11px] text-slate-500">
-            {selectedLine && selectedDate
-              ? `${selectedDate} • ${selectedLine}`
-              : "Select date & line"}
-          </p>
-        </div>
-
-        {loadingHeaders ? (
-          <p className="text-xs text-slate-500">Loading...</p>
-        ) : !selectedLine ? (
-          <p className="text-xs text-slate-500">
-            Select a line to see existing target headers.
-          </p>
-        ) : headers.length === 0 ? (
-          <p className="text-xs text-slate-500">
-            No target headers for this date and line yet.
-          </p>
-        ) : (
-          <div className="space-y-2">
-            {headers.map((h) => (
-              <div
-                key={h._id}
-                className="border border-slate-200 rounded-lg p-2 flex flex-col gap-1 text-xs bg-white"
-              >
-                <div className="flex flex-wrap justify-between gap-1">
-                  <div className="font-semibold text-slate-900">
-                    {h.style}{" "}
-                    <span className="text-[10px] text-slate-500">
-                      ({h.buyer})
-                    </span>
-                  </div>
-                  <div className="text-[11px] text-slate-600">
-                    Target:{" "}
-                    <span className="font-semibold text-emerald-700">
-                      {h.target_full_day ?? "-"}
-                    </span>
-                  </div>
-                </div>
-
-                <div className="flex flex-wrap gap-3 text-[11px] text-slate-600">
-                  <span>
-                    MP: {h.manpower_present}/{h.total_manpower}
+          {/* Form + Existing list side by side */}
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 items-start">
+            {/* Form section (left) */}
+            <form
+              onSubmit={handleSubmit}
+              className="rounded-2xl border border-dashed border-amber-200 bg-amber-50/40 p-3 md:p-4 space-y-3"
+            >
+              <div className="flex items-center justify-between gap-3">
+                <h3 className="text-xs md:text-sm font-semibold text-slate-900 flex items-center gap-2">
+                  <span className="w-1.5 h-1.5 rounded-full bg-amber-500" />
+                  {editingId ? "Edit Target Header" : "New Target Header"}
+                </h3>
+                <div className="flex flex-wrap gap-2 text-[11px] text-slate-600">
+                  <span className="badge badge-ghost badge-xs border-slate-200 font-semibold text-white-700 p-3">
+                    {selectedDate || "Select date"}
                   </span>
-                  <span>WH: {h.working_hour}</span>
-                  <span>SMV: {h.smv}</span>
-                  <span>Eff: {h.plan_efficiency_percent}%</span>
-                  <span>Cap: {h.capacity}</span>
-                </div>
-
-                <div className="flex justify-end gap-2 mt-1">
-                  <button
-                    type="button"
-                    onClick={() => handleEdit(h)}
-                    className="px-2 py-1 rounded-md border border-slate-300 text-[11px] text-slate-700 hover:bg-slate-50"
-                    disabled={busy}
-                  >
-                    Edit
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => handleDelete(h._id)}
-                    className="px-2 py-1 rounded-md border border-red-300 text-[11px] text-red-600 hover:bg-red-50 disabled:opacity-60"
-                    disabled={busy || deletingId === h._id}
-                  >
-                    {deletingId === h._id ? "Deleting..." : "Delete"}
-                  </button>
+                  <span className="badge badge-ghost badge-xs border-slate-200 font-semibold text-white-700 p-3">
+                    {selectedLine || "Select line"}
+                  </span>
                 </div>
               </div>
-            ))}
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                {/* Buyer */}
+                <div className="flex flex-col gap-1">
+                  <label className="text-[11px] font-semibold uppercase tracking-wide text-slate-900">
+                    Buyer
+                  </label>
+                  <select
+                    name="buyer"
+                    value={form.buyer}
+                    onChange={handleChange}
+                    className="select select-sm bg-slate-50 border-slate-200 text-xs text-black font-semibold focus:border-amber-400 focus:outline-none focus:ring-1 focus:ring-amber-400"
+                  >
+                    <option value="">Select buyer</option>
+                    {buyers.map((b) => (
+                      <option key={b} value={b}>
+                        {b}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                <Field
+                  label="Style"
+                  name="style"
+                  value={form.style}
+                  onChange={handleChange}
+                  placeholder="Style no / name"
+                />
+
+                <Field
+                  label="Run day"
+                  name="run_day"
+                  value={form.run_day}
+                  onChange={handleChange}
+                  placeholder="1"
+                  type="number"
+                />
+
+                <Field
+                  label="Color/Model"
+                  name="color_model"
+                  value={form.color_model}
+                  onChange={handleChange}
+                  placeholder="e.g. Navy / Regular"
+                />
+
+                <Field
+                  label="Total Man Power"
+                  name="total_manpower"
+                  value={form.total_manpower}
+                  onChange={handleChange}
+                  placeholder="32"
+                  type="number"
+                />
+
+                <Field
+                  label="Manpower Present"
+                  name="manpower_present"
+                  value={form.manpower_present}
+                  onChange={handleChange}
+                  placeholder="30"
+                  type="number"
+                />
+
+                <Field
+                  label="Manpower Absent (auto)"
+                  name="manpower_absent"
+                  value={form.manpower_absent}
+                  onChange={handleChange}
+                  placeholder="Auto = Total - Present"
+                  type="number"
+                  readOnly
+                />
+
+                <Field
+                  label="Working Hour (for this style)"
+                  name="working_hour"
+                  value={form.working_hour}
+                  onChange={handleChange}
+                  placeholder="2.5"
+                  type="number"
+                />
+
+                <Field
+                  label="Plan Quantity"
+                  name="plan_quantity"
+                  value={form.plan_quantity}
+                  onChange={handleChange}
+                  placeholder="2000"
+                  type="number"
+                />
+
+                <Field
+                  label="Plan Efficiency (%)"
+                  name="plan_efficiency_percent"
+                  value={form.plan_efficiency_percent}
+                  onChange={handleChange}
+                  placeholder="90"
+                  type="number"
+                />
+
+                <Field
+                  label="SMV (minutes)"
+                  name="smv"
+                  value={form.smv}
+                  onChange={handleChange}
+                  placeholder="1.2"
+                  type="number"
+                />
+
+                <Field
+                  label="Capacity"
+                  name="capacity"
+                  value={form.capacity}
+                  onChange={handleChange}
+                  placeholder="1800"
+                  type="number"
+                />
+
+                <Field
+                  label="Target (preview, auto)"
+                  name="target_preview"
+                  value={targetPreview === "" ? "" : targetPreview.toString()}
+                  onChange={() => {}}
+                  placeholder="Auto from manpower, hour, SMV, efficiency"
+                  type="number"
+                  readOnly
+                />
+              </div>
+
+              <div className="flex justify-end gap-2 pt-1">
+                {editingId && (
+                  <button
+                    type="button"
+                    onClick={handleCancelEdit}
+                    className="btn btn-sm btn-ghost border border-slate-200 text-xs font-semibold text-slate-800"
+                    disabled={busy}
+                  >
+                    Cancel
+                  </button>
+                )}
+
+                <button
+                  type="submit"
+                  className="btn btn-sm bg-amber-500 hover:bg-amber-600 text-white text-xs font-semibold px-3 border-0 disabled:opacity-70"
+                  disabled={busy || !selectedLine}
+                >
+                  {saving
+                    ? "Saving..."
+                    : editingId
+                    ? "Update Target"
+                    : "Save Target"}
+                </button>
+              </div>
+            </form>
+
+            {/* Existing headers list (right) */}
+            <div className="rounded-2xl border border-slate-200 bg-white p-3 md:p-4 space-y-2">
+              <div className="flex items-center justify-between">
+                <h3 className="text-xs md:text-sm font-semibold text-slate-900 flex items-center gap-2">
+                  <span className="w-1 h-5 rounded-full bg-emerald-400/80" />
+                  Existing Targets
+                </h3>
+                <p className="text-[11px]  text-slate-600">
+                  {selectedLine && selectedDate
+                    ? `${selectedDate} • ${selectedLine}`
+                    : "Select date & line"}
+                </p>
+              </div>
+
+              {loadingHeaders ? (
+                <p className="text-xs text-slate-500">Loading...</p>
+              ) : !selectedLine ? (
+                <p className="text-xs text-slate-500">
+                  Select a line to see existing target headers.
+                </p>
+              ) : headers.length === 0 ? (
+                <p className="text-xs text-slate-500">
+                  No target headers for this date and line yet.
+                </p>
+              ) : (
+                <div className="space-y-2">
+                  {headers.map((h) => (
+                    <div
+                      key={h._id}
+                      className="border border-slate-200 rounded-xl p-2.5 flex flex-col gap-2 text-xs bg-amber-50/40 hover:bg-amber-50/70 transition-colors"
+                    >
+                      {/* Details grid */}
+                      <div className="grid grid-cols-2 gap-x-3 gap-y-1 text-[11px] text-slate-700">
+                        <p className="font-semibold">Buyer</p>
+                        <p className="font-semibold text-slate-900">
+                          {h.buyer}
+                        </p>
+
+                        <p className="font-semibold">Style</p>
+                        <p className="font-semibold text-slate-900">
+                          {h.style}
+                        </p>
+
+                        <p className="font-semibold">Style no / name</p>
+                        <p className="text-slate-900">{h.style}</p>
+
+                        <p className="font-semibold">Run day</p>
+                        <p className="text-slate-900">{h.run_day}</p>
+
+                        <p className="font-semibold">Color/Model</p>
+                        <p className="text-slate-900">{h.color_model}</p>
+
+                        <p className="font-semibold">Total Man Power</p>
+                        <p className="text-slate-900">{h.total_manpower}</p>
+
+                        <p className="font-semibold">Manpower Present</p>
+                        <p className="text-slate-900">
+                          {h.manpower_present}
+                        </p>
+
+                        <p className="font-semibold">Manpower Absent</p>
+                        <p className="text-slate-900">
+                          {h.manpower_absent}
+                        </p>
+
+                        <p className="font-semibold">
+                          Working Hour (for this style)
+                        </p>
+                        <p className="text-slate-900">{h.working_hour}</p>
+
+                        <p className="font-semibold">Plan Quantity</p>
+                        <p className="text-slate-900">{h.plan_quantity}</p>
+
+                        <p className="font-semibold">Plan Efficiency (%)</p>
+                        <p className="text-slate-900">
+                          {h.plan_efficiency_percent}
+                        </p>
+
+                        <p className="font-semibold">SMV (minutes)</p>
+                        <p className="text-slate-900">{h.smv}</p>
+
+                        <p className="font-semibold">Capacity</p>
+                        <p className="text-slate-900">{h.capacity}</p>
+
+                        <p className="font-semibold">Target</p>
+                        <p className="text-slate-900">
+                          {h.target_full_day ?? "-"}
+                        </p>
+                      </div>
+
+                      {/* Actions */}
+                      <div className="flex justify-end gap-2 mt-1">
+                        <button
+                          type="button"
+                          onClick={() => handleEdit(h)}
+                          className="btn btn-xs btn-outline border-amber-300 text-amber-800 hover:bg-amber-50 font-semibold"
+                          disabled={busy}
+                        >
+                          Edit
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => handleDelete(h._id)}
+                          className="btn btn-xs btn-outline border-red-300 text-red-600 hover:bg-red-50 disabled:opacity-60 font-semibold"
+                          disabled={busy || deletingId === h._id}
+                        >
+                          {deletingId === h._id ? "Deleting..." : "Delete"}
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
           </div>
-        )}
+        </div>
       </div>
     </div>
   );
@@ -694,7 +768,7 @@ function Field({
     <div className="flex flex-col gap-1">
       <label
         htmlFor={name}
-        className="text-[11px] font-medium uppercase tracking-wide text-slate-600"
+        className="text-[11px] font-semibold uppercase tracking-wide text-slate-900"
       >
         {label}
       </label>
@@ -705,9 +779,7 @@ function Field({
         onChange={readOnly ? undefined : onChange}
         type={type}
         readOnly={readOnly}
-        className="h-8 w-full rounded-md border border-slate-300 bg-white px-2 text-xs text-slate-900
-                   focus:outline-none focus:ring-1 focus:ring-emerald-500 focus:border-emerald-500
-                   disabled:bg-slate-50"
+        className="input input-sm bg-slate-50 border-slate-200 text-xs text-black font-semibold placeholder:text-slate-400 focus:border-amber-400 focus:outline-none focus:ring-1 focus:ring-amber-400 disabled:bg-slate-100"
         placeholder={placeholder}
       />
     </div>

@@ -78,6 +78,8 @@ export async function POST(req) {
       line,
       buyer,
       style,
+      run_day,
+      color_model,
       total_manpower,
       manpower_present,
       manpower_absent, // can be ignored & recalculated
@@ -95,6 +97,7 @@ export async function POST(req) {
     }
 
     // numeric conversions
+    const runDayNum = toNumberOrNull(run_day);
     const totalManpowerNum = toNumberOrNull(total_manpower);
     const manpowerPresentNum = toNumberOrNull(manpower_present);
     let manpowerAbsentNum = toNumberOrNull(manpower_absent);
@@ -116,6 +119,8 @@ export async function POST(req) {
       !line ||
       !buyer ||
       !style ||
+      runDayNum == null ||
+      !color_model ||
       totalManpowerNum == null ||
       manpowerPresentNum == null ||
       manpowerAbsentNum == null ||
@@ -144,6 +149,8 @@ export async function POST(req) {
       line,
       buyer,
       style,
+      run_day: runDayNum,
+      color_model,
       total_manpower: totalManpowerNum,
       manpower_present: manpowerPresentNum,
       manpower_absent: manpowerAbsentNum,

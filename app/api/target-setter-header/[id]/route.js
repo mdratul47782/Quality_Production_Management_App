@@ -29,7 +29,6 @@ export async function GET(req, context) {
   try {
     await dbConnect();
 
-    // 🔴 এখানে পার্থক্য: params থেকে id পড়ার সময় await
     const { id } = await context.params;
 
     const doc = await TargetSetterHeader.findById(id);
@@ -55,7 +54,6 @@ export async function PATCH(req, context) {
   try {
     await dbConnect();
 
-    // 🔴 এখানেও same
     const { id } = await context.params;
     const updates = await req.json();
 
@@ -73,6 +71,8 @@ export async function PATCH(req, context) {
       "line",
       "buyer",
       "style",
+      "run_day",
+      "color_model",
       "total_manpower",
       "manpower_present",
       "manpower_absent",
@@ -86,6 +86,7 @@ export async function PATCH(req, context) {
     for (const field of updatableFields) {
       if (Object.prototype.hasOwnProperty.call(updates, field)) {
         const isNumericField = [
+          "run_day",
           "total_manpower",
           "manpower_present",
           "manpower_absent",
@@ -135,12 +136,10 @@ export async function DELETE(req, context) {
   try {
     await dbConnect();
 
-    // 🔴 এখানেও await
     const { id } = await context.params;
 
     const deleted = await TargetSetterHeader.findByIdAndDelete(id);
 
-    // চাইলে এখানে 404 না দিয়ে সবসময় successও দিতে পারো
     if (!deleted) {
       return NextResponse.json(
         { success: false, message: "Target setter header not found" },

@@ -21,7 +21,7 @@ const TargetSetterHeaderSchema = new mongoose.Schema(
     line: {
       type: String,
       required: true,
-      enum: ["Line-1", "Line-2", "Line-3"],
+     
     },
 
     // Buyer selection
@@ -33,6 +33,19 @@ const TargetSetterHeaderSchema = new mongoose.Schema(
 
     // Style input
     style: {
+      type: String,
+      required: true,
+      trim: true,
+    },
+
+    // Run day (e.g. 1, 2, 3...)
+    run_day: {
+      type: Number,
+      required: true,
+    },
+
+    // Color / Model text
+    color_model: {
       type: String,
       required: true,
       trim: true,

@@ -1,4 +1,5 @@
-// app/line-info-register/page.js
+// app/LineInfoRegisterComponents/LineInfo.jsx
+
 "use client";
 
 import React, { useEffect, useRef, useState } from "react";

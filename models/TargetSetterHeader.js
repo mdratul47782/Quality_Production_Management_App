@@ -1,109 +1,41 @@
 // models/TargetSetterHeader.js
 import mongoose from "mongoose";
 
-const TargetSetterHeaderSchema = new mongoose.Schema(
+const targetSetterHeaderSchema = new mongoose.Schema(
   {
-    // YYYY-MM-DD string (easier for filtering by day)
-    date: {
-      type: String,
-      required: true,
-      trim: true,
-    },
+    date: { type: String, required: true }, // "YYYY-MM-DD"
+    assigned_building: { type: String, required: true },
+    line: { type: String, required: true },
 
-    // From auth.assigned_building (e.g. "B-4")
-    assigned_building: {
-      type: String,
-      required: true,
-      trim: true,
-    },
+    buyer: { type: String, required: true },
+    style: { type: String, required: true },
+    run_day: { type: Number, required: true },
+    color_model: { type: String, required: true },
 
-    // Line selection
-    line: {
-      type: String,
-      required: true,
-     
-    },
+    total_manpower: { type: Number, required: true },
+    manpower_present: { type: Number, required: true },
+    manpower_absent: { type: Number, required: true },
 
-    // Buyer selection
-    buyer: {
-      type: String,
-      required: true,
-      trim: true,
-    },
+    working_hour: { type: Number, required: true },
+    plan_quantity: { type: Number, required: true },
+    plan_efficiency_percent: { type: Number, required: true },
 
-    // Style input
-    style: {
-      type: String,
-      required: true,
-      trim: true,
-    },
+    smv: { type: Number, required: true },
+    target_full_day: { type: Number, required: true },
+    capacity: { type: Number, required: true },
 
-    // Run day (e.g. 1, 2, 3...)
-    run_day: {
-      type: Number,
-      required: true,
-    },
-
-    // Color / Model text
-    color_model: {
-      type: String,
-      required: true,
-      trim: true,
-    },
-
-    // Manpower
-    total_manpower: {
-      type: Number,
-      required: true,
-    },
-    manpower_present: {
-      type: Number,
-      required: true,
-    },
-    manpower_absent: {
-      type: Number,
-      required: true,
-    },
-
-    // Working hour for this style on this line (can be 2.5, 3.75 etc)
-    working_hour: {
-      type: Number,
-      required: true,
-    },
-
-    // Planning info
-    plan_quantity: {
-      type: Number,
-      required: true,
-    },
-    plan_efficiency_percent: {
-      type: Number,
-      required: true,
-    },
-    smv: {
-      type: Number,
-      required: true,
-    },
-
-    // Auto-calculated on backend
-    target_full_day: {
-      type: Number,
-      required: true,
-    },
-
-    // Manual input
-    capacity: {
-      type: Number,
-      required: true,
+    // 👇 store auth info with each record
+    user: {
+      id: { type: String },
+      user_name: { type: String },
+      role: { type: String },
     },
   },
-  {
-    timestamps: true,
-  }
+  { timestamps: true }
 );
 
 const TargetSetterHeader =
   mongoose.models.TargetSetterHeader ||
-  mongoose.model("TargetSetterHeader", TargetSetterHeaderSchema);
+  mongoose.model("TargetSetterHeader", targetSetterHeaderSchema);
 
 export default TargetSetterHeader;

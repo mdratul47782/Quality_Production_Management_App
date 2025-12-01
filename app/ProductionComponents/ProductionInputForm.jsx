@@ -4,7 +4,23 @@
 import { useEffect, useMemo, useState } from "react";
 import { useAuth } from "../hooks/useAuth";
 
-const lines = ["Line-1", "Line-2", "Line-3","Line-4","Line-5","Line-6","Line-7","Line-8","Line-9","Line-10","Line-11","Line-12","Line-13","Line-14","Line-15"];
+const lines = [
+  "Line-1",
+  "Line-2",
+  "Line-3",
+  "Line-4",
+  "Line-5",
+  "Line-6",
+  "Line-7",
+  "Line-8",
+  "Line-9",
+  "Line-10",
+  "Line-11",
+  "Line-12",
+  "Line-13",
+  "Line-14",
+  "Line-15",
+];
 
 const buyers = [
   "Decathlon - knit",
@@ -58,6 +74,30 @@ function computeTargetPreview({
   return Math.round(target);
 }
 
+// build user info from auth
+function getAuthUserInfo(auth) {
+  if (!auth) return null;
+
+  const id =
+    auth?.user?.id ||
+    auth?.user?._id ||
+    auth?.id ||
+    auth?._id ||
+    auth?.user_id ||
+    null;
+
+  const user_name = auth?.user?.user_name || auth?.user_name || "";
+  const role = auth?.user?.role || auth?.role || "";
+
+  if (!id) return null;
+
+  return {
+    id,
+    user_name,
+    role,
+  };
+}
+
 export default function ProductionInputForm() {
   const { auth, loading: authLoading } = useAuth();
 
@@ -84,7 +124,10 @@ export default function ProductionInputForm() {
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
 
-  const assignedBuilding = auth?.assigned_building || "";
+  const assignedBuilding =
+    auth?.assigned_building ||
+    auth?.user?.assigned_building ||
+    "";
 
   // ---------- computed target preview ----------
   const targetPreview = useMemo(
@@ -200,8 +243,15 @@ export default function ProductionInputForm() {
     setError("");
     setSuccess("");
 
-    if (!auth?.assigned_building) {
-      setError("Supervisor not authenticated or no assigned building.");
+    const userInfo = getAuthUserInfo(auth);
+
+    if (!userInfo) {
+      setError("Supervisor not authenticated.");
+      return;
+    }
+
+    if (!assignedBuilding) {
+      setError("Supervisor has no assigned building.");
       return;
     }
 
@@ -225,7 +275,7 @@ export default function ProductionInputForm() {
     try {
       const payload = {
         date: selectedDate,
-        assigned_building: auth.assigned_building,
+        assigned_building: assignedBuilding,
         line: selectedLine,
         buyer: form.buyer,
         style: form.style,
@@ -242,6 +292,8 @@ export default function ProductionInputForm() {
         plan_efficiency_percent: Number(form.plan_efficiency_percent),
         smv: Number(form.smv),
         capacity: Number(form.capacity),
+        // 👇 send auth info to backend
+        user: userInfo,
       };
 
       const endpoint = editingId
@@ -308,8 +360,7 @@ export default function ProductionInputForm() {
     setForm({
       buyer: header.buyer || "",
       style: header.style || "",
-      run_day:
-        header.run_day != null ? header.run_day.toString() : "",
+      run_day: header.run_day != null ? header.run_day.toString() : "",
       color_model: header.color_model || "",
       total_manpower:
         header.total_manpower != null
@@ -720,6 +771,11 @@ export default function ProductionInputForm() {
                         <p className="font-semibold">Target</p>
                         <p className="text-slate-900">
                           {h.target_full_day ?? "-"}
+                        </p>
+
+                        <p className="font-semibold">Created By</p>
+                        <p className="text-slate-900">
+                          {h.user?.user_name || "-"}
                         </p>
                       </div>
 

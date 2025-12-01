@@ -88,6 +88,8 @@ export async function POST(req) {
       plan_efficiency_percent,
       smv,
       capacity,
+      // 👇 auth info coming from frontend
+      user,
     } = body;
 
     // fallback: auto-set today's date if not sent (YYYY-MM-DD)
@@ -110,6 +112,17 @@ export async function POST(req) {
     // auto-calc absent from total - present (server is source of truth)
     if (totalManpowerNum != null && manpowerPresentNum != null) {
       manpowerAbsentNum = Math.max(0, totalManpowerNum - manpowerPresentNum);
+    }
+
+    // normalize user payload (auth info)
+    let userPayload = null;
+    if (user && (user.id || user._id || user.user_id)) {
+      const id = user.id || user._id || user.user_id;
+      userPayload = {
+        id: String(id),
+        user_name: user.user_name || "",
+        role: user.role || "",
+      };
     }
 
     // basic validation
@@ -160,6 +173,8 @@ export async function POST(req) {
       smv: smvNum,
       target_full_day,
       capacity: capacityNum,
+      // 👇 store auth info (if provided)
+      user: userPayload,
     });
 
     return NextResponse.json({ success: true, data: doc }, { status: 201 });

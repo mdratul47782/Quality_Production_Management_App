@@ -81,10 +81,25 @@ export async function PATCH(req, context) {
       "plan_efficiency_percent",
       "smv",
       "capacity",
+      "user", // 👈 allow updating auth info too
     ];
 
     for (const field of updatableFields) {
       if (Object.prototype.hasOwnProperty.call(updates, field)) {
+        if (field === "user") {
+          // normalize user info a bit
+          const u = updates.user;
+          if (u) {
+            const idVal = u.id || u._id || u.user_id;
+            doc.user = {
+              id: idVal ? String(idVal) : undefined,
+              user_name: u.user_name || "",
+              role: u.role || "",
+            };
+          }
+          continue;
+        }
+
         const isNumericField = [
           "run_day",
           "total_manpower",

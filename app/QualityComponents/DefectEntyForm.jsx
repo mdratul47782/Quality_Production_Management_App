@@ -83,7 +83,7 @@ function SearchableDefectPicker({
             setOpen(false);
           }
         }}
-        className="w-full rounded-md border border-gray-300 px-2 py-1.5 text-sm"
+        className="w-full rounded-md border border-gray-300 px-2 py-1.5 text-sm "
         placeholder={placeholder}
         role="combobox"
         aria-expanded={open}
@@ -91,7 +91,7 @@ function SearchableDefectPicker({
       />
 
       {open && (
-        <div className="absolute z-20 mt-1 max-h-60 w-full overflow-auto rounded-md border border-gray-200 bg-white shadow">
+        <div className="absolute z-20 mt-1 max-h-60 w-full overflow-auto rounded-md border border-gray-200 bg-white shadow text-black">
           {filtered.length ? (
             filtered.map((opt, idx) => (
               <button
@@ -447,7 +447,7 @@ export default function EndlineDashboard() {
       <div className="mx-auto max-w-7xl p-4 md:p-6">
         <div className="mb-4 flex items-center justify-between gap-3">
           <div>
-            <h1 className="text-xl font-bold">
+            <h1 className="text-xl font-bold text-black">
               Endline Hourly Dashboard —{" "}
               <span className="text-indigo-600">
                 {auth?.user_name || "User"}{" "}
@@ -459,7 +459,7 @@ export default function EndlineDashboard() {
           <div className="flex items-center gap-2">
             <button
               onClick={fetchToday}
-              className="rounded-md border border-gray-300 bg-white px-3 py-1.5 text-sm hover:bg-gray-100"
+              className="rounded-md border border-gray-300 bg-white px-3 py-1.5 text-black text-sm hover:bg-gray-100"
             >
               Refresh
             </button>
@@ -477,13 +477,13 @@ export default function EndlineDashboard() {
           <div className="md:sticky md:top-4 md:h-fit">
             <div className="rounded-lg border border-gray-200 bg-white p-4 shadow-sm">
               <div className="mb-3 flex items-center justify-between">
-                <h2 className="text-sm font-semibold text-gray-700">
+                <h2 className="text-sm font-semibold text-black">
                   {editingId ? "Edit Hour Entry" : "Add New Hour Entry"}
                 </h2>
                 {editingId && (
                   <button
                     onClick={resetForm}
-                    className="text-xs text-gray-500 hover:text-gray-700 underline"
+                    className="text-xs text-gray-500 hover:text-black underline"
                   >
                     Cancel Edit
                   </button>
@@ -492,7 +492,7 @@ export default function EndlineDashboard() {
 
               {/* Line Picker */}
               <div className="mb-3">
-                <label className="mb-1 block text-xs font-medium text-gray-700">
+                <label className="mb-1 block text-xs font-medium text-black">
                   Select Line
                 </label>
                 <select
@@ -511,7 +511,7 @@ export default function EndlineDashboard() {
 
               {/* Hour Picker */}
               <div className="mb-3">
-                <label className="mb-1 block text-xs font-medium text-gray-700">
+                <label className="mb-1 block text-xs font-medium text-black">
                   Working Hour
                 </label>
                 <select
@@ -530,7 +530,7 @@ export default function EndlineDashboard() {
 
               {/* Add Defect */}
               <div className="mb-3">
-                <label className="mb-1 block text-xs font-medium text-gray-700">
+                <label className="mb-1 block text-xs font-medium text-black">
                   Add Defect
                 </label>
                 <SearchableDefectPicker
@@ -547,7 +547,7 @@ export default function EndlineDashboard() {
                       key={`${d.name}-${i}`}
                       className="flex items-center gap-2 rounded border border-gray-200 bg-gray-50 px-2 py-1"
                     >
-                      <span className="flex-1 truncate text-xs font-medium text-gray-700">
+                      <span className="flex-1 truncate text-xs font-medium text-black">
                         {d.name}
                       </span>
                       <input
@@ -561,7 +561,7 @@ export default function EndlineDashboard() {
                       <button
                         type="button"
                         onClick={() => removeDefect(i)}
-                        className="rounded border border-gray-300 px-2 py-0.5 text-xs text-gray-700 hover:bg-gray-200"
+                        className="rounded border border-gray-300 px-2 py-0.5 text-xs text-black hover:bg-gray-200"
                         title="Remove"
                       >
                         ×
@@ -574,7 +574,7 @@ export default function EndlineDashboard() {
               {/* Input Fields */}
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="mb-1 block text-xs font-medium text-gray-700">
+                  <label className="mb-1 block text-xs font-medium text-black">
                     Inspected Qty
                   </label>
                   <input
@@ -586,7 +586,7 @@ export default function EndlineDashboard() {
                   />
                 </div>
                 <div>
-                  <label className="mb-1 block text-xs font-medium text-gray-700">
+                  <label className="mb-1 block text-xs font-medium text-black">
                     Passed Qty
                   </label>
                   <input
@@ -598,7 +598,7 @@ export default function EndlineDashboard() {
                   />
                 </div>
                 <div>
-                  <label className="mb-1 block text-xs font-medium text-gray-700">
+                  <label className="mb-1 block text-xs font-medium text-black">
                     Defective Pcs
                   </label>
                   <input
@@ -610,7 +610,7 @@ export default function EndlineDashboard() {
                   />
                 </div>
                 <div>
-                  <label className="mb-1 block text-xs font-medium text-gray-700">
+                  <label className="mb-1 block text-xs font-medium text-black">
                     After Repair
                   </label>
                   <input
@@ -647,7 +647,7 @@ export default function EndlineDashboard() {
           <div>
             <div className="rounded-lg border border-gray-200 bg-white p-4 shadow-sm">
               <div className="mb-3 flex items-center justify-between">
-                <h2 className="text-sm font-semibold text-gray-700">
+                <h2 className="text-sm font-semibold text-black">
                   Today&apos;s Entries ({rows.length})
                 </h2>
                 {loading && (
@@ -749,7 +749,7 @@ export default function EndlineDashboard() {
                                   </button>
                                 </div>
                               </div>
-                              <div className="grid grid-cols-2 gap-2 text-xs text-gray-700 md:grid-cols-5">
+                              <div className="grid grid-cols-2 gap-2 text-xs text-black md:grid-cols-5">
                                 <div>
                                   <span className="text-gray-500">Inspected:</span>{" "}
                                   {r.inspectedQty}
@@ -777,7 +777,7 @@ export default function EndlineDashboard() {
                                     {r.selectedDefects.map((d, i) => (
                                       <span
                                         key={`${d.name}-${i}`}
-                                        className="rounded bg-gray-100 px-2 py-0.5 text-[11px] text-gray-700"
+                                        className="rounded bg-gray-100 px-2 py-0.5 text-[11px] text-black"
                                       >
                                         {d.name}: {d.quantity}
                                       </span>
@@ -877,7 +877,7 @@ export default function EndlineDashboard() {
                                   </button>
                                 </div>
                               </div>
-                              <div className="grid grid-cols-2 gap-2 text-xs text-gray-700 md:grid-cols-5">
+                              <div className="grid grid-cols-2 gap-2 text-xs text-black md:grid-cols-5">
                                 <div>
                                   <span className="text-gray-500">Inspected:</span>{" "}
                                   {r.inspectedQty}
@@ -905,7 +905,7 @@ export default function EndlineDashboard() {
                                     {r.selectedDefects.map((d, i) => (
                                       <span
                                         key={`${d.name}-${i}`}
-                                        className="rounded bg-gray-100 px-2 py-0.5 text-[11px] text-gray-700"
+                                        className="rounded bg-gray-100 px-2 py-0.5 text-[11px] text-black"
                                       >
                                         {d.name}: {d.quantity}
                                       </span>

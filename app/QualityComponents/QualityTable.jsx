@@ -18,7 +18,7 @@ const HOUR_COLUMNS = [
   "12th Hour",
 ];
 
-const STATIC_LINE_OPTIONS = ["Line-1", "Line-2", "Line-3"];
+const STATIC_LINE_OPTIONS = ["Line-1", "Line-2", "Line-3","Line-4","Line-5","Line-6","Line-7","Line-8","Line-9","Line-10","Line-11","Line-12","Line-13","Line-14","Line-15"];
 
 function formatDateInput(d = new Date()) {
   const yyyy = d.getFullYear();
@@ -346,7 +346,7 @@ export default function QualityTable() {
         {/* PAGE HEADER */}
         <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
           <div>
-            <h1 className="text-xl font-bold">
+            <h1 className="text-xl font-bold text-black">
               Endline Defect Summary —{" "}
               <span className="text-indigo-600">
                 {auth?.user_name || "User"} {building && `(${building})`}
@@ -360,12 +360,12 @@ export default function QualityTable() {
               type="date"
               value={selectedDate}
               onChange={(e) => setSelectedDate(e.target.value)}
-              className="rounded-md border border-gray-300 px-2 py-1 text-sm"
+              className="rounded-md bg-gray-300 text-gray-700 border border-gray-700 px-2 py-1 text-sm"
             />
             <button
               type="button"
               onClick={() => setSelectedDate(formatDateInput())}
-              className="rounded-md border border-gray-300 bg-white px-3 py-1 text-xs font-medium hover:bg-gray-100"
+              className="rounded-md border border-gray-300 bg-white px-3 py-1 text-xs font-medium hover:bg-gray-100 text-gray-700"
             >
               Today
             </button>
@@ -450,18 +450,18 @@ export default function QualityTable() {
             <table className="min-w-full text-xs">
               <thead>
                 <tr className="bg-gray-100">
-                  <th className="border px-2 py-2 text-left text-[11px] font-semibold">
+                  <th className="border px-2 py-2 text-left text-[11px] font-semibold text-black">
                     Defect Name/Code
                   </th>
                   {HOUR_COLUMNS.map((h) => (
                     <th
                       key={h}
-                      className="border px-2 py-2 text-center text-[11px] font-semibold"
+                      className="border px-2 py-2 text-center text-[11px] font-semibold text-black"
                     >
                       {h}
                     </th>
                   ))}
-                  <th className="border px-2 py-2 text-center text-[11px] font-semibold">
+                  <th className="border px-2 py-2 text-center text-[11px] font-semibold text-black">
                     Total Defects
                   </th>
                 </tr>

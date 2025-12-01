@@ -389,18 +389,18 @@ export default function ProductionInputForm() {
 
   // ---------- UI ----------
   return (
-    <div className="space-y-4">
+    <div className="space-y-4 ">
       {/* Card wrapper */}
-      <div className="card card-bordered shadow-md border-slate-200 bg-base-100">
+      <div className="card card-bordered shadow-md border-slate-200 bg-base-100 rounded-3xl">
         {/* Card header strip */}
         <div className="border-b border-slate-200 bg-gray-300 px-4 py-3 flex flex-wrap items-center justify-between gap-3 ">
           <div>
             <h2 className="text-sm md:text-base font-semibold text-slate-900">
               Target Setter Header
             </h2>
-            <p className="text-[11px] text-slate-600 mt-0.5">
+            <p className="text-[14px] text-slate-900 mt-0.5 font-bold">
               Building:&nbsp;
-              <span className="badge badge-xs border-0 bg-amber-500/10 text-amber-700 font-semibold">
+              <span className="badge badge-xs border-0 bg-amber-500/50 text-amber-700 font-bold p-4 text-[14px] ">
                 {assignedBuilding || "Not assigned"}
               </span>
             </p>
@@ -503,7 +503,7 @@ export default function ProductionInputForm() {
                   name="style"
                   value={form.style}
                   onChange={handleChange}
-                  placeholder="Style no / name"
+                  placeholder="Style no"
                 />
 
                 <Field
@@ -511,7 +511,7 @@ export default function ProductionInputForm() {
                   name="run_day"
                   value={form.run_day}
                   onChange={handleChange}
-                  placeholder="1"
+                  placeholder="0"
                   type="number"
                 />
 
@@ -520,7 +520,7 @@ export default function ProductionInputForm() {
                   name="color_model"
                   value={form.color_model}
                   onChange={handleChange}
-                  placeholder="e.g. Navy / Regular"
+                  placeholder="Color"
                 />
 
                 <Field
@@ -528,7 +528,7 @@ export default function ProductionInputForm() {
                   name="total_manpower"
                   value={form.total_manpower}
                   onChange={handleChange}
-                  placeholder="32"
+                  placeholder="0"
                   type="number"
                 />
 
@@ -537,7 +537,7 @@ export default function ProductionInputForm() {
                   name="manpower_present"
                   value={form.manpower_present}
                   onChange={handleChange}
-                  placeholder="30"
+                  placeholder="0"
                   type="number"
                 />
 
@@ -556,7 +556,7 @@ export default function ProductionInputForm() {
                   name="working_hour"
                   value={form.working_hour}
                   onChange={handleChange}
-                  placeholder="2.5"
+                  placeholder="0"
                   type="number"
                 />
 
@@ -565,7 +565,7 @@ export default function ProductionInputForm() {
                   name="plan_quantity"
                   value={form.plan_quantity}
                   onChange={handleChange}
-                  placeholder="2000"
+                  placeholder="0"
                   type="number"
                 />
 
@@ -574,7 +574,7 @@ export default function ProductionInputForm() {
                   name="plan_efficiency_percent"
                   value={form.plan_efficiency_percent}
                   onChange={handleChange}
-                  placeholder="90"
+                  placeholder="0"
                   type="number"
                 />
 
@@ -583,7 +583,7 @@ export default function ProductionInputForm() {
                   name="smv"
                   value={form.smv}
                   onChange={handleChange}
-                  placeholder="1.2"
+                  placeholder="0"
                   type="number"
                 />
 
@@ -592,7 +592,7 @@ export default function ProductionInputForm() {
                   name="capacity"
                   value={form.capacity}
                   onChange={handleChange}
-                  placeholder="1800"
+                  placeholder="0"
                   type="number"
                 />
 
@@ -637,10 +637,10 @@ export default function ProductionInputForm() {
             <div className="rounded-2xl border border-slate-200 bg-white p-3 md:p-4 space-y-2">
               <div className="flex items-center justify-between">
                 <h3 className="text-xs md:text-sm font-semibold text-slate-900 flex items-center gap-2">
-                  <span className="w-1 h-5 rounded-full bg-emerald-400/80" />
+                  <span className="w-1 h-5 rounded-full bg-emerald-400/80 " />
                   Existing Targets
                 </h3>
-                <p className="text-[11px]  text-slate-600">
+                <p className="text-[14px]  text-slate-600 p-2 font-bold">
                   {selectedLine && selectedDate
                     ? `${selectedDate} • ${selectedLine}`
                     : "Select date & line"}

@@ -239,6 +239,37 @@ function HourlyHeaderCard({ header, auth }) {
   const productionUserId =
     auth?.user?.id || auth?.user?._id || auth?.id || auth?._id || "";
 
+  // 🔁 helper – reload only WIP (for realtime update after save)
+  const refreshWip = async () => {
+    if (!header) return;
+    try {
+      setWipLoading(true);
+
+      const wipParams = new URLSearchParams({
+        assigned_building: header.assigned_building,
+        line: header.line,
+        buyer: header.buyer,
+        style: header.style,
+        date: header.date,
+      });
+
+      const resWip = await fetch(`/api/style-wip?${wipParams.toString()}`, {
+        cache: "no-store",
+      });
+
+      if (resWip.ok) {
+        const jsonWip = await resWip.json();
+        if (jsonWip.success) {
+          setWipInfo(jsonWip.data);
+        }
+      }
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setWipLoading(false);
+    }
+  };
+
   // reset when header changes
   useEffect(() => {
     setSelectedHour(1);
@@ -299,7 +330,7 @@ function HourlyHeaderCard({ header, auth }) {
     return () => controller.abort();
   }, [header?._id, productionUserId]);
 
-  // Capacity + WIP fetch for this style/building/line/buyer/date
+  // Capacity + WIP fetch for this style/building/line/buyer/date (initial)
   useEffect(() => {
     if (!header) return;
 
@@ -397,7 +428,6 @@ function HourlyHeaderCard({ header, auth }) {
     (_, i) => i + 1
   );
 
-  // Base target/hr (capacity first, else day target / working hour) → ROUND
   const targetFromCapacity =
     manpowerPresent > 0 && smv > 0
       ? (manpowerPresent * 60 * planEffDecimal) / smv
@@ -412,13 +442,11 @@ function HourlyHeaderCard({ header, auth }) {
   const achievedThisHour = Math.round(Number(achievedInput) || 0);
   const selectedHourInt = Number(selectedHour) || 1;
 
-  // Hourly Eff % = (Output_this_hr * SMV * 100) / (Manpower * 60)
   const hourlyEfficiency =
     manpowerPresent > 0 && smv > 0
       ? (achievedThisHour * smv * 100) / (manpowerPresent * 60)
       : 0;
 
-  // ---------- decorate saved records with dynamic/variance vs BASE ----------
   const recordsSorted = hourlyRecords
     .map((rec) => ({ ...rec, _hourNum: Number(rec.hour) }))
     .filter((rec) => Number.isFinite(rec._hourNum))
@@ -429,26 +457,20 @@ function HourlyHeaderCard({ header, auth }) {
   const recordsDecorated = recordsSorted.map((rec) => {
     const hourN = rec._hourNum;
 
-    // (h-1) পর্যন্ত BASE target
     const baselineToDatePrev = baseTargetPerHour * (hourN - 1);
     const cumulativeShortfallVsBasePrev = Math.max(
       0,
       baselineToDatePrev - runningAchieved
     );
 
-    // এই ঘন্টার dynamic target
     const dynTarget = baseTargetPerHour + cumulativeShortfallVsBasePrev;
 
-    // এই ঘন্টার achieved rounded
     const achievedRounded = Math.round(toNum(rec.achievedQty, 0));
 
-    // Δ Var (hour vs dynamic)
     const perHourVarDynamic = achievedRounded - dynTarget;
 
-    // running cumulative achieved update
     runningAchieved += achievedRounded;
 
-    // Net Var vs Base (to date)
     const baselineToDate = baseTargetPerHour * hourN;
     const netVarVsBaseToDate = runningAchieved - baselineToDate;
 
@@ -463,6 +485,25 @@ function HourlyHeaderCard({ header, auth }) {
       _cumulativeShortfallVsBasePrev: cumulativeShortfallVsBasePrev,
     };
   });
+
+  // 👉 TOTALS for summary row
+  const hasRecords = recordsDecorated.length > 0;
+
+  const totalAchievedAll = hasRecords
+    ? recordsDecorated.reduce(
+        (sum, rec) => sum + (rec._achievedRounded ?? 0),
+        0
+      )
+    : 0;
+
+  const lastRecord = hasRecords
+    ? recordsDecorated[recordsDecorated.length - 1]
+    : null;
+
+  const totalNetVarVsBaseToDate = lastRecord?._netVarVsBaseToDate ?? 0;
+  const totalAvgEffPercent = hasRecords
+    ? toNum(lastRecord?.totalEfficiency, 0)
+    : 0;
 
   const previousDecorated = recordsDecorated.filter(
     (rec) => rec._hourNum < selectedHourInt
@@ -507,7 +548,6 @@ function HourlyHeaderCard({ header, auth }) {
     0
   );
 
-  // AVG eff PREVIEW = (total produce min / total available min) * 100
   const totalAchievedBeforeSelected = previousDecorated.reduce(
     (sum, rec) => sum + (rec._achievedRounded ?? 0),
     0
@@ -518,7 +558,7 @@ function HourlyHeaderCard({ header, auth }) {
   const achieveEfficiency =
     manpowerPresent > 0 && smv > 0 && selectedHourInt > 0
       ? (totalAchievedPreview * smv * 100) /
-      (manpowerPresent * 60 * selectedHourInt)
+        (manpowerPresent * 60 * selectedHourInt)
       : 0;
 
   // ---------- save handler ----------
@@ -575,8 +615,8 @@ function HourlyHeaderCard({ header, auth }) {
       if (!res.ok || !json.success) {
         throw new Error(
           json?.errors?.join(", ") ||
-          json?.message ||
-          "Failed to save hourly production record"
+            json?.message ||
+            "Failed to save hourly production record"
         );
       }
 
@@ -593,6 +633,9 @@ function HourlyHeaderCard({ header, auth }) {
       if (resList.ok && jsonList.success) {
         setHourlyRecords(jsonList.data || []);
       }
+
+      // 🔁 realtime WIP refresh after new production saved
+      await refreshWip();
 
       setAchievedInput("");
       setMessage("Hourly record saved successfully.");
@@ -633,9 +676,8 @@ function HourlyHeaderCard({ header, auth }) {
         line: header.line,
         buyer: header.buyer,
         style: header.style,
-        date: header.date, // optional but good
+        date: header.date,
         capacity: capNum,
-        // ❗ শুধুই user object পাঠাচ্ছি, আলাদা userId field না
         user: {
           id: userId,
           user_name: auth?.user?.user_name || auth?.user_name || "Unknown",
@@ -654,8 +696,8 @@ function HourlyHeaderCard({ header, auth }) {
       if (!res.ok || !json.success) {
         throw new Error(
           json?.errors?.join(", ") ||
-          json?.message ||
-          "Failed to save capacity."
+            json?.message ||
+            "Failed to save capacity."
         );
       }
 
@@ -666,8 +708,8 @@ function HourlyHeaderCard({ header, auth }) {
         savedDoc?.capacity != null ? String(savedDoc.capacity) : ""
       );
 
-      // চাইলে এখানেই আবার WIP রিফ্রেশ করো (আগের মতই)
-      // ...
+      // 🔁 realtime WIP refresh after capacity change (if your WIP calc depends on it)
+      await refreshWip();
 
       setMessage("Capacity saved/updated successfully.");
     } catch (err) {
@@ -677,9 +719,6 @@ function HourlyHeaderCard({ header, auth }) {
       setCapacitySaving(false);
     }
   };
-
-
-
 
   // ---------- UI ----------
   return (
@@ -794,10 +833,11 @@ function HourlyHeaderCard({ header, auth }) {
                 Net variance vs base (to date):
               </span>{" "}
               <span
-                className={`font-semibold ${netVarVsBaseToDateSelected >= 0
+                className={`font-semibold ${
+                  netVarVsBaseToDateSelected >= 0
                     ? "text-green-700"
                     : "text-red-700"
-                  }`}
+                }`}
               >
                 {formatNumber(netVarVsBaseToDateSelected, 0)}
               </span>
@@ -808,10 +848,11 @@ function HourlyHeaderCard({ header, auth }) {
                 Cumulative variance (prev vs dynamic):
               </span>{" "}
               <span
-                className={`font-semibold ${cumulativeVarianceDynamicPrev >= 0
+                className={`font-semibold ${
+                  cumulativeVarianceDynamicPrev >= 0
                     ? "text-green-700"
                     : "text-red-700"
-                  }`}
+                }`}
               >
                 {formatNumber(cumulativeVarianceDynamicPrev, 0)}
               </span>
@@ -823,10 +864,11 @@ function HourlyHeaderCard({ header, auth }) {
                   Last hour variance (Δ vs dynamic):
                 </span>{" "}
                 <span
-                  className={`font-semibold ${previousVariance >= 0
+                  className={`font-semibold ${
+                    previousVariance >= 0
                       ? "text-green-700"
                       : "text-red-700"
-                    }`}
+                  }`}
                 >
                   {formatNumber(previousVariance, 0)}
                 </span>
@@ -937,9 +979,12 @@ function HourlyHeaderCard({ header, auth }) {
             {saving ? "Saving..." : "Save Hour"}
           </button>
         </div>
-        <div className="bg-slate-50 text-[11px]">
-          <td className="px-2 py-1 font-semibold">WIP</td>
-          <td className="px-2 py-1" colSpan={2}>
+
+        {/* ✅ FIXED WIP BLOCK – no <td> inside <div> */}
+        <div className="mt-2 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-[11px] space-y-1.5">
+          <div className="flex items-center gap-2">
+            <span className="font-semibold text-slate-800">WIP</span>
+
             <div className="flex items-center gap-1">
               <span className="text-slate-600">Capacity</span>
               <input
@@ -959,37 +1004,42 @@ function HourlyHeaderCard({ header, auth }) {
               >
                 {capacitySaving ? "Saving..." : "Save / Update Capacity"}
               </button>
-
             </div>
-          </td>
-          <td className="px-2 py-1" colSpan={3}>
-            <span className="text-slate-600 mr-1">
-              Produced (all days):
-            </span>
-            <span className="font-semibold text-slate-900">
-              {wipLoading || capacityLoading
-                ? "..."
-                : wipInfo
+          </div>
+
+          <div className="flex flex-wrap items-center gap-4">
+            <div>
+              <span className="text-slate-600 mr-1">
+                Produced (all days):
+              </span>
+              <span className="font-semibold text-slate-900">
+                {wipLoading || capacityLoading
+                  ? "..."
+                  : wipInfo
                   ? formatNumber(wipInfo.totalAchieved, 0)
                   : "-"}
-            </span>
-          </td>
-          <td className="px-2 py-1" colSpan={2}>
-            <span className="text-slate-600 mr-1">WIP:</span>
-            <span
-              className={`font-semibold ${(wipInfo?.wip ?? 0) > 0
-                  ? "text-amber-700"
-                  : "text-emerald-700"
+              </span>
+            </div>
+
+            <div>
+              <span className="text-slate-600 mr-1">WIP:</span>
+              <span
+                className={`font-semibold ${
+                  (wipInfo?.wip ?? 0) > 0
+                    ? "text-amber-700"
+                    : "text-emerald-700"
                 }`}
-            >
-              {wipLoading || capacityLoading
-                ? "..."
-                : wipInfo
+              >
+                {wipLoading || capacityLoading
+                  ? "..."
+                  : wipInfo
                   ? formatNumber(wipInfo.wip, 0)
                   : "-"}
-            </span>
-          </td>
+              </span>
+            </div>
+          </div>
         </div>
+
         {/* Posted hourly records */}
         <div className="mt-1">
           <div className="flex items-center justify-between text-xs mb-1.5">
@@ -1025,9 +1075,6 @@ function HourlyHeaderCard({ header, auth }) {
                   </tr>
                 </thead>
                 <tbody>
-                  {/* WIP summary row (style-level, from first day) */}
-
-
                   {recordsDecorated.map((rec) => (
                     <tr key={rec._id} className="border-b text-[11px]">
                       <td className="px-2 py-1">{rec._hourNum}</td>
@@ -1036,18 +1083,20 @@ function HourlyHeaderCard({ header, auth }) {
                       </td>
                       <td className="px-2 py-1">{rec._achievedRounded}</td>
                       <td
-                        className={`px-2 py-1 ${(rec._perHourVarDynamic ?? 0) >= 0
+                        className={`px-2 py-1 ${
+                          (rec._perHourVarDynamic ?? 0) >= 0
                             ? "text-green-700"
                             : "text-red-700"
-                          }`}
+                        }`}
                       >
                         {formatNumber(rec._perHourVarDynamic ?? 0, 0)}
                       </td>
                       <td
-                        className={`px-2 py-1 ${(rec._netVarVsBaseToDate ?? 0) >= 0
+                        className={`px-2 py-1 ${
+                          (rec._netVarVsBaseToDate ?? 0) >= 0
                             ? "text-green-700"
                             : "text-red-700"
-                          }`}
+                        }`}
                       >
                         {formatNumber(rec._netVarVsBaseToDate ?? 0, 0)}
                       </td>
@@ -1068,6 +1117,38 @@ function HourlyHeaderCard({ header, auth }) {
                     </tr>
                   ))}
                 </tbody>
+
+                {/* ✅ SUMMARY ROW */}
+                {hasRecords && (
+                  <tfoot>
+                    <tr className="bg-slate-100 text-[11px] font-semibold">
+                      <td className="px-2 py-1">Total</td>
+                      <td className="px-2 py-1">-</td>
+                      {/* Total Achieved */}
+                      <td className="px-2 py-1">
+                        {formatNumber(totalAchievedAll, 0)}
+                      </td>
+                      <td className="px-2 py-1">-</td>
+                      {/* Final Net Var vs Base (to date) */}
+                      <td
+                        className={`px-2 py-1 ${
+                          totalNetVarVsBaseToDate >= 0
+                            ? "text-green-700"
+                            : "text-red-700"
+                        }`}
+                      >
+                        {formatNumber(totalNetVarVsBaseToDate, 0)}
+                      </td>
+                      <td className="px-2 py-1">-</td>
+                      <td className="px-2 py-1">-</td>
+                      {/* Final AVG Eff % (overall) */}
+                      <td className="px-2 py-1">
+                        {formatNumber(totalAvgEffPercent)}
+                      </td>
+                      <td className="px-2 py-1">-</td>
+                    </tr>
+                  </tfoot>
+                )}
               </table>
             </div>
           )}

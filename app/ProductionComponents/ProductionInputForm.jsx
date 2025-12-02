@@ -414,7 +414,7 @@ export default function ProductionInputForm() {
       let json = {};
       try {
         json = await res.json();
-      } catch (e) {}
+      } catch (e) { }
 
       if (res.status === 404) {
         setSuccess("Header was already deleted (404). Syncing list.");
@@ -651,7 +651,7 @@ export default function ProductionInputForm() {
                   label="Target (preview, auto)"
                   name="target_preview"
                   value={targetPreview === "" ? "" : targetPreview.toString()}
-                  onChange={() => {}}
+                  onChange={() => { }}
                   placeholder="Auto from manpower, hour, SMV, efficiency"
                   type="number"
                   readOnly
@@ -678,8 +678,8 @@ export default function ProductionInputForm() {
                   {saving
                     ? "Saving..."
                     : editingId
-                    ? "Update Target"
-                    : "Save Target"}
+                      ? "Update Target"
+                      : "Save Target"}
                 </button>
               </div>
             </form>

@@ -20,6 +20,7 @@
   "devDependencies": {
     "@tailwindcss/postcss": "^4.1.17",
     "autoprefixer": "^10.4.22",
+    "baseline-browser-mapping": "^2.8.32",
     "daisyui": "^5.5.5",
     "eslint": "^9",
     "eslint-config-next": "16.0.4",

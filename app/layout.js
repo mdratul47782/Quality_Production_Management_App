@@ -1,16 +1,19 @@
-import { Geist, Geist_Mono } from "next/font/google";
+// app/layout.js
 import "./globals.css";
 import { dbConnect } from "@/services/mongo";
 import AuthProvider from "./providers/AuthProvider";
+import { Bebas_Neue, Roboto } from "next/font/google";
 
-const geistSans = Geist({
-  variable: "--font-geist-sans",
+const bebasNeue = Bebas_Neue({
   subsets: ["latin"],
+  weight: "400",
+  variable: "--font-bebas-neue",
 });
 
-const geistMono = Geist_Mono({
-  variable: "--font-geist-mono",
+const roboto = Roboto({
   subsets: ["latin"],
+  weight: ["400", "500", "700"], // যেগুলো লাগবে সেগুলো রাখো
+  variable: "--font-roboto",
 });
 
 export const metadata = {
@@ -20,15 +23,13 @@ export const metadata = {
 
 export default async function RootLayout({ children }) {
   await dbConnect();
+
   return (
-    <html lang="en" >
+    <html lang="en">
       <body
-        className={`${geistSans.variable} ${geistMono.variable} antialiased`}
+        className={`${roboto.variable} ${bebasNeue.variable} antialiased`}
       >
-        
-        <AuthProvider>
-        {children}
-        </AuthProvider>
+        <AuthProvider>{children}</AuthProvider>
       </body>
     </html>
   );

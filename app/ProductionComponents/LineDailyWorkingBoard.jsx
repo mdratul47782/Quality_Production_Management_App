@@ -133,7 +133,7 @@ export default function HourlyProductionBoard() {
           <div className="flex flex-wrap items-end gap-6">
             {/* Building chip */}
             <div className="space-y-1">
-              <div className="text-xs font-semibold text-slate-600 uppercase">
+              <div className="text-xs font-semibold text-slate-1000 uppercase">
                 Building
               </div>
               <div className="badge badge-lg bg-slate-100 border border-slate-300 text-xs font-semibold text-slate-900 px-4 py-3">
@@ -144,7 +144,7 @@ export default function HourlyProductionBoard() {
 
             {/* Line select */}
             <div className="space-y-1">
-              <label className="block text-xs font-semibold text-slate-700 uppercase">
+              <label className="block text-xs font-semibold text-slate-1000 uppercase">
                 Line
               </label>
               <select
@@ -163,7 +163,7 @@ export default function HourlyProductionBoard() {
 
             {/* Date select */}
             <div className="space-y-1">
-              <label className="block text-xs font-semibold text-slate-700 uppercase">
+              <label className="block text-xs font-semibold text-slate-1000 uppercase">
                 Date
               </label>
               <input
@@ -519,44 +519,44 @@ function HourlyHeaderCard({ header, auth }) {
         {/* Header summary */}
         <div className="flex flex-wrap items-start justify-between gap-3 border-b border-base-200 pb-3">
           <div className="space-y-1">
-            <div className="text-sm font-semibold tracking-wide text-slate-900">
+            <div className="text-sm font-semibold tracking-wide text-slate-1000">
               {header.line} • {header.date}
             </div>
-            <div className="text-xs text-slate-700">
+            <div className="text-xs text-slate-1000">
               <span className="font-semibold ">Buyer:</span> {header.buyer}
-              <span className="mx-1 text-slate-400">•</span>
+              <span className="mx-1 text-slate-1000">•</span>
               <span className="font-semibold">Style:</span> {header.style}
-              <span className="mx-1 text-slate-400">•</span>
+              <span className="mx-1 text-slate-1000">•</span>
               <span className="font-semibold">Color:</span>{" "}
               {header.color_model}
             </div>
-            <div className="text-xs text-slate-700">
+            <div className="text-xs text-slate-1000">
               <span className="font-semibold">Run day:</span> {header.run_day}
-              <span className="mx-1 text-slate-400">•</span>
+              <span className="mx-1 text-slate-1000">•</span>
               <span className="font-semibold">Working hour:</span>{" "}
               {header.working_hour}h
             </div>
           </div>
 
-          <div className="text-xs text-right text-slate-700 space-y-0.5">
+          <div className="text-xs text-right text-slate-1000 space-y-0.5">
             <div>
-              <span className="font-semibold text-slate-800">
+              <span className="font-semibold text-slate-1000">
                 Present MP:
               </span>{" "}
               {manpowerPresent}
             </div>
             <div>
-              <span className="font-semibold text-slate-800">
+              <span className="font-semibold text-slate-1000">
                 Plan Eff:
               </span>{" "}
               {planEfficiencyPercent}%
             </div>
             <div>
-              <span className="font-semibold text-slate-800">SMV:</span>{" "}
+              <span className="font-semibold text-slate-1000">SMV:</span>{" "}
               {smv}
             </div>
             <div>
-              <span className="font-semibold text-slate-800">
+              <span className="font-semibold text-slate-1000">
                 Day Target:
               </span>{" "}
               {targetFullDay}

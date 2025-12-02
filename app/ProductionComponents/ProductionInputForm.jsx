@@ -125,9 +125,7 @@ export default function ProductionInputForm() {
   const [success, setSuccess] = useState("");
 
   const assignedBuilding =
-    auth?.assigned_building ||
-    auth?.user?.assigned_building ||
-    "";
+    auth?.assigned_building || auth?.user?.assigned_building || "";
 
   // ---------- computed target preview ----------
   const targetPreview = useMemo(
@@ -292,7 +290,6 @@ export default function ProductionInputForm() {
         plan_efficiency_percent: Number(form.plan_efficiency_percent),
         smv: Number(form.smv),
         capacity: Number(form.capacity),
-        // 👇 send auth info to backend
         user: userInfo,
       };
 
@@ -414,7 +411,7 @@ export default function ProductionInputForm() {
       let json = {};
       try {
         json = await res.json();
-      } catch (e) { }
+      } catch (e) {}
 
       if (res.status === 404) {
         setSuccess("Header was already deleted (404). Syncing list.");
@@ -440,46 +437,46 @@ export default function ProductionInputForm() {
 
   // ---------- UI ----------
   return (
-    <div className="space-y-4 ">
+    <div className="space-y-3">
       {/* Card wrapper */}
-      <div className="card card-bordered shadow-md border-slate-200 bg-base-100 rounded-3xl">
+      <div className="card card-bordered shadow-sm border-slate-200 bg-base-100 rounded-2xl">
         {/* Card header strip */}
-        <div className="border-b border-slate-200 bg-gray-300 px-4 py-3 flex flex-wrap items-center justify-between gap-3 ">
+        <div className="border-b border-slate-200 bg-gray-200 px-2 py-2 flex flex-wrap items-center justify-between gap-2">
           <div>
-            <h2 className="text-sm md:text-base font-semibold text-slate-900">
+            <h2 className="text-xs md:text-sm font-semibold text-slate-900">
               Target Setter Header
             </h2>
-            <p className="text-[14px] text-slate-900 mt-0.5 font-bold">
+            <p className="text-[10px] text-slate-800 mt-0.5 font-medium">
               Building:&nbsp;
-              <span className="badge badge-xs border-0 bg-amber-500/50 text-amber-700 font-bold p-4 text-[14px] ">
+              <span className="badge badge-xs border-0 bg-amber-500/80 text-white font-semibold px-2 py-1 text-[10px]">
                 {assignedBuilding || "Not assigned"}
               </span>
             </p>
           </div>
 
-          <div className="flex flex-wrap items-end gap-3">
+          <div className="flex flex-wrap items-end gap-2">
             {/* Date */}
-            <div className="flex flex-col gap-1">
-              <label className="text-[11px] font-semibold text-slate-900">
+            <div className="flex flex-col gap-0.5">
+              <label className="text-[10px] font-semibold text-slate-900">
                 Date
               </label>
               <input
                 type="date"
                 value={selectedDate}
                 onChange={handleDateChange}
-                className="input input-sm bg-slate-50 border-slate-200 text-black font-semibold focus:border-amber-400 focus:outline-none focus:ring-1 focus:ring-amber-400"
+                className="input input-xs bg-slate-50 border-slate-300 text-[11px] text-black font-semibold focus:border-amber-400 focus:outline-none focus:ring-1 focus:ring-amber-400 w-32"
               />
             </div>
 
             {/* Line */}
-            <div className="flex flex-col gap-1">
-              <label className="text-[11px] font-semibold text-slate-900">
+            <div className="flex flex-col gap-0.5">
+              <label className="text-[10px] font-semibold text-slate-900">
                 Line
               </label>
               <select
                 value={selectedLine}
                 onChange={handleLineChange}
-                className="select select-sm bg-slate-50 border-slate-200 text-black font-semibold focus:border-amber-400 focus:outline-none focus:ring-1 focus:ring-amber-400 min-w-[120px]"
+                className="select select-xs bg-slate-50 border-slate-300 text-[11px] text-black font-semibold focus:border-amber-400 focus:outline-none focus:ring-1 focus:ring-amber-400 min-w-[110px]"
               >
                 <option value="">Select line</option>
                 {lines.map((line) => (
@@ -493,52 +490,52 @@ export default function ProductionInputForm() {
         </div>
 
         {/* Card body */}
-        <div className="card-body gap-4">
+        <div className="card-body gap-3 p-3">
           {/* Messages */}
           {error && (
-            <div className="alert alert-error py-2 px-3 text-xs">
+            <div className="alert alert-error py-1.5 px-2 text-[11px]">
               <span>{error}</span>
             </div>
           )}
           {success && (
-            <div className="alert alert-success py-2 px-3 text-xs">
+            <div className="alert alert-success py-1.5 px-2 text-[11px]">
               <span>{success}</span>
             </div>
           )}
 
           {/* Form + Existing list side by side */}
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 items-start">
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-3 items-start">
             {/* Form section (left) */}
             <form
               onSubmit={handleSubmit}
-              className="rounded-2xl border border-dashed border-amber-200 bg-amber-50/40 p-3 md:p-4 space-y-3"
+              className="rounded-xl border border-dashed border-amber-200 bg-amber-50/40 p-2 space-y-2"
             >
-              <div className="flex items-center justify-between gap-3">
-                <h3 className="text-xs md:text-sm font-semibold text-slate-900 flex items-center gap-2">
+              <div className="flex items-center justify-between gap-2">
+                <h3 className="text-[11px] md:text-[12px] font-semibold text-slate-900 flex items-center gap-1.5">
                   <span className="w-1.5 h-1.5 rounded-full bg-amber-500" />
                   {editingId ? "Edit Target Header" : "New Target Header"}
                 </h3>
-                <div className="flex flex-wrap gap-2 text-[11px] text-slate-600">
-                  <span className="badge badge-ghost badge-xs border-slate-200 font-semibold text-white-700 p-3">
+                <div className="flex flex-wrap gap-1 text-[10px] text-slate-600">
+                  <span className="badge badge-ghost badge-xs border-slate-200 font-semibold text-slate-1000 px-2 py-0.5">
                     {selectedDate || "Select date"}
                   </span>
-                  <span className="badge badge-ghost badge-xs border-slate-200 font-semibold text-white-700 p-3">
+                  <span className="badge badge-ghost badge-xs border-slate-200 font-semibold text-slate-10000 px-2 py-0.5">
                     {selectedLine || "Select line"}
                   </span>
                 </div>
               </div>
 
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                 {/* Buyer */}
-                <div className="flex flex-col gap-1">
-                  <label className="text-[11px] font-semibold uppercase tracking-wide text-slate-900">
+                <div className="flex flex-col gap-0.5">
+                  <label className="text-[10px] font-semibold uppercase tracking-wide text-slate-900">
                     Buyer
                   </label>
                   <select
                     name="buyer"
                     value={form.buyer}
                     onChange={handleChange}
-                    className="select select-sm bg-slate-50 border-slate-200 text-xs text-black font-semibold focus:border-amber-400 focus:outline-none focus:ring-1 focus:ring-amber-400"
+                    className="select select-xs bg-slate-50 border-slate-300 text-[11px] text-black font-semibold focus:border-amber-400 focus:outline-none focus:ring-1 focus:ring-amber-400 w-full"
                   >
                     <option value="">Select buyer</option>
                     {buyers.map((b) => (
@@ -651,19 +648,19 @@ export default function ProductionInputForm() {
                   label="Target (preview, auto)"
                   name="target_preview"
                   value={targetPreview === "" ? "" : targetPreview.toString()}
-                  onChange={() => { }}
+                  onChange={() => {}}
                   placeholder="Auto from manpower, hour, SMV, efficiency"
                   type="number"
                   readOnly
                 />
               </div>
 
-              <div className="flex justify-end gap-2 pt-1">
+              <div className="flex justify-end gap-1.5 pt-1">
                 {editingId && (
                   <button
                     type="button"
                     onClick={handleCancelEdit}
-                    className="btn btn-sm btn-ghost border border-slate-200 text-xs font-semibold text-slate-800"
+                    className="btn btn-xs btn-ghost border border-slate-200 text-[11px] font-semibold text-slate-800"
                     disabled={busy}
                   >
                     Cancel
@@ -672,26 +669,26 @@ export default function ProductionInputForm() {
 
                 <button
                   type="submit"
-                  className="btn btn-sm bg-amber-500 hover:bg-amber-600 text-white text-xs font-semibold px-3 border-0 disabled:opacity-70"
+                  className="btn btn-xs bg-amber-500 hover:bg-amber-600 text-white text-[11px] font-semibold px-3 border-0 disabled:opacity-70"
                   disabled={busy || !selectedLine}
                 >
                   {saving
                     ? "Saving..."
                     : editingId
-                      ? "Update Target"
-                      : "Save Target"}
+                    ? "Update Target"
+                    : "Save Target"}
                 </button>
               </div>
             </form>
 
             {/* Existing headers list (right) */}
-            <div className="rounded-2xl border border-slate-200 bg-white p-3 md:p-4 space-y-2">
+            <div className="rounded-xl border border-slate-200 bg-white p-2.5 space-y-2">
               <div className="flex items-center justify-between">
-                <h3 className="text-xs md:text-sm font-semibold text-slate-900 flex items-center gap-2">
-                  <span className="w-1 h-5 rounded-full bg-emerald-400/80 " />
+                <h3 className="text-[11px] md:text-[12px] font-semibold text-slate-900 flex items-center gap-1.5">
+                  <span className="w-1 h-4 rounded-full bg-emerald-400/80" />
                   Existing Targets
                 </h3>
-                <p className="text-[14px]  text-slate-600 p-2 font-bold">
+                <p className="text-[11px] text-slate-600 px-2 font-medium">
                   {selectedLine && selectedDate
                     ? `${selectedDate} • ${selectedLine}`
                     : "Select date & line"}
@@ -699,24 +696,24 @@ export default function ProductionInputForm() {
               </div>
 
               {loadingHeaders ? (
-                <p className="text-xs text-slate-500">Loading...</p>
+                <p className="text-[11px] text-slate-500">Loading...</p>
               ) : !selectedLine ? (
-                <p className="text-xs text-slate-500">
+                <p className="text-[11px] text-slate-500">
                   Select a line to see existing target headers.
                 </p>
               ) : headers.length === 0 ? (
-                <p className="text-xs text-slate-500">
+                <p className="text-[11px] text-slate-500">
                   No target headers for this date and line yet.
                 </p>
               ) : (
-                <div className="space-y-2">
+                <div className="space-y-1.5">
                   {headers.map((h) => (
                     <div
                       key={h._id}
-                      className="border border-slate-200 rounded-xl p-2.5 flex flex-col gap-2 text-xs bg-amber-50/40 hover:bg-amber-50/70 transition-colors"
+                      className="border border-slate-200 rounded-lg p-2 flex flex-col gap-1.5 text-[10px] bg-amber-50/40 hover:bg-amber-50/80 transition-colors"
                     >
                       {/* Details grid */}
-                      <div className="grid grid-cols-2 gap-x-3 gap-y-1 text-[11px] text-slate-700">
+                      <div className="grid grid-cols-2 gap-x-2 gap-y-0.5 text-slate-700">
                         <p className="font-semibold">Buyer</p>
                         <p className="font-semibold text-slate-900">
                           {h.buyer}
@@ -780,11 +777,11 @@ export default function ProductionInputForm() {
                       </div>
 
                       {/* Actions */}
-                      <div className="flex justify-end gap-2 mt-1">
+                      <div className="flex justify-end gap-1 mt-1">
                         <button
                           type="button"
                           onClick={() => handleEdit(h)}
-                          className="btn btn-xs btn-outline border-amber-300 text-amber-800 hover:bg-amber-50 font-semibold"
+                          className="btn btn-xxs btn-outline border-amber-300 text-amber-800 hover:bg-amber-50 font-semibold px-2 min-h-0 h-6"
                           disabled={busy}
                         >
                           Edit
@@ -792,7 +789,7 @@ export default function ProductionInputForm() {
                         <button
                           type="button"
                           onClick={() => handleDelete(h._id)}
-                          className="btn btn-xs btn-outline border-red-300 text-red-600 hover:bg-red-50 disabled:opacity-60 font-semibold"
+                          className="btn btn-xxs btn-outline border-red-300 text-red-600 hover:bg-red-50 disabled:opacity-60 font-semibold px-2 min-h-0 h-6"
                           disabled={busy || deletingId === h._id}
                         >
                           {deletingId === h._id ? "Deleting..." : "Delete"}
@@ -821,10 +818,10 @@ function Field({
   readOnly = false,
 }) {
   return (
-    <div className="flex flex-col gap-1">
+    <div className="flex flex-col gap-0.5">
       <label
         htmlFor={name}
-        className="text-[11px] font-semibold uppercase tracking-wide text-slate-900"
+        className="text-[10px] font-semibold uppercase tracking-wide text-slate-900"
       >
         {label}
       </label>
@@ -835,7 +832,7 @@ function Field({
         onChange={readOnly ? undefined : onChange}
         type={type}
         readOnly={readOnly}
-        className="input input-sm bg-slate-50 border-slate-200 text-xs text-black font-semibold placeholder:text-slate-400 focus:border-amber-400 focus:outline-none focus:ring-1 focus:ring-amber-400 disabled:bg-slate-100"
+        className="input input-xs bg-slate-50 border-slate-300 text-[11px] text-black font-semibold placeholder:text-slate-400 focus:border-amber-400 focus:outline-none focus:ring-1 focus:ring-amber-400 disabled:bg-slate-100 w-full"
         placeholder={placeholder}
       />
     </div>

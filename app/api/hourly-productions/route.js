@@ -10,8 +10,6 @@ function toNumberOrZero(value) {
 }
 
 // Base target/hr from TargetSetterHeader
-// Target/hr = manpower_present × 60 × plan_eff% ÷ SMV
-// Fallback: target_full_day / working_hour
 function computeBaseTargetPerHourFromHeader(header) {
   const workingHour = toNumberOrZero(header.working_hour);
   const manpowerPresent = toNumberOrZero(header.manpower_present);
@@ -31,17 +29,21 @@ function computeBaseTargetPerHourFromHeader(header) {
   return targetFromCapacity || targetFromFullDay || 0;
 }
 
-// 🔸 GET /api/hourly-productions?headerId=...&productionUserId=...&days=30
+// ======================= GET =======================
 export async function GET(request) {
   try {
     await dbConnect();
 
     const { searchParams } = new URL(request.url);
+
     const headerId = searchParams.get("headerId");
     const productionUserId = searchParams.get("productionUserId");
+    const assigned_building = searchParams.get("assigned_building");
+    const line = searchParams.get("line");
+    const date = searchParams.get("date");
     const days = parseInt(searchParams.get("days") || "30", 10);
 
-    // 1) For a specific header (line + style segment)
+    // 1) Specific header (current Hourly card)
     if (headerId) {
       const query = { headerId };
       if (productionUserId) {
@@ -55,12 +57,42 @@ export async function GET(request) {
       return Response.json({ success: true, data: records }, { status: 200 });
     }
 
-    // 2) For a production user over last N days (for MonthlyEfficiencyChart)
+    // 2) Building + Line + Date ভিত্তিক API
+    // /api/hourly-productions?assigned_building=B-4&line=Line-3&date=2025-12-02&productionUserId=...
+    if (assigned_building && line && date) {
+      const headers = await TargetSetterHeader.find({
+        assigned_building,
+        line,
+        date,
+      })
+        .select("_id")
+        .lean();
+
+      if (!headers.length) {
+        return Response.json({ success: true, data: [] }, { status: 200 });
+      }
+
+      const headerIds = headers.map((h) => h._id);
+
+      const query = { headerId: { $in: headerIds } };
+      if (productionUserId) {
+        query["productionUser.id"] = productionUserId;
+      }
+
+      const records = await HourlyProductionModel.find(query)
+        .sort({ hour: 1 })
+        .lean();
+
+      return Response.json({ success: true, data: records }, { status: 200 });
+    }
+
+    // 3) Production user history (last N days)
     if (!productionUserId) {
       return Response.json(
         {
           success: false,
-          message: "Either headerId or productionUserId is required",
+          message:
+            "Need either headerId OR (assigned_building + line + date) OR productionUserId",
         },
         { status: 400 }
       );
@@ -93,14 +125,7 @@ export async function GET(request) {
   }
 }
 
-// 🔸 POST /api/hourly-productions
-// Body:
-// {
-//   headerId: string,
-//   hour: number,
-//   achievedQty: number,
-//   productionUser: { id, Production_user_name, phone, bio }
-// }
+// ======================= POST =======================
 export async function POST(request) {
   try {
     await dbConnect();
@@ -125,7 +150,6 @@ export async function POST(request) {
       return Response.json({ success: false, errors }, { status: 400 });
     }
 
-    // 🔹 Header from TargetSetterHeader (by building + line + date UI)
     const header = await TargetSetterHeader.findById(headerId).lean();
 
     if (!header) {
@@ -141,7 +165,7 @@ export async function POST(request) {
 
     const baseTargetPerHour = computeBaseTargetPerHourFromHeader(header);
 
-    // 🔹 Previous hours for this header + production user
+    // Previous hours for same header + same user
     const previousRecords = await HourlyProductionModel.find({
       headerId,
       "productionUser.id": productionUser.id,
@@ -155,9 +179,6 @@ export async function POST(request) {
       totalAchievedBefore += toNumberOrZero(rec.achievedQty);
     }
 
-    // 🔹 Dynamic target (GARMENT RULE)
-    // Baseline up to previous hour: base * (hour - 1)
-    // Shortfall vs BASE (not vs dynamic): max(0, baseline - achievedBefore)
     const baselineToDatePrev = baseTargetPerHour * (hour - 1);
     const shortfallPrevVsBase = Math.max(
       0,
@@ -165,34 +186,24 @@ export async function POST(request) {
     );
 
     const dynamicTarget = baseTargetPerHour + shortfallPrevVsBase;
-
-    // Δ vs dynamic this hour
     const varianceQty = achievedQty - dynamicTarget;
 
-    // 🔹 Net variance vs BASE to date (same as your frontend decoration)
     const totalAchievedUpToThisHour = totalAchievedBefore + achievedQty;
     const baselineToDateCurrent = baseTargetPerHour * hour;
     const cumulativeVariance =
       totalAchievedUpToThisHour - baselineToDateCurrent;
 
-    // 🔹 Efficiency calculations
-    // Hourly Eff % = (Output_this_hr * SMV * 100) / (Manpower * 60)
     const hourlyEfficiency =
       manpowerPresent > 0 && smv > 0
         ? (achievedQty * smv * 100) / (manpowerPresent * 60)
         : 0;
 
-    // AVG Eff % (AchieveEff) = (TotalOutputTillNow * SMV * 100) /
-    //                          (Manpower * 60 * HourCompleted)
     const achieveEfficiency =
       manpowerPresent > 0 && smv > 0 && hour > 0
         ? (totalAchievedUpToThisHour * smv * 100) /
           (manpowerPresent * 60 * hour)
         : 0;
 
-    // For your "AVG Eff %" column, you wanted:
-    // (total produce minute / total available minute) * 100
-    // That is exactly achieveEfficiency. So:
     const totalEfficiency = achieveEfficiency;
 
     const doc = {
@@ -215,11 +226,12 @@ export async function POST(request) {
       },
     };
 
-    // 🔹 Upsert: one row per (headerId + productionUser.id + hour)
-   const existing = await HourlyProductionModel.findOne({
-  headerId,
-  hour,
-});
+    // ✅ Upsert per (headerId + productionUser.id + hour)
+    const existing = await HourlyProductionModel.findOne({
+      headerId,
+      "productionUser.id": productionUser.id,
+      hour,
+    });
 
     let saved;
     if (existing) {
@@ -239,6 +251,19 @@ export async function POST(request) {
     );
   } catch (error) {
     console.error("POST /api/hourly-productions error:", error);
+
+    // Duplicate key nice handling
+    if (error.code === 11000) {
+      return Response.json(
+        {
+          success: false,
+          message:
+            "This hour is already saved for this header & user. Reload / edit existing record instead.",
+        },
+        { status: 409 }
+      );
+    }
+
     return Response.json(
       {
         success: false,

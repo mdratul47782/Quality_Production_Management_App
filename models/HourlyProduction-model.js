@@ -8,7 +8,7 @@ const hourlyProductionSchema = new mongoose.Schema(
       ref: "TargetSetterHeader",
       required: true,
     },
-    productionDate: { type: String, required: true },
+    productionDate: { type: String, required: true }, // "YYYY-MM-DD"
     hour: { type: Number, required: true, min: 1 },
     achievedQty: { type: Number, required: true, min: 0 },
 
@@ -31,7 +31,7 @@ const hourlyProductionSchema = new mongoose.Schema(
   { timestamps: true }
 );
 
-// 🔹 এটা add করো
+// এক লাইন, এক header, এক user, এক ঘন্টায় একটাই রেকর্ড
 hourlyProductionSchema.index(
   { headerId: 1, "productionUser.id": 1, hour: 1 },
   { unique: true }

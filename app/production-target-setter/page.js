@@ -10,7 +10,7 @@ export default function ProductionTargetSetterPage() {
         {/* Header */}
         <header className="space-y-1">
           <h1 className="text-lg md:text-2xl font-semibold text-slate-900">
-            Production Target Setter
+            Production Home Page
           </h1>
           <p className="text-xs md:text-sm text-slate-600">
             Set daily production targets by line, style, and buyer for your assigned
@@ -34,3 +34,6 @@ export default function ProductionTargetSetterPage() {
     </main>
   );
 }
+console.log("We can get [ header ] from this api-->  /api/hourly-productions?assigned_building=B-4&line=Line-1&date=2025-12-02&productionUserId=692a7723bd777a6e51bc0972 ")
+
+console.log("We can get [ Production Hourly data based on *building=B *Line *Date and  *productionUserId=692a7723bd777a6e51bc0974 ] from this api-->  /api/hourly-productions?assigned_building=B-4&line=Line-2&date=2025-12-02&productionUserId=692a7723bd777a6e51bc0974 ")

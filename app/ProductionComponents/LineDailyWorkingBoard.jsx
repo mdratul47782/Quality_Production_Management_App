@@ -148,7 +148,7 @@ export default function HourlyProductionBoard() {
                 Line
               </label>
               <select
-                className="select select-sm select-bordered bg-slate-50 font-semibold text-sm min-w-[140px]"
+                className="select select-sm select-bordered bg-slate-50 font-semibold text-sm min-w-[140px] text-black"
                 value={selectedLine}
                 onChange={(e) => setSelectedLine(e.target.value)}
               >
@@ -168,7 +168,7 @@ export default function HourlyProductionBoard() {
               </label>
               <input
                 type="date"
-                className="input input-sm input-bordered bg-slate-50 font-semibold text-sm"
+                className="input input-sm input-bordered bg-green-500 font-semibold text-sm text-black"
                 value={selectedDate}
                 onChange={(e) => setSelectedDate(e.target.value)}
               />
@@ -290,7 +290,7 @@ function HourlyHeaderCard({ header, auth }) {
   if (!header) return null;
 
   // ---------- derived header values ----------
-  const totalWorkingHours = header.working_hour ?? 1;
+    const totalWorkingHours = header.working_hour ?? 1;
   const manpowerPresent = header.manpower_present ?? 0;
   const smv = header.smv ?? 1;
   const planEfficiencyPercent = header.plan_efficiency_percent ?? 0;
@@ -302,7 +302,7 @@ function HourlyHeaderCard({ header, auth }) {
     (_, i) => i + 1
   );
 
-  // Base target/hr (capacity first, else day target / working hour)
+  // Base target/hr (capacity first, else day target / working hour) → ROUND
   const targetFromCapacity =
     manpowerPresent > 0 && smv > 0
       ? (manpowerPresent * 60 * planEffDecimal) / smv
@@ -311,7 +311,9 @@ function HourlyHeaderCard({ header, auth }) {
   const targetFromFullDay =
     totalWorkingHours > 0 ? targetFullDay / totalWorkingHours : 0;
 
-  const baseTargetPerHour = targetFromCapacity || targetFromFullDay || 0;
+  const baseTargetPerHourRaw = targetFromCapacity || targetFromFullDay || 0;
+  const baseTargetPerHour = Math.round(baseTargetPerHourRaw);
+
 
   const achievedThisHour = Math.round(Number(achievedInput) || 0);
   const selectedHourInt = Number(selectedHour) || 1;
@@ -328,36 +330,46 @@ function HourlyHeaderCard({ header, auth }) {
     .filter((rec) => Number.isFinite(rec._hourNum))
     .sort((a, b) => a._hourNum - b._hourNum);
 
-  let runningAchieved = 0;
+    let runningAchieved = 0;
 
   const recordsDecorated = recordsSorted.map((rec) => {
     const hourN = rec._hourNum;
 
+    // (h-1) পর্যন্ত BASE target
     const baselineToDatePrev = baseTargetPerHour * (hourN - 1);
     const cumulativeShortfallVsBasePrev = Math.max(
       0,
       baselineToDatePrev - runningAchieved
     );
 
+    // এই ঘন্টার dynamic target
     const dynTarget = baseTargetPerHour + cumulativeShortfallVsBasePrev;
 
+    // এই ঘন্টার achieved rounded
     const achievedRounded = Math.round(toNum(rec.achievedQty, 0));
+
+    // Δ Var (hour vs dynamic)
     const perHourVarDynamic = achievedRounded - dynTarget;
 
+    // running cumulative achieved update
     runningAchieved += achievedRounded;
 
+    // Net Var vs Base (to date)
     const baselineToDate = baseTargetPerHour * hourN;
     const netVarVsBaseToDate = runningAchieved - baselineToDate;
 
     return {
       ...rec,
       _hourNum: hourN,
-      _dynTargetRounded: dynTarget,
+      _dynTargetRounded: Math.round(dynTarget),
       _achievedRounded: achievedRounded,
       _perHourVarDynamic: perHourVarDynamic,
       _netVarVsBaseToDate: netVarVsBaseToDate,
+      _baselineToDatePrev: baselineToDatePrev,
+      _cumulativeShortfallVsBasePrev: cumulativeShortfallVsBasePrev,
     };
   });
+
 
   const previousDecorated = recordsDecorated.filter(
     (rec) => rec._hourNum < selectedHourInt
@@ -376,8 +388,10 @@ function HourlyHeaderCard({ header, auth }) {
     baselineToDatePrevForSelected - achievedToDatePrev
   );
 
-  const dynamicTargetThisHour =
-    baseTargetPerHour + cumulativeShortfallVsBasePrevForSelected;
+    const dynamicTargetThisHour = Math.round(
+    baseTargetPerHour + cumulativeShortfallVsBasePrevForSelected
+  );
+
 
   const achievedToDatePosted = recordsDecorated
     .filter((rec) => rec._hourNum <= selectedHourInt)
@@ -509,7 +523,7 @@ function HourlyHeaderCard({ header, auth }) {
               {header.line} • {header.date}
             </div>
             <div className="text-xs text-slate-700">
-              <span className="font-semibold">Buyer:</span> {header.buyer}
+              <span className="font-semibold ">Buyer:</span> {header.buyer}
               <span className="mx-1 text-slate-400">•</span>
               <span className="font-semibold">Style:</span> {header.style}
               <span className="mx-1 text-slate-400">•</span>
@@ -653,16 +667,16 @@ function HourlyHeaderCard({ header, auth }) {
         </div>
 
         {/* Main input row */}
-        <div className="overflow-x-auto">
-          <table className="table table-sm w-full">
+        <div className="overflow-x-auto ">
+          <table className="table table-sm w-full ">
             <thead>
-              <tr className="bg-base-200 text-xs">
-                <th className="px-2 text-amber-100">Hour</th>
-                <th className="px-2 text-amber-100">Base Target / hr</th>
-                <th className="px-2 text-amber-100">Dynamic Target (this hour)</th>
-                <th className="px-2 text-amber-100">Achieved Qty (this hour)</th>
-                <th className="px-2 text-amber-100">Hourly Eff %</th>
-                <th className="px-2 text-amber-100">AVG Eff % (preview)</th>
+              <tr className="bg-base-200 text-xs ">
+                <th className="px-2 text-amber-600 ">Hour</th>
+                <th className="px-2 text-amber-600">Base Target / hr</th>
+                <th className="px-2 text-amber-600">Dynamic Target (this hour)</th>
+                <th className="px-2 text-amber-600">Achieved Qty (this hour)</th>
+                <th className="px-2 text-amber-600">Hourly Eff %</th>
+                <th className="px-2 text-amber-600">AVG Eff % (preview)</th>
               </tr>
             </thead>
             <tbody>

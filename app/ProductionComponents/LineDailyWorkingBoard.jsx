@@ -46,7 +46,7 @@ export default function HourlyProductionBoard() {
   const { auth, loading: authLoading } = useAuth();
 
   const [selectedLine, setSelectedLine] = useState("");
-  const [selectedDate, setSelectedDate] = useState(todayIso()); // <-- call helper
+  const [selectedDate, setSelectedDate] = useState(todayIso());
   const [headers, setHeaders] = useState([]);
   const [loadingHeaders, setLoadingHeaders] = useState(false);
   const [error, setError] = useState("");
@@ -108,7 +108,7 @@ export default function HourlyProductionBoard() {
   if (authLoading) {
     return (
       <div className="card bg-base-100 border border-base-200 shadow-sm">
-        <div className="card-body py-3 text-sm">
+        <div className="card-body py-2 px-3 text-xs">
           Loading user...
         </div>
       </div>
@@ -118,7 +118,7 @@ export default function HourlyProductionBoard() {
   if (!auth) {
     return (
       <div className="card bg-yellow-50 border border-yellow-300 shadow-sm">
-        <div className="card-body py-3 text-sm">
+        <div className="card-body py-2 px-3 text-xs">
           No user logged in. Please sign in to see hourly production.
         </div>
       </div>
@@ -126,17 +126,17 @@ export default function HourlyProductionBoard() {
   }
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-3">
       {/* Top filter panel */}
-      <div className="card bg-base-100 border border-base-200 shadow-md">
-        <div className="card-body space-y-3">
-          <div className="flex flex-wrap items-end gap-6">
+      <div className="card bg-base-100 border border-base-200 shadow-sm">
+        <div className="card-body p-3 space-y-2 text-xs">
+          <div className="flex flex-wrap items-end gap-4">
             {/* Building chip */}
             <div className="space-y-1">
-              <div className="text-xs font-semibold text-slate-1000 uppercase">
+              <div className="text-[11px] font-semibold text-slate-1000 uppercase">
                 Building
               </div>
-              <div className="badge badge-lg bg-slate-100 border border-slate-300 text-xs font-semibold text-slate-900 px-4 py-3">
+              <div className="badge bg-slate-100 border border-slate-300 text-[11px] font-semibold text-slate-900 px-3 py-2">
                 <span className="mr-1 text-slate-500">Assigned:</span>
                 <span>{assignedBuilding || "Not assigned"}</span>
               </div>
@@ -144,11 +144,11 @@ export default function HourlyProductionBoard() {
 
             {/* Line select */}
             <div className="space-y-1">
-              <label className="block text-xs font-semibold text-slate-1000 uppercase">
+              <label className="block text-[11px] font-semibold text-slate-1000 uppercase">
                 Line
               </label>
               <select
-                className="select select-sm select-bordered bg-slate-50 font-semibold text-sm min-w-[140px] text-black"
+                className="select select-xs select-bordered bg-slate-50 font-semibold text-xs min-w-[120px] text-black"
                 value={selectedLine}
                 onChange={(e) => setSelectedLine(e.target.value)}
               >
@@ -163,12 +163,12 @@ export default function HourlyProductionBoard() {
 
             {/* Date select */}
             <div className="space-y-1">
-              <label className="block text-xs font-semibold text-slate-1000 uppercase">
+              <label className="block text-[11px] font-semibold text-slate-1000 uppercase">
                 Date
               </label>
               <input
                 type="date"
-                className="input input-sm input-bordered bg-green-500 font-semibold text-sm text-black"
+                className="input input-xs input-bordered bg-green-500/80 font-semibold text-xs text-black"
                 value={selectedDate}
                 onChange={(e) => setSelectedDate(e.target.value)}
               />
@@ -177,13 +177,13 @@ export default function HourlyProductionBoard() {
 
           {/* Status / messages */}
           {error && (
-            <div className="alert alert-error py-2 px-3 text-sm">
+            <div className="alert alert-error py-1 px-2 text-[11px]">
               <span>{error}</span>
             </div>
           )}
 
           {selectedLine && !loadingHeaders && headers.length === 0 && (
-            <div className="text-sm text-slate-600">
+            <div className="text-[11px] text-slate-600">
               No target headers for{" "}
               <span className="font-semibold">{assignedBuilding}</span> •{" "}
               <span className="font-semibold">{selectedLine}</span> •{" "}
@@ -192,7 +192,7 @@ export default function HourlyProductionBoard() {
           )}
 
           {loadingHeaders && (
-            <div className="text-sm text-slate-600 flex items-center gap-2">
+            <div className="text-[11px] text-slate-600 flex items-center gap-2">
               <span className="loading loading-spinner loading-xs" />
               <span>Loading target headers...</span>
             </div>
@@ -206,7 +206,7 @@ export default function HourlyProductionBoard() {
       ))}
 
       {headers.length === 0 && !loadingHeaders && !error && selectedLine && (
-        <div className="text-xs text-slate-500">
+        <div className="text-[11px] text-slate-500">
           When you create target headers for this line & date, they will show
           here with hourly input cards.
         </div>
@@ -228,6 +228,14 @@ function HourlyHeaderCard({ header, auth }) {
   const [error, setError] = useState("");
   const [message, setMessage] = useState("");
 
+  // Capacity + WIP state
+  const [capacityInput, setCapacityInput] = useState("");
+  const [capacityRecord, setCapacityRecord] = useState(null);
+  const [capacitySaving, setCapacitySaving] = useState(false);
+  const [capacityLoading, setCapacityLoading] = useState(false);
+  const [wipInfo, setWipInfo] = useState(null);
+  const [wipLoading, setWipLoading] = useState(false);
+
   const productionUserId =
     auth?.user?.id || auth?.user?._id || auth?.id || auth?._id || "";
 
@@ -238,6 +246,10 @@ function HourlyHeaderCard({ header, auth }) {
     setHourlyRecords([]);
     setError("");
     setMessage("");
+
+    setCapacityInput("");
+    setCapacityRecord(null);
+    setWipInfo(null);
   }, [header?._id]);
 
   // Load existing hourly records for this header + user
@@ -287,10 +299,93 @@ function HourlyHeaderCard({ header, auth }) {
     return () => controller.abort();
   }, [header?._id, productionUserId]);
 
+  // Capacity + WIP fetch for this style/building/line/buyer/date
+  useEffect(() => {
+    if (!header) return;
+
+    const controller = new AbortController();
+
+    const fetchCapacityAndWip = async () => {
+      try {
+        setCapacityLoading(true);
+        setWipLoading(true);
+
+        const baseParams = new URLSearchParams({
+          assigned_building: header.assigned_building,
+          line: header.line,
+          buyer: header.buyer,
+          style: header.style,
+        });
+
+        // Capacity
+        try {
+          const resCap = await fetch(
+            `/api/style-capacities?${baseParams.toString()}`,
+            {
+              cache: "no-store",
+              signal: controller.signal,
+            }
+          );
+
+          if (resCap.ok) {
+            const jsonCap = await resCap.json();
+            if (jsonCap.success) {
+              const doc = jsonCap.data?.[0] || null;
+              setCapacityRecord(doc);
+              setCapacityInput(
+                doc?.capacity != null ? String(doc.capacity) : ""
+              );
+            }
+          }
+        } catch (err) {
+          if (err.name !== "AbortError") console.error(err);
+        }
+
+        // WIP
+        try {
+          const wipParams = new URLSearchParams({
+            assigned_building: header.assigned_building,
+            line: header.line,
+            buyer: header.buyer,
+            style: header.style,
+            date: header.date,
+          });
+
+          const resWip = await fetch(`/api/style-wip?${wipParams.toString()}`, {
+            cache: "no-store",
+            signal: controller.signal,
+          });
+
+          if (resWip.ok) {
+            const jsonWip = await resWip.json();
+            if (jsonWip.success) {
+              setWipInfo(jsonWip.data);
+            }
+          }
+        } catch (err) {
+          if (err.name !== "AbortError") console.error(err);
+        }
+      } finally {
+        setCapacityLoading(false);
+        setWipLoading(false);
+      }
+    };
+
+    fetchCapacityAndWip();
+
+    return () => controller.abort();
+  }, [
+    header?.assigned_building,
+    header?.line,
+    header?.buyer,
+    header?.style,
+    header?.date,
+  ]);
+
   if (!header) return null;
 
   // ---------- derived header values ----------
-    const totalWorkingHours = header.working_hour ?? 1;
+  const totalWorkingHours = header.working_hour ?? 1;
   const manpowerPresent = header.manpower_present ?? 0;
   const smv = header.smv ?? 1;
   const planEfficiencyPercent = header.plan_efficiency_percent ?? 0;
@@ -314,7 +409,6 @@ function HourlyHeaderCard({ header, auth }) {
   const baseTargetPerHourRaw = targetFromCapacity || targetFromFullDay || 0;
   const baseTargetPerHour = Math.round(baseTargetPerHourRaw);
 
-
   const achievedThisHour = Math.round(Number(achievedInput) || 0);
   const selectedHourInt = Number(selectedHour) || 1;
 
@@ -330,7 +424,7 @@ function HourlyHeaderCard({ header, auth }) {
     .filter((rec) => Number.isFinite(rec._hourNum))
     .sort((a, b) => a._hourNum - b._hourNum);
 
-    let runningAchieved = 0;
+  let runningAchieved = 0;
 
   const recordsDecorated = recordsSorted.map((rec) => {
     const hourN = rec._hourNum;
@@ -370,7 +464,6 @@ function HourlyHeaderCard({ header, auth }) {
     };
   });
 
-
   const previousDecorated = recordsDecorated.filter(
     (rec) => rec._hourNum < selectedHourInt
   );
@@ -388,10 +481,9 @@ function HourlyHeaderCard({ header, auth }) {
     baselineToDatePrevForSelected - achievedToDatePrev
   );
 
-    const dynamicTargetThisHour = Math.round(
+  const dynamicTargetThisHour = Math.round(
     baseTargetPerHour + cumulativeShortfallVsBasePrevForSelected
   );
-
 
   const achievedToDatePosted = recordsDecorated
     .filter((rec) => rec._hourNum <= selectedHourInt)
@@ -426,7 +518,7 @@ function HourlyHeaderCard({ header, auth }) {
   const achieveEfficiency =
     manpowerPresent > 0 && smv > 0 && selectedHourInt > 0
       ? (totalAchievedPreview * smv * 100) /
-        (manpowerPresent * 60 * selectedHourInt)
+      (manpowerPresent * 60 * selectedHourInt)
       : 0;
 
   // ---------- save handler ----------
@@ -483,8 +575,8 @@ function HourlyHeaderCard({ header, auth }) {
       if (!res.ok || !json.success) {
         throw new Error(
           json?.errors?.join(", ") ||
-            json?.message ||
-            "Failed to save hourly production record"
+          json?.message ||
+          "Failed to save hourly production record"
         );
       }
 
@@ -512,17 +604,94 @@ function HourlyHeaderCard({ header, auth }) {
     }
   };
 
+  // ---------- Capacity save handler ----------
+  const handleCapacitySave = async () => {
+    try {
+      setError("");
+      setMessage("");
+
+      if (!auth) {
+        throw new Error("User not authenticated");
+      }
+
+      const capNum = Number(capacityInput);
+      if (!Number.isFinite(capNum) || capNum < 0) {
+        throw new Error("Capacity must be a non-negative number.");
+      }
+
+      const userId =
+        auth?.user?.id || auth?.user?._id || auth?.id || auth?._id;
+
+      if (!userId) {
+        throw new Error("Missing user id for capacity user.");
+      }
+
+      setCapacitySaving(true);
+
+      const payload = {
+        assigned_building: header.assigned_building,
+        line: header.line,
+        buyer: header.buyer,
+        style: header.style,
+        date: header.date, // optional but good
+        capacity: capNum,
+        // ❗ শুধুই user object পাঠাচ্ছি, আলাদা userId field না
+        user: {
+          id: userId,
+          user_name: auth?.user?.user_name || auth?.user_name || "Unknown",
+          role: auth?.user?.role || auth?.role || "",
+        },
+      };
+
+      const res = await fetch("/api/style-capacities", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+
+      const json = await res.json();
+
+      if (!res.ok || !json.success) {
+        throw new Error(
+          json?.errors?.join(", ") ||
+          json?.message ||
+          "Failed to save capacity."
+        );
+      }
+
+      const savedDoc = json.data;
+
+      setCapacityRecord(savedDoc);
+      setCapacityInput(
+        savedDoc?.capacity != null ? String(savedDoc.capacity) : ""
+      );
+
+      // চাইলে এখানেই আবার WIP রিফ্রেশ করো (আগের মতই)
+      // ...
+
+      setMessage("Capacity saved/updated successfully.");
+    } catch (err) {
+      console.error(err);
+      setError(err.message || "Failed to save capacity.");
+    } finally {
+      setCapacitySaving(false);
+    }
+  };
+
+
+
+
   // ---------- UI ----------
   return (
-    <div className="card bg-base-100 border border-base-200 shadow-md">
-      <div className="card-body  w-full">
+    <div className="card bg-base-100 border border-base-200 shadow-sm">
+      <div className="card-body w-full p-3 space-y-3">
         {/* Header summary */}
-        <div className="flex flex-wrap items-start justify-between gap-3 border-b border-base-200 pb-3">
-          <div className="space-y-1">
+        <div className="flex flex-wrap items-start justify-between gap-3 border-b border-base-200 pb-2">
+          <div className="space-y-1 text-xs">
             <div className="text-sm font-semibold tracking-wide text-slate-1000">
               {header.line} • {header.date}
             </div>
-            <div className="text-xs text-slate-1000">
+            <div className="text-[11px] text-slate-1000">
               <span className="font-semibold ">Buyer:</span> {header.buyer}
               <span className="mx-1 text-slate-1000">•</span>
               <span className="font-semibold">Style:</span> {header.style}
@@ -530,7 +699,7 @@ function HourlyHeaderCard({ header, auth }) {
               <span className="font-semibold">Color:</span>{" "}
               {header.color_model}
             </div>
-            <div className="text-xs text-slate-1000">
+            <div className="text-[11px] text-slate-1000">
               <span className="font-semibold">Run day:</span> {header.run_day}
               <span className="mx-1 text-slate-1000">•</span>
               <span className="font-semibold">Working hour:</span>{" "}
@@ -538,7 +707,7 @@ function HourlyHeaderCard({ header, auth }) {
             </div>
           </div>
 
-          <div className="text-xs text-right text-slate-1000 space-y-0.5">
+          <div className="text-[11px] text-right text-slate-1000 space-y-0.5">
             <div>
               <span className="font-semibold text-slate-1000">
                 Present MP:
@@ -566,14 +735,14 @@ function HourlyHeaderCard({ header, auth }) {
 
         {/* Messages */}
         {(error || message) && (
-          <div className="space-y-2 text-sm">
+          <div className="space-y-1 text-[11px]">
             {error && (
-              <div className="alert alert-error py-2 px-3">
+              <div className="alert alert-error py-1 px-2">
                 <span>{error}</span>
               </div>
             )}
             {message && (
-              <div className="alert alert-success py-2 px-3">
+              <div className="alert alert-success py-1 px-2">
                 <span>{message}</span>
               </div>
             )}
@@ -581,15 +750,15 @@ function HourlyHeaderCard({ header, auth }) {
         )}
 
         {/* Live data block */}
-        <div className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-3 text-xs space-y-2">
-          <div className="flex items-center justify-between border-b border-slate-200 pb-1.5">
+        <div className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-[11px] space-y-1.5">
+          <div className="flex items-center justify-between border-b border-slate-200 pb-1">
             <span className="font-semibold text-slate-800">Live Data</span>
-            <span className="text-[11px] text-slate-500">
+            <span className="text-[10px] text-slate-500">
               Hour {selectedHourInt} of {totalWorkingHours}
             </span>
           </div>
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-1.5">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-1">
             <div>
               <span className="font-medium text-gray-700 ">
                 Base Target / hr:
@@ -604,7 +773,10 @@ function HourlyHeaderCard({ header, auth }) {
                 Carry (shortfall vs base up to prev):
               </span>{" "}
               <span className="font-semibold text-amber-700">
-                {formatNumber(cumulativeShortfallVsBasePrevForSelected, 0)}
+                {formatNumber(
+                  cumulativeShortfallVsBasePrevForSelected,
+                  0
+                )}
               </span>
             </div>
 
@@ -622,11 +794,10 @@ function HourlyHeaderCard({ header, auth }) {
                 Net variance vs base (to date):
               </span>{" "}
               <span
-                className={`font-semibold ${
-                  netVarVsBaseToDateSelected >= 0
+                className={`font-semibold ${netVarVsBaseToDateSelected >= 0
                     ? "text-green-700"
                     : "text-red-700"
-                }`}
+                  }`}
               >
                 {formatNumber(netVarVsBaseToDateSelected, 0)}
               </span>
@@ -637,11 +808,10 @@ function HourlyHeaderCard({ header, auth }) {
                 Cumulative variance (prev vs dynamic):
               </span>{" "}
               <span
-                className={`font-semibold ${
-                  cumulativeVarianceDynamicPrev >= 0
+                className={`font-semibold ${cumulativeVarianceDynamicPrev >= 0
                     ? "text-green-700"
                     : "text-red-700"
-                }`}
+                  }`}
               >
                 {formatNumber(cumulativeVarianceDynamicPrev, 0)}
               </span>
@@ -653,11 +823,10 @@ function HourlyHeaderCard({ header, auth }) {
                   Last hour variance (Δ vs dynamic):
                 </span>{" "}
                 <span
-                  className={`font-semibold ${
-                    previousVariance >= 0
+                  className={`font-semibold ${previousVariance >= 0
                       ? "text-green-700"
                       : "text-red-700"
-                  }`}
+                    }`}
                 >
                   {formatNumber(previousVariance, 0)}
                 </span>
@@ -667,14 +836,18 @@ function HourlyHeaderCard({ header, auth }) {
         </div>
 
         {/* Main input row */}
-        <div className="overflow-x-auto ">
-          <table className="table table-sm w-full ">
+        <div className="overflow-x-auto">
+          <table className="table table-xs w-full">
             <thead>
-              <tr className="bg-base-200 text-xs ">
+              <tr className="bg-base-200 text-[11px]">
                 <th className="px-2 text-amber-600 ">Hour</th>
                 <th className="px-2 text-amber-600">Base Target / hr</th>
-                <th className="px-2 text-amber-600">Dynamic Target (this hour)</th>
-                <th className="px-2 text-amber-600">Achieved Qty (this hour)</th>
+                <th className="px-2 text-amber-600">
+                  Dynamic Target (this hour)
+                </th>
+                <th className="px-2 text-amber-600">
+                  Achieved Qty (this hour)
+                </th>
                 <th className="px-2 text-amber-600">Hourly Eff %</th>
                 <th className="px-2 text-amber-600">AVG Eff % (preview)</th>
               </tr>
@@ -683,35 +856,35 @@ function HourlyHeaderCard({ header, auth }) {
               <tr className="border-t">
                 <td className="px-2 align-top">
                   <select
-                    className="select select-sm select-bordered w-36 text-xs"
+                    className="select select-xs select-bordered w-28 text-[11px]"
                     value={selectedHour}
                     onChange={(e) => setSelectedHour(Number(e.target.value))}
                   >
                     {hoursOptions.map((hVal) => (
                       <option key={hVal} value={hVal}>
-                        {hVal} hour{hVal > 1 ? "s" : ""}
+                        {hVal} hr
                       </option>
                     ))}
                   </select>
-                  <p className="mt-1 text-[11px] text-gray-500">
+                  <p className="mt-1 text-[10px] text-gray-500">
                     Current hour (1 ~ {totalWorkingHours})
                   </p>
                 </td>
 
                 <td className="px-2 align-top">
-                  <div className="rounded border border-base-200 bg-gray-50 px-2 py-1 text-black">
+                  <div className="rounded border border-base-200 bg-gray-50 px-2 py-1 text-black text-[11px]">
                     {formatNumber(baseTargetPerHour, 0)}
                   </div>
-                  <p className="mt-1 text-[11px] text-gray-500 leading-tight">
+                  <p className="mt-1 text-[10px] text-gray-500 leading-tight">
                     (MP × 60 × Plan% ÷ SMV)
                   </p>
                 </td>
 
                 <td className="px-2 align-top">
-                  <div className="rounded border border-amber-200 bg-amber-50 px-2 py-1 text-black">
+                  <div className="rounded border border-amber-200 bg-amber-50 px-2 py-1 text-black text-[11px]">
                     {formatNumber(dynamicTargetThisHour, 0)}
                   </div>
-                  <p className="mt-1 text-[11px] text-amber-700 leading-tight">
+                  <p className="mt-1 text-[10px] text-amber-700 leading-tight">
                     Base + shortfall vs base (prev hours)
                   </p>
                 </td>
@@ -721,30 +894,30 @@ function HourlyHeaderCard({ header, auth }) {
                     type="number"
                     min="0"
                     step="1"
-                    className="input input-sm input-bordered w-full text-xs"
+                    className="input input-xs input-bordered w-full text-[11px]"
                     value={achievedInput}
                     onChange={(e) => setAchievedInput(e.target.value)}
-                    placeholder="Output this hour (integer)"
+                    placeholder="Output this hour"
                   />
-                  <p className="mt-1 text-[11px] text-gray-500">
+                  <p className="mt-1 text-[10px] text-gray-500">
                     Actual pieces this hour
                   </p>
                 </td>
 
                 <td className="px-2 align-top">
-                  <div className="rounded border border-base-200 bg-gray-50 px-2 py-1 text-black">
+                  <div className="rounded border border-base-200 bg-gray-50 px-2 py-1 text-black text-[11px]">
                     {formatNumber(hourlyEfficiency)}
                   </div>
-                  <p className="mt-1 text-[11px] text-gray-500 leading-tight ">
+                  <p className="mt-1 text-[10px] text-gray-500 leading-tight ">
                     (Output × SMV × 100) ÷ (MP × 60)
                   </p>
                 </td>
 
                 <td className="px-2 align-top">
-                  <div className="rounded border border-base-200 bg-gray-50 px-2 py-1 text-black">
+                  <div className="rounded border border-base-200 bg-gray-50 px-2 py-1 text-black text-[11px]">
                     {formatNumber(achieveEfficiency)}
                   </div>
-                  <p className="mt-1 text-[11px] text-gray-500 leading-tight">
+                  <p className="mt-1 text-[10px] text-gray-500 leading-tight">
                     (Total produce min ÷ Total available min) × 100
                   </p>
                 </td>
@@ -754,31 +927,85 @@ function HourlyHeaderCard({ header, auth }) {
         </div>
 
         {/* Save button */}
-        <div className="flex items-center justify-end gap-2 text-sm">
+        <div className="flex items-center justify-end gap-2 text-xs">
           <button
             type="button"
             onClick={handleSave}
-            className="btn btn-sm btn-primary px-4"
+            className="btn btn-xs btn-primary px-3"
             disabled={saving}
           >
             {saving ? "Saving..." : "Save Hour"}
           </button>
         </div>
+        <div className="bg-slate-50 text-[11px]">
+          <td className="px-2 py-1 font-semibold">WIP</td>
+          <td className="px-2 py-1" colSpan={2}>
+            <div className="flex items-center gap-1">
+              <span className="text-slate-600">Capacity</span>
+              <input
+                type="number"
+                min="0"
+                step="1"
+                className="input input-xxs input-bordered w-20 text-[10px]"
+                value={capacityInput}
+                onChange={(e) => setCapacityInput(e.target.value)}
+                placeholder="0"
+              />
+              <button
+                type="button"
+                onClick={handleCapacitySave}
+                className="btn btn-xs btn-primary"
+                disabled={capacitySaving || wipLoading}
+              >
+                {capacitySaving ? "Saving..." : "Save / Update Capacity"}
+              </button>
 
+            </div>
+          </td>
+          <td className="px-2 py-1" colSpan={3}>
+            <span className="text-slate-600 mr-1">
+              Produced (all days):
+            </span>
+            <span className="font-semibold text-slate-900">
+              {wipLoading || capacityLoading
+                ? "..."
+                : wipInfo
+                  ? formatNumber(wipInfo.totalAchieved, 0)
+                  : "-"}
+            </span>
+          </td>
+          <td className="px-2 py-1" colSpan={2}>
+            <span className="text-slate-600 mr-1">WIP:</span>
+            <span
+              className={`font-semibold ${(wipInfo?.wip ?? 0) > 0
+                  ? "text-amber-700"
+                  : "text-emerald-700"
+                }`}
+            >
+              {wipLoading || capacityLoading
+                ? "..."
+                : wipInfo
+                  ? formatNumber(wipInfo.wip, 0)
+                  : "-"}
+            </span>
+          </td>
+        </div>
         {/* Posted hourly records */}
-        <div className="mt-2">
-          <div className="flex items-center justify-between text-sm mb-2">
-            <h3 className="font-semibold">Posted hourly records</h3>
+        <div className="mt-1">
+          <div className="flex items-center justify-between text-xs mb-1.5">
+            <h3 className="font-semibold text-[12px]">
+              Posted hourly records
+            </h3>
             {loadingRecords && (
-              <span className="flex items-center gap-1 text-xs text-slate-500">
+              <span className="flex items-center gap-1 text-[10px] text-slate-500">
                 <span className="loading loading-spinner loading-xs" />
-                Loading hourly records...
+                Loading...
               </span>
             )}
           </div>
 
           {recordsDecorated.length === 0 ? (
-            <p className="text-xs text-slate-500">
+            <p className="text-[11px] text-slate-500">
               No hourly records saved yet for this header.
             </p>
           ) : (
@@ -798,6 +1025,9 @@ function HourlyHeaderCard({ header, auth }) {
                   </tr>
                 </thead>
                 <tbody>
+                  {/* WIP summary row (style-level, from first day) */}
+
+
                   {recordsDecorated.map((rec) => (
                     <tr key={rec._id} className="border-b text-[11px]">
                       <td className="px-2 py-1">{rec._hourNum}</td>
@@ -806,20 +1036,18 @@ function HourlyHeaderCard({ header, auth }) {
                       </td>
                       <td className="px-2 py-1">{rec._achievedRounded}</td>
                       <td
-                        className={`px-2 py-1 ${
-                          (rec._perHourVarDynamic ?? 0) >= 0
+                        className={`px-2 py-1 ${(rec._perHourVarDynamic ?? 0) >= 0
                             ? "text-green-700"
                             : "text-red-700"
-                        }`}
+                          }`}
                       >
                         {formatNumber(rec._perHourVarDynamic ?? 0, 0)}
                       </td>
                       <td
-                        className={`px-2 py-1 ${
-                          (rec._netVarVsBaseToDate ?? 0) >= 0
+                        className={`px-2 py-1 ${(rec._netVarVsBaseToDate ?? 0) >= 0
                             ? "text-green-700"
                             : "text-red-700"
-                        }`}
+                          }`}
                       >
                         {formatNumber(rec._netVarVsBaseToDate ?? 0, 0)}
                       </td>

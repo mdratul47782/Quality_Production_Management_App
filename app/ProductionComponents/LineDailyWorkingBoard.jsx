@@ -895,7 +895,7 @@ function HourlyHeaderCard({ header, auth }) {
               <tr className="border-t">
                 <td className="px-2 align-top">
                   <select
-                    className="select select-xs select-bordered w-28 text-[11px]"
+                    className="select select-xs select-bordered w-28 text-[11px] border-amber-500"
                     value={selectedHour}
                     onChange={(e) => setSelectedHour(Number(e.target.value))}
                   >
@@ -943,8 +943,8 @@ function HourlyHeaderCard({ header, auth }) {
                   </p>
                 </td>
 
-                <td className="px-2 align-top">
-                  <div className="rounded border border-base-200 bg-gray-50 px-2 py-1 text-black text-[11px]">
+                <td className="px-2 align-top ">
+                  <div className="rounded border border-amber-500 bg-gray-50 px-2 py-1 text-black text-[11px] ">
                     {formatNumber(hourlyEfficiency)}
                   </div>
                   <p className="mt-1 text-[10px] text-gray-500 leading-tight ">
@@ -953,7 +953,7 @@ function HourlyHeaderCard({ header, auth }) {
                 </td>
 
                 <td className="px-2 align-top">
-                  <div className="rounded border border-base-200 bg-gray-50 px-2 py-1 text-black text-[11px]">
+                  <div className="rounded border border-amber-500 bg-gray-50 px-2 py-1 text-black text-[11px]">
                     {formatNumber(achieveEfficiency)}
                   </div>
                   <p className="mt-1 text-[10px] text-gray-500 leading-tight">
@@ -980,10 +980,12 @@ function HourlyHeaderCard({ header, auth }) {
         {/* ✅ FIXED WIP BLOCK – no <td> inside <div> */}
         <div className="mt-2 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-[11px] space-y-1.5">
           <div className="flex items-center gap-2">
-            <span className="font-semibold text-slate-800">WIP</span>
+            {/* <span className="font-semibold text-slate-800">WIP</span> */}
 
             <div className="flex items-center gap-3">
-              <span className="text-slate-1000 font-bold"> Capacity   </span>
+              {/* //previous name was Capacity now for requirement i had to change Capacity->Total Input : */}
+              <span className="text-slate-1000 font-bold"> Total Input :   </span> 
+              
               <input
                 type="number"
                 min="0"
@@ -1006,8 +1008,8 @@ function HourlyHeaderCard({ header, auth }) {
 
           <div className="flex flex-wrap items-center gap-4">
             <div>
-              <span className="text-slate-600 mr-1">
-                Produced ( With past days + Today ):
+              <span className="text-slate-1000 text-[12px] mr-1">
+                Uptodate Production :
               </span>
               <span className="font-bold text-slate-1000">
                 {wipLoading || capacityLoading
@@ -1019,7 +1021,7 @@ function HourlyHeaderCard({ header, auth }) {
             </div>
 
             <div>
-              <span className="text-slate-1000 mr-1 ">WIP:</span>
+              <span className="text-slate-1000 mr-1 font-bold 0"> WIP:</span>
               <span
                 className={`font-bold ${
                   (wipInfo?.wip ?? 0) > 0
@@ -1066,7 +1068,7 @@ function HourlyHeaderCard({ header, auth }) {
                     <th className="px-2">Δ Var (hr vs dynamic)</th>
                     <th className="px-2">Net Var vs Base (to date)</th>
                     <th className="px-2">Hourly Eff %</th>
-                    <th className="px-2">Achieve Eff</th>
+                    {/* <th className="px-2">Achieve Eff</th> */}
                     <th className="px-2">AVG Eff %</th>
                     <th className="px-2">Updated At</th>
                   </tr>
@@ -1100,11 +1102,11 @@ function HourlyHeaderCard({ header, auth }) {
                       <td className="px-2 py-1">
                         {formatNumber(rec.hourlyEfficiency)}
                       </td>
-                      <td className="px-2 py-1">
+                      {/* <td className="px-2 py-1">
                         {formatNumber(rec.achieveEfficiency)}
-                      </td>
+                      </td> */}
                       <td className="px-2 py-1">
-                        {formatNumber(rec.totalEfficiency)}
+                        {formatNumber(rec.totalEfficiency)}{" "}%
                       </td>
                       <td className="px-2 py-1">
                         {rec.updatedAt
@@ -1118,7 +1120,7 @@ function HourlyHeaderCard({ header, auth }) {
                 {/* ✅ SUMMARY ROW */}
                 {hasRecords && (
                   <tfoot>
-                    <tr className="bg-amber-300 text-[13px] font-bold ">
+                    <tr className="bg-amber-300 text-[12px] font-bold ">
                       <td className="px-2 py-1">Total</td>
                       <td className="px-2 py-1 ">-</td>
                       {/* Total Achieved */}
@@ -1128,7 +1130,7 @@ function HourlyHeaderCard({ header, auth }) {
                       <td className="px-2 py-1 ">-</td>
                       {/* Final Net Var vs Base (to date) */}
                       <td
-                        className={`px-2 py-1  ${
+                        className={`px-2 py-1   ${
                           totalNetVarVsBaseToDate >= 0
                             ? "text-green-700"
                             : "text-red-700"
@@ -1137,10 +1139,10 @@ function HourlyHeaderCard({ header, auth }) {
                         {formatNumber(totalNetVarVsBaseToDate, 0)}
                       </td>
                       <td className="px-2 py-1 ">-</td>
-                      <td className="px-2 py-1">-</td>
+                      {/* <td className="px-2 py-1">-</td> */}
                       {/* Final AVG Eff % (overall) */}
                       <td className="px-2 py-1">
-                        {formatNumber(totalAvgEffPercent)}
+                        {formatNumber(totalAvgEffPercent)}{" "}%
                       </td>
                       <td className="px-2 py-1">-</td>
                     </tr>

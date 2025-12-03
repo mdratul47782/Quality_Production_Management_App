@@ -120,43 +120,96 @@ The app is designed for **ready-made garments (RMG) factories**, with:
 > This is a simplified structure. Adjust if your repo differs.
 
 ```bash
-.
-├── app
-│   ├── api
-│   │   ├── target-setter-header
-│   │   │   └── route.js
-│   │   ├── hourly-productions
-│   │   │   └── route.js
-│   │   ├── style-capacities
-│   │   │   └── route.js
-│   │   └── style-wip
-│   │       └── route.js
-│   │   # (optional) quality-related APIs
-│   │   └── defects
-│   │       └── route.js
-│   ├── ProductionComponents
-│   │   ├── LineDailyWorkingBoard.jsx
-│   │   ├── ProductionInputForm.jsx
-│   │   ├── SearchableDefectPicker.jsx
-│   │   └── ...
-│   ├── hooks
-│   │   ├── useAuth.js
-│   │   └── useProductionAuth.js
-│   ├── page.js
-│   └── ...
-├── models
-│   ├── TargetSetterHeader.js
-│   ├── HourlyProduction.js
-│   ├── StyleCapacity.js
-│   ├── StyleWip.js
-│   └── User.js
-├── services
-│   └── mongo.js
-├── public
-│   └── screenshots
-│       ├── dashboard.png
-│       └── hourly-board.png
-├── package.json
-└── README.md
+
+└── 📁my-app
+    └── 📁app
+        └── 📁actions
+            ├── index.js
+        └── 📁api
+            └── 📁hourly-inspections
+                ├── route.js
+            └── 📁hourly-productions
+                └── 📁[id]
+                    ├── route.js
+                ├── route.js
+            └── 📁line-info-register
+                ├── route.js
+            └── 📁style-capacities
+                └── 📁[id]
+                    ├── route.js
+                ├── route.js
+            └── 📁style-wip
+                ├── route.js
+            └── 📁target-setter-header
+                └── 📁[id]
+                    ├── route.js
+                ├── route.js
+        └── 📁AuthComponents
+            ├── LoginForm.jsx
+            ├── RegistrationForm.jsx
+            ├── SignInOut.jsx
+        └── 📁contexts
+            ├── index.js
+        └── 📁hooks
+            ├── useAuth.js
+        └── 📁line-info-register
+            ├── page.js
+        └── 📁LineInfoRegisterComponents
+            ├── LineInfo.jsx
+        └── 📁login
+            ├── page.js
+        └── 📁ProductionComponents
+            ├── LineDailyWorkingBoard.jsx
+            ├── ProductionInputForm.jsx
+        └── 📁ProductionInput
+            ├── page.js
+        └── 📁providers
+            ├── AuthProvider.js
+        └── 📁QualityComponents
+            ├── DefectEntyForm.jsx
+            ├── QualityTable.jsx
+        └── 📁QualityInput
+            ├── page.js
+        └── 📁QualitySummaryTable
+            ├── page.js
+        └── 📁register
+            ├── page.js
+        ├── favicon.ico
+        ├── globals.css
+        ├── layout.js
+        ├── page.js
+    └── 📁db
+        ├── queries.js
+    └── 📁models
+        ├── hourly-inspections.js
+        ├── HourlyProduction-model.js
+        ├── line-info-register-model.js
+        ├── StyleCapacity-model.js
+        ├── TargetSetterHeader.js
+        ├── user-model.js
+    └── 📁public
+        ├── Charts-bro.svg
+        ├── Computer login-amico.svg
+        ├── Development focus-bro.svg
+        ├── HKD_LOGO.png
+        ├── Performance overview-bro.svg
+        ├── Progress overview-bro.svg
+        ├── Sign up-rafiki.svg
+        ├── vercel.svg
+    └── 📁services
+        ├── mongo.js
+    └── 📁utils
+        ├── data-util.js
+    ├── .env
+    ├── .gitignore
+    ├── DefectsEntryForm.jsx
+    ├── eslint.config.mjs
+    ├── jsconfig.json
+    ├── next.config.mjs
+    ├── package-lock.json
+    ├── package.json
+    ├── postcss.config.mjs
+    ├── README.md
+    └── targetSetterPage.jsx
 
 

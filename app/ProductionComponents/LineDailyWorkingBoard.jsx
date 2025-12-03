@@ -136,7 +136,7 @@ export default function HourlyProductionBoard() {
               <div className="text-[11px] font-semibold text-slate-1000 uppercase">
                 Building
               </div>
-              <div className="badge bg-slate-100 border border-slate-300 text-[11px] font-semibold text-slate-900 px-3 py-2">
+              <div className="badge bg-slate-100 border border-amber-500 text-[11px] font-semibold text-slate-900 px-3 py-2">
                 <span className="mr-1 text-slate-500">Assigned:</span>
                 <span>{assignedBuilding || "Not assigned"}</span>
               </div>
@@ -148,7 +148,7 @@ export default function HourlyProductionBoard() {
                 Line
               </label>
               <select
-                className="select select-xs select-bordered bg-slate-50 font-semibold text-xs min-w-[120px] text-black"
+                className="select select-xs select-bordered bg-slate-400 font-semibold text-xs min-w-[120px] text-black"
                 value={selectedLine}
                 onChange={(e) => setSelectedLine(e.target.value)}
               >
@@ -168,7 +168,7 @@ export default function HourlyProductionBoard() {
               </label>
               <input
                 type="date"
-                className="input input-xs input-bordered bg-green-500/80 font-semibold text-xs text-black"
+                className="input input-xs input-bordered bg-amber-300 font-semibold text-xs text-black"
                 value={selectedDate}
                 onChange={(e) => setSelectedDate(e.target.value)}
               />
@@ -794,12 +794,12 @@ function HourlyHeaderCard({ header, auth }) {
             </span>
           </div>
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-1">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-1 ">
             <div>
               <span className="font-medium text-gray-700 ">
                 Base Target / hr:
               </span>{" "}
-              <span className="font-semibold text-slate-900">
+              <span className="font-semibold text-slate-900 ">
                 {formatNumber(baseTargetPerHour, 0)}
               </span>
             </div>
@@ -911,7 +911,7 @@ function HourlyHeaderCard({ header, auth }) {
                 </td>
 
                 <td className="px-2 align-top">
-                  <div className="rounded border border-base-200 bg-gray-50 px-2 py-1 text-black text-[11px]">
+                  <div className="rounded border  bg-gray-50 px-2 py-1 text-black text-[11px] border-amber-500">
                     {formatNumber(baseTargetPerHour, 0)}
                   </div>
                   <p className="mt-1 text-[10px] text-gray-500 leading-tight">
@@ -920,7 +920,7 @@ function HourlyHeaderCard({ header, auth }) {
                 </td>
 
                 <td className="px-2 align-top">
-                  <div className="rounded border border-amber-200 bg-amber-50 px-2 py-1 text-black text-[11px]">
+                  <div className="rounded border border-amber-500 bg-amber-50 px-2 py-1 text-black text-[11px]">
                     {formatNumber(dynamicTargetThisHour, 0)}
                   </div>
                   <p className="mt-1 text-[10px] text-amber-700 leading-tight">
@@ -933,7 +933,7 @@ function HourlyHeaderCard({ header, auth }) {
                     type="number"
                     min="0"
                     step="1"
-                    className="input input-xs input-bordered w-full text-[11px]"
+                    className="input input-xs input-bordered w-full text-[11px] border-amber-500"
                     value={achievedInput}
                     onChange={(e) => setAchievedInput(e.target.value)}
                     placeholder="Output this hour"
@@ -982,13 +982,13 @@ function HourlyHeaderCard({ header, auth }) {
           <div className="flex items-center gap-2">
             <span className="font-semibold text-slate-800">WIP</span>
 
-            <div className="flex items-center gap-1">
-              <span className="text-slate-600">Capacity</span>
+            <div className="flex items-center gap-3">
+              <span className="text-slate-1000 font-bold"> Capacity   </span>
               <input
                 type="number"
                 min="0"
                 step="1"
-                className="input input-xxs input-bordered w-20 text-[10px]"
+                className="input input-xxs input-bordered w-15 h-10 text-[12px] font-bold "
                 value={capacityInput}
                 onChange={(e) => setCapacityInput(e.target.value)}
                 placeholder="0"
@@ -1007,9 +1007,9 @@ function HourlyHeaderCard({ header, auth }) {
           <div className="flex flex-wrap items-center gap-4">
             <div>
               <span className="text-slate-600 mr-1">
-                Produced (all days):
+                Produced ( With past days + Today ):
               </span>
-              <span className="font-semibold text-slate-900">
+              <span className="font-bold text-slate-1000">
                 {wipLoading || capacityLoading
                   ? "..."
                   : wipInfo
@@ -1019,12 +1019,12 @@ function HourlyHeaderCard({ header, auth }) {
             </div>
 
             <div>
-              <span className="text-slate-600 mr-1">WIP:</span>
+              <span className="text-slate-1000 mr-1 ">WIP:</span>
               <span
-                className={`font-semibold ${
+                className={`font-bold ${
                   (wipInfo?.wip ?? 0) > 0
-                    ? "text-amber-700"
-                    : "text-emerald-700"
+                    ? "text-amber-1000"
+                    : "text-emerald-1000"
                 }`}
               >
                 {wipLoading || capacityLoading
@@ -1118,17 +1118,17 @@ function HourlyHeaderCard({ header, auth }) {
                 {/* ✅ SUMMARY ROW */}
                 {hasRecords && (
                   <tfoot>
-                    <tr className="bg-slate-100 text-[11px] font-semibold">
+                    <tr className="bg-amber-300 text-[13px] font-bold ">
                       <td className="px-2 py-1">Total</td>
-                      <td className="px-2 py-1">-</td>
+                      <td className="px-2 py-1 ">-</td>
                       {/* Total Achieved */}
-                      <td className="px-2 py-1">
+                      <td className="px-1 py-1 ">
                         {formatNumber(totalAchievedAll, 0)}
                       </td>
-                      <td className="px-2 py-1">-</td>
+                      <td className="px-2 py-1 ">-</td>
                       {/* Final Net Var vs Base (to date) */}
                       <td
-                        className={`px-2 py-1 ${
+                        className={`px-2 py-1  ${
                           totalNetVarVsBaseToDate >= 0
                             ? "text-green-700"
                             : "text-red-700"
@@ -1136,7 +1136,7 @@ function HourlyHeaderCard({ header, auth }) {
                       >
                         {formatNumber(totalNetVarVsBaseToDate, 0)}
                       </td>
-                      <td className="px-2 py-1">-</td>
+                      <td className="px-2 py-1 ">-</td>
                       <td className="px-2 py-1">-</td>
                       {/* Final AVG Eff % (overall) */}
                       <td className="px-2 py-1">

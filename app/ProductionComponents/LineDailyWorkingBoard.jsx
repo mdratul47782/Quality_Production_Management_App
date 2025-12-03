@@ -214,11 +214,8 @@ export default function HourlyProductionBoard() {
     </div>
   );
 }
-
-// ===================================================================================
 // CHILD: One hourly card per TargetSetterHeader (for a specific style segment)
-// ===================================================================================
-
+// 
 function HourlyHeaderCard({ header, auth }) {
   const [selectedHour, setSelectedHour] = useState(1);
   const [achievedInput, setAchievedInput] = useState("");

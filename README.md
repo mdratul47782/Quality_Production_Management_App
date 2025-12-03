@@ -1,5 +1,3 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://github.com/vercel/next.js/tree/canary/packages/create-next-app).
-
 ## Getting Started
 
 First, run the development server:
@@ -16,21 +14,149 @@ bun dev
 
 Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
 
-You can start editing the page by modifying `app/page.js`. The page auto-updates as you edit the file.
+You can start editing the page by modifying `app.js`. The page auto-updates as you edit the file.
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+# Production & Quality Management System (RMG)
 
-## Learn More
+A full-stack **Production & Quality Management** web app for garments factories, built with **Next.js (App Router)** and **MongoDB/Mongoose**.  
 
-To learn more about Next.js, take a look at the following resources:
+It helps track **line-wise production**, **hourly targets vs achievements**, **efficiency**, **style-wise WIP**, and **quality defects** in real time.
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+---
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+## ⚙️ Tech Stack
 
-## Deploy on Vercel
+- **Frontend:** Next.js (App Router), React, Tailwind CSS / DaisyUI
+- **Backend:** Next.js API Routes (REST style)
+- **Database:** MongoDB with Mongoose
+- **Auth:** Custom hook (`useAuth` / `useProductionAuth`) with role & building based access
+- **Deployment:** (Optional – Vercel / Node server – update this as you use)
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+---
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+## 🧵 Domain Overview (Garments Context)
+
+The app is designed for **ready-made garments (RMG) factories**, with:
+
+- Multiple **buildings** (e.g. `B-4`)
+- Multiple **lines** per building (e.g. `Line-1` … `Line-15`)
+- **Styles** with SMV, buyers, color, size, etc.
+- **Supervisors / Production users** posting hourly output
+- **Quality users** recording defects & inspection results
+
+---
+
+## ✨ Key Features
+
+### 1. Target Setter (Header)
+- Create **Target Headers** per:
+  - Building  
+  - Line  
+  - Date  
+  - Buyer / Style / Color  
+  - Run day, SMV, manpower, plan efficiency, working hours
+- Auto-calculate:
+  - **Day Target**
+  - **Base Target per Hour** based on:
+    ```text
+    Base Target / hr = (Manpower Present × 60 × Plan Efficiency% ÷ SMV)
+    or
+    Base Target / hr = Day Target ÷ Working Hour
+    ```
+
+### 2. Hourly Production Board
+- Line-wise **daily working board**:
+  - Filter by **building, line, date**
+  - Show one card per **Target Header** (e.g. 2h + 6h segments for different styles)
+- Per hour:
+  - Input **achieved quantity (this hour)**
+  - See **dynamic target this hour** (base + carried shortfall)
+  - See:
+    - Hourly efficiency %
+    - Avg efficiency preview
+    - Δ variation vs dynamic target
+    - Net variation vs base target (to date)
+- Posted records table:
+  - Hour, dynamic target, achieved, Δ variance, net variance, efficiencies
+  - **Summary row** with:
+    - Total achieved
+    - Final net variance vs base
+    - Overall AVG efficiency %
+
+### 3. Style Capacity & WIP Tracking
+- **Style Capacity**:
+  - Save/update capacity per building + line + buyer + style (+ date)
+- **WIP Calculation**:
+  - See total produced (all days for a style)
+  - Live **WIP**:
+    ```text
+    WIP = Input Qty (from cutting/previous process) - Total Achieved Qty
+    ```
+  - WIP & Produced update **immediately** after:
+    - Posting new hourly production
+    - Updating capacity
+
+### 4. Quality / Defect Management (optional module)
+- Defect picker:
+  - Searchable dropdown (e.g. "301 - OPEN SEAM", "302 - SKIP STITCH", ...)
+  - Hour-wise and line-wise defect logging
+- Future scope:
+  - Defect summary per style/line/day
+  - DHU% / PPM dashboards
+
+### 5. Role & Access Control
+- Users assigned to:
+  - `assigned_building`
+  - Role (e.g. `Supervisor`, `Quality`, `Admin`)
+- Screens and data filtered using custom hooks:
+  - `useAuth`
+  - `useProductionAuth`
+- Production users can only see/manage their assigned building/lines.
+
+---
+
+## 🧱 Project Structure
+
+> This is a simplified structure. Adjust if your repo differs.
+
+```bash
+.
+├── app
+│   ├── api
+│   │   ├── target-setter-header
+│   │   │   └── route.js
+│   │   ├── hourly-productions
+│   │   │   └── route.js
+│   │   ├── style-capacities
+│   │   │   └── route.js
+│   │   └── style-wip
+│   │       └── route.js
+│   │   # (optional) quality-related APIs
+│   │   └── defects
+│   │       └── route.js
+│   ├── ProductionComponents
+│   │   ├── LineDailyWorkingBoard.jsx
+│   │   ├── ProductionInputForm.jsx
+│   │   ├── SearchableDefectPicker.jsx
+│   │   └── ...
+│   ├── hooks
+│   │   ├── useAuth.js
+│   │   └── useProductionAuth.js
+│   ├── page.js
+│   └── ...
+├── models
+│   ├── TargetSetterHeader.js
+│   ├── HourlyProduction.js
+│   ├── StyleCapacity.js
+│   ├── StyleWip.js
+│   └── User.js
+├── services
+│   └── mongo.js
+├── public
+│   └── screenshots
+│       ├── dashboard.png
+│       └── hourly-board.png
+├── package.json
+└── README.md
+
+

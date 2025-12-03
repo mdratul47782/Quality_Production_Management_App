@@ -217,6 +217,7 @@ export default function HourlyProductionBoard() {
 // CHILD: One hourly card per TargetSetterHeader (for a specific style segment)
 // 
 function HourlyHeaderCard({ header, auth }) {
+  console.log("header--",header)
   const [selectedHour, setSelectedHour] = useState(1);
   const [achievedInput, setAchievedInput] = useState("");
   const [hourlyRecords, setHourlyRecords] = useState([]);
@@ -419,7 +420,8 @@ function HourlyHeaderCard({ header, auth }) {
   const planEfficiencyPercent = header.plan_efficiency_percent ?? 0;
   const planEffDecimal = planEfficiencyPercent / 100;
   const targetFullDay = header.target_full_day ?? 0;
-
+const CapacityFromHeader = header.capacity ?? 0;
+const plan_quantity = header.plan_quantity ?? 0;
   const hoursOptions = Array.from(
     { length: Math.max(1, totalWorkingHours) },
     (_, i) => i + 1
@@ -488,9 +490,9 @@ function HourlyHeaderCard({ header, auth }) {
 
   const totalAchievedAll = hasRecords
     ? recordsDecorated.reduce(
-        (sum, rec) => sum + (rec._achievedRounded ?? 0),
-        0
-      )
+      (sum, rec) => sum + (rec._achievedRounded ?? 0),
+      0
+    )
     : 0;
 
   const lastRecord = hasRecords
@@ -555,7 +557,7 @@ function HourlyHeaderCard({ header, auth }) {
   const achieveEfficiency =
     manpowerPresent > 0 && smv > 0 && selectedHourInt > 0
       ? (totalAchievedPreview * smv * 100) /
-        (manpowerPresent * 60 * selectedHourInt)
+      (manpowerPresent * 60 * selectedHourInt)
       : 0;
 
   // ---------- save handler ----------
@@ -612,8 +614,8 @@ function HourlyHeaderCard({ header, auth }) {
       if (!res.ok || !json.success) {
         throw new Error(
           json?.errors?.join(", ") ||
-            json?.message ||
-            "Failed to save hourly production record"
+          json?.message ||
+          "Failed to save hourly production record"
         );
       }
 
@@ -693,8 +695,8 @@ function HourlyHeaderCard({ header, auth }) {
       if (!res.ok || !json.success) {
         throw new Error(
           json?.errors?.join(", ") ||
-            json?.message ||
-            "Failed to save capacity."
+          json?.message ||
+          "Failed to save capacity."
         );
       }
 
@@ -727,7 +729,7 @@ function HourlyHeaderCard({ header, auth }) {
             <div className="text-sm font-semibold tracking-wide text-slate-1000">
               {header.line} • {header.date}
             </div>
-            <div className="text-[11px] text-slate-1000">
+            <div className="text-[16px] text-slate-1000">
               <span className="font-semibold ">Buyer:</span> {header.buyer}
               <span className="mx-1 text-slate-1000">•</span>
               <span className="font-semibold">Style:</span> {header.style}
@@ -735,7 +737,7 @@ function HourlyHeaderCard({ header, auth }) {
               <span className="font-semibold">Color:</span>{" "}
               {header.color_model}
             </div>
-            <div className="text-[11px] text-slate-1000">
+            <div className="text-[15px] text-slate-1000">
               <span className="font-semibold">Run day:</span> {header.run_day}
               <span className="mx-1 text-slate-1000">•</span>
               <span className="font-semibold">Working hour:</span>{" "}
@@ -743,7 +745,7 @@ function HourlyHeaderCard({ header, auth }) {
             </div>
           </div>
 
-          <div className="text-[11px] text-right text-slate-1000 space-y-0.5">
+          <div className="text-[13px] text-right text-slate-1000 space-y-0.5">
             <div>
               <span className="font-semibold text-slate-1000">
                 Present MP:
@@ -765,6 +767,16 @@ function HourlyHeaderCard({ header, auth }) {
                 Day Target:
               </span>{" "}
               {targetFullDay}
+            </div>
+            <div>
+              <span className="font-semibold text-slate-1000">
+                Capacity :{ CapacityFromHeader}{/* //CapacityFromHeader */}
+              </span>{" "}
+            </div>
+            <div>
+              <span className="font-semibold text-slate-1000">
+                Plan Quantity :{ plan_quantity}
+              </span>{" "}
             </div>
           </div>
         </div>
@@ -830,11 +842,10 @@ function HourlyHeaderCard({ header, auth }) {
                 Net variance vs base (to date):
               </span>{" "}
               <span
-                className={`font-semibold ${
-                  netVarVsBaseToDateSelected >= 0
+                className={`font-semibold ${netVarVsBaseToDateSelected >= 0
                     ? "text-green-700"
                     : "text-red-700"
-                }`}
+                  }`}
               >
                 {formatNumber(netVarVsBaseToDateSelected, 0)}
               </span>
@@ -845,11 +856,10 @@ function HourlyHeaderCard({ header, auth }) {
                 Cumulative variance (prev vs dynamic):
               </span>{" "}
               <span
-                className={`font-semibold ${
-                  cumulativeVarianceDynamicPrev >= 0
+                className={`font-semibold ${cumulativeVarianceDynamicPrev >= 0
                     ? "text-green-700"
                     : "text-red-700"
-                }`}
+                  }`}
               >
                 {formatNumber(cumulativeVarianceDynamicPrev, 0)}
               </span>
@@ -861,11 +871,10 @@ function HourlyHeaderCard({ header, auth }) {
                   Last hour variance (Δ vs dynamic):
                 </span>{" "}
                 <span
-                  className={`font-semibold ${
-                    previousVariance >= 0
+                  className={`font-semibold ${previousVariance >= 0
                       ? "text-green-700"
                       : "text-red-700"
-                  }`}
+                    }`}
                 >
                   {formatNumber(previousVariance, 0)}
                 </span>
@@ -984,8 +993,8 @@ function HourlyHeaderCard({ header, auth }) {
 
             <div className="flex items-center gap-3">
               {/* //previous name was Capacity now for requirement i had to change Capacity->Total Input : */}
-              <span className="text-slate-1000 font-bold"> Total Input :   </span> 
-              
+              <span className="text-slate-1000 font-bold"> Total Input :   </span>
+
               <input
                 type="number"
                 min="0"
@@ -1001,7 +1010,7 @@ function HourlyHeaderCard({ header, auth }) {
                 className="btn btn-xs btn-primary"
                 disabled={capacitySaving || wipLoading}
               >
-                {capacitySaving ? "Saving..." : "Save / Update Capacity"}
+                {capacitySaving ? "Saving..." : "Save / Update"}
               </button>
             </div>
           </div>
@@ -1015,25 +1024,24 @@ function HourlyHeaderCard({ header, auth }) {
                 {wipLoading || capacityLoading
                   ? "..."
                   : wipInfo
-                  ? formatNumber(wipInfo.totalAchieved, 0)
-                  : "-"}
+                    ? formatNumber(wipInfo.totalAchieved, 0)
+                    : "-"}
               </span>
             </div>
 
             <div>
               <span className="text-slate-1000 mr-1 font-bold 0"> WIP:</span>
               <span
-                className={`font-bold ${
-                  (wipInfo?.wip ?? 0) > 0
+                className={`font-bold ${(wipInfo?.wip ?? 0) > 0
                     ? "text-amber-1000"
                     : "text-emerald-1000"
-                }`}
+                  }`}
               >
                 {wipLoading || capacityLoading
                   ? "..."
                   : wipInfo
-                  ? formatNumber(wipInfo.wip, 0)
-                  : "-"}
+                    ? formatNumber(wipInfo.wip, 0)
+                    : "-"}
               </span>
             </div>
           </div>
@@ -1082,20 +1090,18 @@ function HourlyHeaderCard({ header, auth }) {
                       </td>
                       <td className="px-2 py-1">{rec._achievedRounded}</td>
                       <td
-                        className={`px-2 py-1 ${
-                          (rec._perHourVarDynamic ?? 0) >= 0
+                        className={`px-2 py-1 ${(rec._perHourVarDynamic ?? 0) >= 0
                             ? "text-green-700"
                             : "text-red-700"
-                        }`}
+                          }`}
                       >
                         {formatNumber(rec._perHourVarDynamic ?? 0, 0)}
                       </td>
                       <td
-                        className={`px-2 py-1 ${
-                          (rec._netVarVsBaseToDate ?? 0) >= 0
+                        className={`px-2 py-1 ${(rec._netVarVsBaseToDate ?? 0) >= 0
                             ? "text-green-700"
                             : "text-red-700"
-                        }`}
+                          }`}
                       >
                         {formatNumber(rec._netVarVsBaseToDate ?? 0, 0)}
                       </td>
@@ -1130,11 +1136,10 @@ function HourlyHeaderCard({ header, auth }) {
                       <td className="px-2 py-1 ">-</td>
                       {/* Final Net Var vs Base (to date) */}
                       <td
-                        className={`px-2 py-1   ${
-                          totalNetVarVsBaseToDate >= 0
+                        className={`px-2 py-1   ${totalNetVarVsBaseToDate >= 0
                             ? "text-green-700"
                             : "text-red-700"
-                        }`}
+                          }`}
                       >
                         {formatNumber(totalNetVarVsBaseToDate, 0)}
                       </td>

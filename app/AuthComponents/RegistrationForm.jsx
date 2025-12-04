@@ -1,3 +1,4 @@
+// app/registration/page.jsx (or wherever this form lives)
 "use client";
 
 import Image from "next/image";
@@ -112,6 +113,27 @@ export default function RegistrationForm() {
                 <option value="B-4">B-4</option>
                 <option value="A-5">A-5</option>
                 <option value="B-5">B-5</option>
+              </select>
+            </div>
+
+            {/* 🔹 NEW: Factory */}
+            <div>
+              <label
+                htmlFor="factory"
+                className="block text-sm font-medium text-gray-700 mb-1"
+              >
+                Factory
+              </label>
+              <select
+                id="factory"
+                name="factory"
+                className="w-full border border-gray-300 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 text-gray-800 focus:outline-none rounded-lg px-3 py-2 transition-all"
+                required
+              >
+                <option value="">Select a factory</option>
+                <option value="K-1">K-1</option>
+                <option value="K-2">K-2</option>
+                <option value="K-3">K-3</option>
               </select>
             </div>
 

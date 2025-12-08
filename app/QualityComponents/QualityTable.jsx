@@ -18,7 +18,23 @@ const HOUR_COLUMNS = [
   "12th Hour",
 ];
 
-const STATIC_LINE_OPTIONS = ["Line-1", "Line-2", "Line-3","Line-4","Line-5","Line-6","Line-7","Line-8","Line-9","Line-10","Line-11","Line-12","Line-13","Line-14","Line-15"];
+const STATIC_LINE_OPTIONS = [
+  "Line-1",
+  "Line-2",
+  "Line-3",
+  "Line-4",
+  "Line-5",
+  "Line-6",
+  "Line-7",
+  "Line-8",
+  "Line-9",
+  "Line-10",
+  "Line-11",
+  "Line-12",
+  "Line-13",
+  "Line-14",
+  "Line-15",
+];
 
 function formatDateInput(d = new Date()) {
   const yyyy = d.getFullYear();
@@ -38,7 +54,6 @@ function toLocalDateLabelFromInput(inputValue) {
   });
 }
 
-
 export default function QualityTable() {
   const { auth } = useAuth();
 
@@ -57,6 +72,12 @@ export default function QualityTable() {
     [auth]
   );
 
+  // 🔹 NEW: read factory from auth (for multi-factory separation)
+  const factory = useMemo(
+    () => auth?.factory || auth?.assigned_factory || "",
+    [auth]
+  );
+
   const viewingDateLabel = useMemo(
     () => toLocalDateLabelFromInput(selectedDate),
     [selectedDate]
@@ -68,9 +89,10 @@ export default function QualityTable() {
   };
 
   const fetchSummary = async () => {
-    if (!building) {
+    // 🔹 Now require BOTH building and factory to scope data
+    if (!building || !factory) {
       setRows([]);
-      setError("No building is assigned to your account.");
+      setError("No building or factory is assigned to your account.");
       return;
     }
 
@@ -79,9 +101,14 @@ export default function QualityTable() {
       setError("");
 
       const dateIso = new Date(selectedDate + "T00:00:00").toISOString();
+
+      // 🔹 Build URL and include building + factory
       let url = `/api/hourly-inspections?date=${encodeURIComponent(
         dateIso
-      )}&limit=1000&building=${encodeURIComponent(building)}`;
+      )}&limit=1000`;
+
+      url += `&building=${encodeURIComponent(building)}`;
+      url += `&factory=${encodeURIComponent(factory)}`;
 
       const res = await fetch(url, { cache: "no-store" });
       const json = await res.json();
@@ -242,7 +269,9 @@ export default function QualityTable() {
       defectiveRatePerHour[h] =
         inspected > 0 ? ((defective / inspected) * 100).toFixed(2) : "0.00";
       rftPerHour[h] =
-        inspected > 0 ? ((perHourPassed[h] / inspected) * 100).toFixed(2) : "0.00";
+        inspected > 0
+          ? ((perHourPassed[h] / inspected) * 100).toFixed(2)
+          : "0.00";
       dhuPerHour[h] =
         inspected > 0 ? ((defects / inspected) * 100).toFixed(2) : "0.00";
     });
@@ -349,7 +378,9 @@ export default function QualityTable() {
             <h1 className="text-xl font-bold text-black">
               Endline Defect Summary —{" "}
               <span className="text-indigo-600">
-                {auth?.user_name || "User"} {building && `(${building})`}
+                {auth?.user_name || "User"}{" "}
+                {factory && `| ${factory}`}{" "}
+                {building && `(${building})`}
               </span>
             </h1>
           </div>
@@ -386,6 +417,7 @@ export default function QualityTable() {
         )}
 
         {/* MAIN CARD: TABLE + KPIs */}
+        {/* 🔻 everything below is unchanged logic, only UI text uses factory/building */}
         <div className="rounded-lg border border-gray-200 bg-white p-3 shadow-sm">
           {/* top info row (last update, viewing date, line filter, refresh/auto) */}
           <div className="mb-3 flex flex-wrap items-center justify-between gap-3 text-xs text-gray-600">

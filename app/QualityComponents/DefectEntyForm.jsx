@@ -11,7 +11,7 @@ const defectOptions = [
   "303 - RUN OFF STITCH",
 ];
 
-const lineOptions = ["Line-1", "Line-2", "Line-3"]; // Adding line options
+const lineOptions = ["Line-1", "Line-2", "Line-3"];
 
 function toLocalDateLabel(d = new Date()) {
   return d.toLocaleDateString(undefined, {
@@ -99,10 +99,11 @@ function SearchableDefectPicker({
                 key={opt}
                 onMouseDown={(e) => e.preventDefault()}
                 onClick={() => selectValue(opt)}
-                className={`block w-full text-left px-2 py-1.5 text-sm ${idx === hi
-                  ? "bg-emerald-50 text-emerald-700"
-                  : "hover:bg-gray-50"
-                  }`}
+                className={`block w-full text-left px-2 py-1.5 text-sm ${
+                  idx === hi
+                    ? "bg-emerald-50 text-emerald-700"
+                    : "hover:bg-gray-50"
+                }`}
               >
                 {opt}
               </button>
@@ -120,6 +121,15 @@ function SearchableDefectPicker({
 export default function EndlineDashboard() {
   const { auth } = useAuth();
 
+  // ---- helpers from auth ----
+  const userId = useMemo(() => getUserIdFromAuth(auth), [auth]);
+  const todayLabel = useMemo(() => toLocalDateLabel(), []);
+
+  const getBuilding = () =>
+    auth?.assigned_building || auth?.building || "";
+  const getFactory = () =>
+    auth?.factory || auth?.assigned_factory || "";
+
   // ---- form state ----
   const [form, setForm] = useState({
     hour: "",
@@ -131,19 +141,13 @@ export default function EndlineDashboard() {
     afterRepair: "",
   });
 
-  // ---- edit mode ----
   const [editingId, setEditingId] = useState(null);
-
-  // ---- right panel ----
   const [rows, setRows] = useState([]);
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [deleting, setDeleting] = useState(null);
   const [error, setError] = useState("");
   const [toast, setToast] = useState(null);
-
-  const todayLabel = useMemo(() => toLocalDateLabel(), []);
-  const userId = useMemo(() => getUserIdFromAuth(auth), [auth]);
 
   useEffect(() => {
     if (!auth) return;
@@ -156,12 +160,16 @@ export default function EndlineDashboard() {
       setLoading(true);
       setError("");
       const dateParam = todayIsoForApi();
-      const building = auth?.assigned_building || auth?.building || "";
+      const building = getBuilding();
+      const factory = getFactory();
+
       let url = `/api/hourly-inspections?date=${encodeURIComponent(
         dateParam
       )}&limit=500`;
       if (userId) url += `&userId=${userId}`;
       if (building) url += `&building=${encodeURIComponent(building)}`;
+      if (factory) url += `&factory=${encodeURIComponent(factory)}`;
+
       const res = await fetch(url, { cache: "no-store" });
       const json = await res.json();
       if (!res.ok) throw new Error(json?.message || "Failed to load data");
@@ -174,11 +182,10 @@ export default function EndlineDashboard() {
     }
   };
 
-  // ---- form field handler ----
+  // ---- form helpers ----
   const setField = (field, value) =>
     setForm((prev) => ({ ...prev, [field]: value }));
 
-  // ---- handle defect quantity change ----
   const handleDefectQty = (index, value) => {
     setForm((prev) => {
       const updatedDefects = [...prev.selectedDefects];
@@ -187,7 +194,6 @@ export default function EndlineDashboard() {
     });
   };
 
-  // ---- select defect ----
   const handleSelectDefect = (defect) => {
     if (!defect) return;
     setForm((prev) => {
@@ -202,7 +208,6 @@ export default function EndlineDashboard() {
     });
   };
 
-  // ---- remove defect ----
   const removeDefect = (index) => {
     setForm((prev) => {
       const updatedDefects = [...prev.selectedDefects];
@@ -211,7 +216,6 @@ export default function EndlineDashboard() {
     });
   };
 
-  // ---- handle edit ----
   const handleEdit = (row) => {
     setEditingId(row._id);
     setForm({
@@ -219,9 +223,9 @@ export default function EndlineDashboard() {
       line: row.line || "",
       selectedDefects: Array.isArray(row.selectedDefects)
         ? row.selectedDefects.map((d) => ({
-          name: d.name || "",
-          quantity: String(d.quantity || ""),
-        }))
+            name: d.name || "",
+            quantity: String(d.quantity || ""),
+          }))
         : [],
       inspectedQty: String(row.inspectedQty || ""),
       passedQty: String(row.passedQty || ""),
@@ -230,13 +234,17 @@ export default function EndlineDashboard() {
     });
   };
 
-  // ---- handle delete ----
   const handleDelete = async (id) => {
     if (!confirm("Are you sure you want to delete this entry?")) return;
 
     try {
       setDeleting(id);
-      const res = await fetch(`/api/hourly-inspections?id=${id}`, {
+      const factory = getFactory();
+      const url = `/api/hourly-inspections?id=${id}${
+        factory ? `&factory=${encodeURIComponent(factory)}` : ""
+      }`;
+
+      const res = await fetch(url, {
         method: "DELETE",
       });
       const json = await res.json();
@@ -251,6 +259,12 @@ export default function EndlineDashboard() {
     }
   };
 
+  const validate = () => {
+    if (!form.hour) return "Please select Working Hour.";
+    if (!form.line) return "Please select Line.";
+    return "";
+  };
+
   const save = async () => {
     const msg = validate();
     if (msg) {
@@ -258,20 +272,22 @@ export default function EndlineDashboard() {
       return;
     }
 
-    // ---- ADD DUPLICATE VALIDATION HERE ----
-    // Check for duplicate entry (same hour + same line + same building)
-    const isDuplicate = rows.some(row =>
-      row.hourLabel === form.hour &&
-      row.line === form.line &&
-      row.building === (auth?.assigned_building || auth?.building || "") &&
-      row._id !== editingId // Exclude current entry if editing
+    // duplicate check (per building + line + hour in current list)
+    const isDuplicate = rows.some(
+      (row) =>
+        row.hourLabel === form.hour &&
+        row.line === form.line &&
+        row.building === getBuilding() &&
+        row._id !== editingId
     );
 
     if (isDuplicate && !editingId) {
-      showToast(`An entry for ${form.hour} - ${form.line} already exists. Please edit the existing entry instead of creating a new one.`, "error");
+      showToast(
+        `An entry for ${form.hour} - ${form.line} already exists. Please edit the existing entry instead of creating a new one.`,
+        "error"
+      );
       return;
     }
-    // ---- END DUPLICATE VALIDATION ----
 
     if (!userId) {
       showToast("Missing user identity (auth).", "error");
@@ -281,10 +297,19 @@ export default function EndlineDashboard() {
     try {
       setSaving(true);
 
-      const building = auth?.assigned_building || auth?.building || "";
+      const building = getBuilding();
+      const factory = getFactory();
+
       if (!building) {
         showToast(
           "Building information is missing. Please login again.",
+          "error"
+        );
+        return;
+      }
+      if (!factory) {
+        showToast(
+          "Factory information is missing. Please login again.",
           "error"
         );
         return;
@@ -293,7 +318,8 @@ export default function EndlineDashboard() {
       const payload = {
         hour: form.hour,
         line: form.line,
-        building: building,
+        building,
+        factory,
         inspectedQty: Number(form.inspectedQty || 0),
         passedQty: Number(form.passedQty || 0),
         defectivePcs: Number(form.defectivePcs || 0),
@@ -308,8 +334,11 @@ export default function EndlineDashboard() {
       let json;
 
       if (editingId) {
-        // Update existing entry
-        res = await fetch(`/api/hourly-inspections?id=${editingId}`, {
+        const url = `/api/hourly-inspections?id=${editingId}${
+          factory ? `&factory=${encodeURIComponent(factory)}` : ""
+        }`;
+
+        res = await fetch(url, {
           method: "PATCH",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify(payload),
@@ -321,11 +350,11 @@ export default function EndlineDashboard() {
         }
         showToast("Entry updated successfully!", "success");
       } else {
-        // Create new entry
         const requestBody = {
           userId: userId,
           userName: auth?.user_name || auth?.user?.user_name || "User",
-          building: building,
+          building,
+          factory,
           entries: [payload],
           reportDate: new Date().toISOString(),
         };
@@ -338,25 +367,25 @@ export default function EndlineDashboard() {
           body: JSON.stringify(requestBody),
         });
 
-        // Get response text first to see what we're actually receiving
         const responseText = await res.text();
         console.log("POST response status:", res.status);
         console.log("POST response text (raw):", responseText);
 
-        // Try to parse JSON, but handle empty or invalid JSON
-        let json = {};
+        let parsedJson = {};
         try {
-          json =
-            responseText && responseText.trim() ? JSON.parse(responseText) : {};
+          parsedJson =
+            responseText && responseText.trim()
+              ? JSON.parse(responseText)
+              : {};
         } catch (parseError) {
           console.error("Failed to parse response as JSON:", parseError);
           console.error("Response text was:", responseText);
-          // If parsing fails, create a meaningful error
           throw new Error(
             `Invalid response from server: ${responseText.substring(0, 100)}`
           );
         }
 
+        json = parsedJson;
         console.log("POST response parsed:", json);
 
         if (!res.ok) {
@@ -364,13 +393,12 @@ export default function EndlineDashboard() {
           console.error("Save error - Response text:", responseText);
           console.error("Save error - Parsed JSON:", json);
 
-          // Try multiple ways to extract error message
           const errorMessage =
             json?.message ||
             json?.error ||
             (responseText &&
-              responseText.length > 0 &&
-              !responseText.startsWith("{")
+            responseText.length > 0 &&
+            !responseText.startsWith("{")
               ? responseText
               : null) ||
             `Failed to save (Status: ${res.status})`;
@@ -386,12 +414,6 @@ export default function EndlineDashboard() {
     } finally {
       setSaving(false);
     }
-  };
-
-  const validate = () => {
-    if (!form.hour) return "Please select Working Hour.";
-    if (!form.line) return "Please select Line.";
-    return "";
   };
 
   const resetForm = () => {
@@ -414,22 +436,24 @@ export default function EndlineDashboard() {
 
   return (
     <div className="min-h-screen bg-gray-50">
+      {/* Toast */}
       {toast && (
         <div className="fixed right-4 top-4 z-50">
           <div
-            className={`flex items-start gap-2 rounded-lg border px-4 py-3 shadow-lg ${toast.type === "success"
-              ? "border-emerald-200 bg-emerald-50 text-emerald-800"
-              : toast.type === "error"
+            className={`flex items-start gap-2 rounded-lg border px-4 py-3 shadow-lg ${
+              toast.type === "success"
+                ? "border-emerald-200 bg-emerald-50 text-emerald-800"
+                : toast.type === "error"
                 ? "border-red-200 bg-red-50 text-red-800"
                 : "border-blue-200 bg-blue-50 text-blue-800"
-              }`}
+            }`}
           >
             <span className="text-lg">
               {toast.type === "success"
                 ? "✅"
                 : toast.type === "error"
-                  ? "⚠️"
-                  : "ℹ️"}
+                ? "⚠️"
+                : "ℹ️"}
             </span>
             <div className="text-sm">
               <p className="font-medium">{toast.message}</p>
@@ -444,6 +468,7 @@ export default function EndlineDashboard() {
           </div>
         </div>
       )}
+
       <div className="mx-auto max-w-7xl p-4 md:p-6">
         <div className="mb-4 flex items-center justify-between gap-3">
           <div>
@@ -451,7 +476,8 @@ export default function EndlineDashboard() {
               Endline Hourly Dashboard —{" "}
               <span className="text-indigo-600">
                 {auth?.user_name || "User"}{" "}
-                {auth?.assigned_building && `(${auth?.assigned_building})`}
+                {auth?.factory && `| Factory: ${auth.factory}`}{" "}
+                {auth?.assigned_building && `(${auth.assigned_building})`}
               </span>
             </h1>
             <p className="text-sm text-gray-600">Today: {todayLabel}</p>
@@ -471,6 +497,7 @@ export default function EndlineDashboard() {
             {error}
           </div>
         )}
+
 
         <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
           {/* Left: Form */}

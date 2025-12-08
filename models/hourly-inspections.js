@@ -16,6 +16,13 @@ const HourlyInspectionSchema = new Schema(
       id: { type: Schema.Types.ObjectId, ref: "User", required: true },
       user_name: { type: String, required: true, trim: true },
     },
+
+    // Factory (multi-factory support)
+    factory: { type: String, required: true, trim: true },
+
+    // Building inside factory
+    building: { type: String, required: true, trim: true },
+
     reportDate: {
       type: Date,
       required: true,
@@ -23,26 +30,27 @@ const HourlyInspectionSchema = new Schema(
     },
     hourLabel: { type: String, required: true, trim: true },
     hourIndex: { type: Number, required: true, min: 1, max: 24 },
+
     inspectedQty: { type: Number, required: true, min: 0, default: 0 },
     passedQty: { type: Number, required: true, min: 0, default: 0 },
     defectivePcs: { type: Number, required: true, min: 0, default: 0 },
     afterRepair: { type: Number, required: true, min: 0, default: 0 },
+
     totalDefects: { type: Number, required: true, min: 0, default: 0 },
     selectedDefects: { type: [DefectItemSchema], default: [] },
+
     line: { type: String, required: true },
-    building: { type: String, required: true, trim: true }, // Add building field
   },
   { timestamps: true, collection: "endline_hour_entries" }
 );
 
-// Index to avoid duplicate entries for the same user, date, hour, and building
+// ❗ Unique entry per user + factory + date + hour + building
 HourlyInspectionSchema.index(
-  { "user.id": 1, reportDate: 1, hourIndex: 1, building: 1 },
+  { "user.id": 1, factory: 1, reportDate: 1, hourIndex: 1, building: 1 },
   { unique: true }
 );
 
-// Pre-save hook to calculate total defects (only for single document saves)
-// Note: insertMany doesn't always call this hook properly, so we calculate totalDefects in normalizeEntry
+// Pre-save hook to calculate total defects (for save(), not insertMany)
 HourlyInspectionSchema.pre("save", function (next) {
   if (Array.isArray(this.selectedDefects)) {
     this.totalDefects = this.selectedDefects.reduce(

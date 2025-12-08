@@ -32,11 +32,14 @@ function normalizeEntry(raw) {
   }
   if (!hourIndex) hourIndex = 0;
 
-  // Calculate totalDefects from selectedDefects (instead of relying on hook)
+  // Calculate totalDefects from selectedDefects
   const totalDefects = selectedDefects.reduce(
     (sum, d) => sum + (Number(d.quantity) || 0),
     0
   );
+
+  const building = (raw.building || "").trim();
+  const factory = (raw.factory || "").trim();
 
   const doc = {
     hourLabel,
@@ -45,10 +48,11 @@ function normalizeEntry(raw) {
     passedQty: toNumber(raw.passedQty, 0),
     defectivePcs: toNumber(raw.defectivePcs, 0),
     afterRepair: toNumber(raw.afterRepair, 0),
-    totalDefects, // Calculate here to avoid hook issues with insertMany
+    totalDefects,
     selectedDefects,
     line: raw.line || "",
-    building: raw.building || "", // Add building info
+    building,
+    factory,
   };
 
   console.log("normalizeEntry input:", raw);
@@ -58,6 +62,7 @@ function normalizeEntry(raw) {
 }
 
 // ---------- POST ----------
+
 export async function POST(req) {
   try {
     await dbConnect();
@@ -66,7 +71,10 @@ export async function POST(req) {
     const userId = body.userId || body.user_id || body.created_by?.id;
     const user_name =
       body.userName || body.user_name || body.created_by?.user_name;
+
     const building = body.building || body.assigned_building || "";
+    const factory =
+      body.factory || body.assigned_factory || body.factoryCode || "";
 
     if (!userId || !user_name) {
       return NextResponse.json(
@@ -77,6 +85,12 @@ export async function POST(req) {
     if (!mongoose.isValidObjectId(userId)) {
       return NextResponse.json(
         { success: false, message: "Invalid userId (not ObjectId)." },
+        { status: 400 }
+      );
+    }
+    if (!factory) {
+      return NextResponse.json(
+        { success: false, message: "Factory information is required." },
         { status: 400 }
       );
     }
@@ -97,6 +111,7 @@ export async function POST(req) {
 
     console.log("Raw entries received:", JSON.stringify(rawEntries, null, 2));
     console.log("Building from body:", building);
+    console.log("Factory from body:", factory);
 
     if (!rawEntries || rawEntries.length === 0) {
       return NextResponse.json(
@@ -106,7 +121,11 @@ export async function POST(req) {
     }
 
     const docs = rawEntries.map((e) => ({
-      ...normalizeEntry({ ...e, building: e.building || building }),
+      ...normalizeEntry({
+        ...e,
+        building: e.building || building,
+        factory: e.factory || factory,
+      }),
       user: { id: new mongoose.Types.ObjectId(userId), user_name },
       reportDate,
     }));
@@ -127,6 +146,13 @@ export async function POST(req) {
             success: false,
             message: `hourLabel/hourIndex is required and must be between 1-24. hourLabel: "${d.hourLabel}", hourIndex: ${d.hourIndex}`,
           },
+          { status: 400 }
+        );
+      }
+      if (!d.factory) {
+        console.error("Validation failed: Missing factory", d);
+        return NextResponse.json(
+          { success: false, message: "Factory is required for each entry." },
           { status: 400 }
         );
       }
@@ -156,15 +182,14 @@ export async function POST(req) {
       );
     }
 
-    // Validate documents manually (schema validation will happen on insert)
-    // Just ensure required fields are present
+    // Final simple required field check
     for (const doc of docs) {
-      if (!doc.hourLabel || !doc.line || !doc.building) {
+      if (!doc.hourLabel || !doc.line || !doc.building || !doc.factory) {
         console.error("Missing required fields in doc:", doc);
         return NextResponse.json(
           {
             success: false,
-            message: `Missing required fields: hourLabel, line, or building`,
+            message: `Missing required fields: hourLabel, line, building, or factory`,
           },
           { status: 400 }
         );
@@ -173,7 +198,6 @@ export async function POST(req) {
 
     let inserted;
     try {
-      // Use ordered: true to get better error messages on first failure
       inserted = await HourlyInspectionModel.insertMany(docs, {
         ordered: true,
       });
@@ -186,16 +210,11 @@ export async function POST(req) {
       }
     } catch (insertError) {
       console.error("insertMany error:", insertError);
-      console.error("Error name:", insertError.name);
-      console.error("Error message:", insertError.message);
-      console.error("Error code:", insertError.code);
 
-      // Handle Mongoose validation errors
       if (insertError.name === "ValidationError") {
         const validationErrors = Object.values(insertError.errors || {})
           .map((e) => `${e.path}: ${e.message}`)
           .join(", ");
-        console.error("Validation errors:", validationErrors);
         return NextResponse.json(
           {
             success: false,
@@ -205,12 +224,10 @@ export async function POST(req) {
         );
       }
 
-      // Handle MongoDB duplicate key errors
       if (insertError.code === 11000) {
         const duplicateField = insertError.keyPattern
           ? Object.keys(insertError.keyPattern).join(", ")
           : "unknown field";
-        console.error("Duplicate key error on:", duplicateField);
         return NextResponse.json(
           {
             success: false,
@@ -220,14 +237,11 @@ export async function POST(req) {
         );
       }
 
-      // Handle MongoDB write errors (when ordered: false and some succeed)
       if (insertError.writeErrors && Array.isArray(insertError.writeErrors)) {
         const errorMessages = insertError.writeErrors
           .map((e) => e.errmsg || e.err?.message || JSON.stringify(e.err))
           .join("; ");
-        console.error("Write errors:", errorMessages);
 
-        // Check if any documents were inserted
         if (insertError.insertedDocs && insertError.insertedDocs.length > 0) {
           return NextResponse.json(
             {
@@ -249,22 +263,11 @@ export async function POST(req) {
         );
       }
 
-      // Generic error - extract all possible error information
       const errorMessage =
         insertError.message ||
         insertError.errmsg ||
         String(insertError) ||
         "Unknown error occurred";
-
-      console.error("Full error object:", insertError);
-      console.error("Error stack:", insertError.stack);
-      console.error("Error message:", errorMessage);
-      console.error("Error details:", {
-        name: insertError.name,
-        code: insertError.code,
-        message: insertError.message,
-        errmsg: insertError.errmsg,
-      });
 
       return NextResponse.json(
         {
@@ -276,8 +279,6 @@ export async function POST(req) {
     }
 
     if (!inserted || inserted.length === 0) {
-      console.error("insertMany returned empty array - this should not happen");
-      console.error("Docs that were attempted:", JSON.stringify(docs, null, 2));
       return NextResponse.json(
         {
           success: false,
@@ -299,12 +300,7 @@ export async function POST(req) {
     );
   } catch (err) {
     console.error("POST /hourly-inspections outer catch error:", err);
-    console.error("Error name:", err?.name);
-    console.error("Error message:", err?.message);
-    console.error("Error code:", err?.code);
-    console.error("Error stack:", err?.stack);
 
-    // Handle duplicate key errors (unique index violation)
     if (err.code === 11000 || err.name === "MongoServerError") {
       return NextResponse.json(
         {
@@ -316,7 +312,6 @@ export async function POST(req) {
       );
     }
 
-    // Handle validation errors
     if (err.name === "ValidationError") {
       const errors = Object.values(err.errors || {})
         .map((e) => e.message)
@@ -327,7 +322,6 @@ export async function POST(req) {
       );
     }
 
-    // Extract error message from various possible sources
     const errorMessage =
       err?.message || err?.errmsg || err?.toString() || "Server error occurred";
 
@@ -340,6 +334,7 @@ export async function POST(req) {
     );
   }
 }
+
 // ---------- GET ----------
 export async function GET(req) {
   try {
@@ -349,6 +344,7 @@ export async function GET(req) {
     const userId = searchParams.get("userId");
     const date = searchParams.get("date");
     const building = searchParams.get("building");
+    const factory = searchParams.get("factory");
     const limit = Math.min(Number(searchParams.get("limit") || 200), 1000);
 
     const filter = {};
@@ -370,13 +366,15 @@ export async function GET(req) {
     if (building) {
       filter.building = building;
     }
+    if (factory) {
+      filter.factory = factory;
+    }
 
     const rows = await HourlyInspectionModel.find(filter)
       .sort({ reportDate: 1, hourIndex: 1, createdAt: 1 })
       .limit(limit)
       .lean();
 
-    // Ensure totalDefects is calculated for each row
     const rowsWithTotalDefects = rows.map((row) => {
       if (row.totalDefects === undefined || row.totalDefects === null) {
         const total = Array.isArray(row.selectedDefects)
@@ -406,6 +404,7 @@ export async function GET(req) {
     );
   }
 }
+
 // ---------- PATCH (Update) ----------
 export async function PATCH(req) {
   try {
@@ -413,6 +412,7 @@ export async function PATCH(req) {
 
     const { searchParams } = new URL(req.url);
     const id = searchParams.get("id");
+    const factory = searchParams.get("factory");
 
     if (!id || !mongoose.isValidObjectId(id)) {
       return NextResponse.json(
@@ -424,14 +424,16 @@ export async function PATCH(req) {
     const body = await req.json();
     const updateData = normalizeEntry(body);
 
-    // Calculate totalDefects
     const totalDefects = updateData.selectedDefects.reduce(
       (sum, d) => sum + d.quantity,
       0
     );
 
-    const updated = await HourlyInspectionModel.findByIdAndUpdate(
-      id,
+    const filter = { _id: id };
+    if (factory) filter.factory = factory;
+
+    const updated = await HourlyInspectionModel.findOneAndUpdate(
+      filter,
       {
         ...updateData,
         totalDefects,
@@ -463,6 +465,7 @@ export async function PATCH(req) {
     );
   }
 }
+
 // ---------- DELETE ----------
 export async function DELETE(req) {
   try {
@@ -470,6 +473,7 @@ export async function DELETE(req) {
 
     const { searchParams } = new URL(req.url);
     const id = searchParams.get("id");
+    const factory = searchParams.get("factory");
 
     if (!id || !mongoose.isValidObjectId(id)) {
       return NextResponse.json(
@@ -478,7 +482,10 @@ export async function DELETE(req) {
       );
     }
 
-    const deleted = await HourlyInspectionModel.findByIdAndDelete(id);
+    const filter = { _id: id };
+    if (factory) filter.factory = factory;
+
+    const deleted = await HourlyInspectionModel.findOneAndDelete(filter);
 
     if (!deleted) {
       return NextResponse.json(
@@ -503,3 +510,4 @@ export async function DELETE(req) {
     );
   }
 }
+

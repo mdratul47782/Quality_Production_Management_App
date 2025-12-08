@@ -3,7 +3,19 @@
 
 import { useState, useEffect } from "react";
 
-const buildingOptions = [ "A-2", "B-2","A-3", "B-3","A-4", "B-4","A-5","B-5"]; // add more if needed
+const factoryOptions = ["K-1", "K-2", "K-3"]; // 🔁 adjust to your real factory list
+
+const buildingOptions = [
+  "A-2",
+  "B-2",
+  "A-3",
+  "B-3",
+  "A-4",
+  "B-4",
+  "A-5",
+  "B-5",
+];
+
 const lineOptions = [
   "ALL",
   "Line-1",
@@ -30,6 +42,7 @@ function formatNumber(value, digits = 2) {
 }
 
 export default function FloorDashboardPage() {
+  const [factory, setFactory] = useState("K-2"); // 🔁 default factory
   const [building, setBuilding] = useState("B-4");
   const [date, setDate] = useState(
     () => new Date().toISOString().slice(0, 10)
@@ -40,9 +53,9 @@ export default function FloorDashboardPage() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
 
-  // 🔁 Auto-load + auto-refresh when building/date/line changes
+  // 🔁 Auto-load + auto-refresh when factory/building/date/line changes
   useEffect(() => {
-    if (!building || !date) {
+    if (!factory || !building || !date) {
       setRows([]);
       return;
     }
@@ -54,7 +67,11 @@ export default function FloorDashboardPage() {
         setLoading(true);
         setError("");
 
-        const params = new URLSearchParams({ building, date });
+        const params = new URLSearchParams({
+          factory,
+          building,
+          date,
+        });
         if (line && line !== "ALL") params.append("line", line);
 
         const res = await fetch(`/api/floor-dashboard?${params.toString()}`, {
@@ -93,14 +110,33 @@ export default function FloorDashboardPage() {
       cancelled = true;
       clearInterval(intervalId);
     };
-  }, [building, date, line]);
+  }, [factory, building, date, line]);
 
   return (
     <div className="space-y-4">
-      {/* Filter Panel (no submit button needed) */}
+      {/* Filter Panel */}
       <div className="card bg-base-100 border border-base-200 shadow-sm">
         <div className="card-body p-3 text-xs space-y-2">
           <div className="flex flex-wrap items-end gap-3">
+            {/* Factory */}
+            <div className="space-y-1">
+              <label className="block text-[11px] font-semibold uppercase">
+                Factory
+              </label>
+              <select
+                className="select select-xs select-bordered min-w-[120px]"
+                value={factory}
+                onChange={(e) => setFactory(e.target.value)}
+              >
+                <option value="">Select factory</option>
+                {factoryOptions.map((f) => (
+                  <option key={f} value={f}>
+                    {f}
+                  </option>
+                ))}
+              </select>
+            </div>
+
             {/* Building */}
             <div className="space-y-1">
               <label className="block text-[11px] font-semibold uppercase">
@@ -170,7 +206,7 @@ export default function FloorDashboardPage() {
       {/* Cards */}
       {rows.length === 0 && !loading && !error && (
         <p className="text-[11px] text-slate-500">
-          No data for this building/date yet.
+          No data for this factory/building/date yet.
         </p>
       )}
 

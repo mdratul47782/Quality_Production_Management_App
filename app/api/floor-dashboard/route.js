@@ -4,9 +4,38 @@ import { dbConnect } from "@/services/mongo";
 
 import TargetSetterHeader from "@/models/TargetSetterHeader";
 import { HourlyProductionModel } from "@/models/HourlyProduction-model";
-import { HourlyInspectionModel } from "@/models/hourly-inspections"; // make sure this path is correct
+import { HourlyInspectionModel } from "@/models/hourly-inspections";
 
 // ---------- helpers ----------
+
+function toNumberOrZero(value) {
+  const n = Number(value);
+  return Number.isFinite(n) ? n : 0;
+}
+
+// 👉 Same idea as in HourlyProductionBoard:
+// baseTargetPerHourRaw = (MP × 60 × PlanEff% / SMV)
+// Day base target for a header = round(baseTargetPerHourRaw) × working_hour
+function computeBaseTargetPerHourFromHeader(header) {
+  const manpowerPresent = toNumberOrZero(header.manpower_present);
+  const smv = toNumberOrZero(header.smv);
+  const planEffPercent = toNumberOrZero(header.plan_efficiency_percent);
+  const planEffDecimal = planEffPercent / 100;
+
+  // per-hour capacity-based target
+  const targetFromCapacity =
+    manpowerPresent > 0 && smv > 0
+      ? (manpowerPresent * 60 * planEffDecimal) / smv
+      : 0;
+
+  // fallback (rare) – if MP/SMV not set, use day target / working hour
+  const workingHour = toNumberOrZero(header.working_hour);
+  const targetFullDay = toNumberOrZero(header.target_full_day);
+  const targetFromFullDay =
+    workingHour > 0 ? targetFullDay / workingHour : 0;
+
+  return targetFromCapacity || targetFromFullDay || 0;
+}
 
 // "2025-12-04" -> local Date(2025, 11, 4, 00:00)
 function parseLocalDateFromYMD(dateStr) {
@@ -15,15 +44,12 @@ function parseLocalDateFromYMD(dateStr) {
 }
 
 // Build a whole-day range based on LOCAL date
-// Works for either "YYYY-MM-DD" or full ISO ("2025-12-03T18:00:00.000Z")
 function getDayRange(dateStr) {
   let base;
 
   if (dateStr.includes("T")) {
-    // full ISO string
     base = new Date(dateStr);
   } else {
-    // just "YYYY-MM-DD" from <input type="date">
     base = parseLocalDateFromYMD(dateStr);
   }
 
@@ -41,7 +67,8 @@ function getDayRange(dateStr) {
 }
 
 // ==================================================================
-// GET /api/floor-dashboard?building=B-4&date=2025-12-04&line=Line-1|ALL
+// GET /api/floor-dashboard?building=B-4&date=2025-12-08&line=Line-1|ALL
+// (if you later add factory, just extend the filters accordingly)
 // ==================================================================
 export async function GET(req) {
   try {
@@ -75,16 +102,11 @@ export async function GET(req) {
     const headerIdToLine = {};
     const productionLineAgg = {};
 
-    for (const h of headers) {
-      const lineName = h.line;
-      const key = lineName;
-
-      headerIdToLine[h._id.toString()] = lineName;
-
-      if (!productionLineAgg[key]) {
-        productionLineAgg[key] = {
+    function ensureLineAgg(lineName) {
+      if (!productionLineAgg[lineName]) {
+        productionLineAgg[lineName] = {
           line: lineName,
-          targetQty: 0,
+          targetQty: 0, // 👉 will store BASE TARGET (not raw header.target_full_day)
           achievedQty: 0,
           varianceQty: 0,
           currentHour: null,
@@ -93,13 +115,36 @@ export async function GET(req) {
           _effCount: 0,
         };
       }
+      return productionLineAgg[lineName];
+    }
 
-      productionLineAgg[key].targetQty += Number(h.target_full_day || 0);
+    // 1) From headers -> base target per line
+    for (const h of headers) {
+      const lineName = h.line;
+      const key = lineName;
+
+      headerIdToLine[h._id.toString()] = lineName;
+
+      const agg = ensureLineAgg(key);
+
+      const baseTargetPerHourRaw = computeBaseTargetPerHourFromHeader(h);
+      const baseTargetPerHourRounded = Math.round(baseTargetPerHourRaw);
+      const workingHours = toNumberOrZero(h.working_hour);
+
+      // 🔹 This is the base target used in Hourly board (Base Target / hr × working_hour)
+      const headerBaseTarget =
+        (Number.isFinite(baseTargetPerHourRounded)
+          ? baseTargetPerHourRounded
+          : 0) *
+        (Number.isFinite(workingHours) ? workingHours : 0);
+
+      agg.targetQty += headerBaseTarget;
     }
 
     const allHeaderIds = headers.map((h) => h._id);
     let hourlyRecs = [];
 
+    // 2) Hourly records -> achievedQty + eff
     if (allHeaderIds.length > 0) {
       hourlyRecs = await HourlyProductionModel.find({
         productionDate: date, // stored as "YYYY-MM-DD"
@@ -111,36 +156,25 @@ export async function GET(req) {
       const lineName = headerIdToLine[rec.headerId.toString()];
       if (!lineName) continue;
 
-      const key = lineName;
-      if (!productionLineAgg[key]) {
-        productionLineAgg[key] = {
-          line: lineName,
-          targetQty: 0,
-          achievedQty: 0,
-          varianceQty: 0,
-          currentHour: null,
-          currentHourEfficiency: 0,
-          _effSum: 0,
-          _effCount: 0,
-        };
-      }
+      const agg = ensureLineAgg(lineName);
 
-      const agg = productionLineAgg[key];
-
-      agg.achievedQty += Number(rec.achievedQty || 0);
-      agg._effSum += Number(rec.hourlyEfficiency || 0);
+      agg.achievedQty += toNumberOrZero(rec.achievedQty);
+      agg._effSum += toNumberOrZero(rec.hourlyEfficiency);
       agg._effCount += 1;
 
       if (agg.currentHour === null || rec.hour > agg.currentHour) {
         agg.currentHour = rec.hour;
-        agg.currentHourEfficiency = Number(rec.hourlyEfficiency || 0);
+        agg.currentHourEfficiency = toNumberOrZero(rec.hourlyEfficiency);
       }
     }
 
+    // 3) Finalize variance + avg eff
     Object.values(productionLineAgg).forEach((agg) => {
+      // 👉 NOW: Variance = Achieved - Target, and Target is the same base as in Hourly board
       agg.varianceQty = agg.achievedQty - agg.targetQty;
       agg.avgEffPercent =
         agg._effCount > 0 ? agg._effSum / agg._effCount : 0;
+
       delete agg._effSum;
       delete agg._effCount;
     });
@@ -174,15 +208,17 @@ export async function GET(req) {
     const qualityLineAgg = {};
     for (const doc of qualityAggDocs) {
       const lineName = doc._id;
-      const totalInspected = Number(doc.totalInspected || 0);
-      const totalPassed = Number(doc.totalPassed || 0);
-      const totalDefectivePcs = Number(doc.totalDefectivePcs || 0);
-      const totalDefects = Number(doc.totalDefects || 0);
+      const totalInspected = toNumberOrZero(doc.totalInspected);
+      const totalPassed = toNumberOrZero(doc.totalPassed);
+      const totalDefectivePcs = toNumberOrZero(doc.totalDefectivePcs);
+      const totalDefects = toNumberOrZero(doc.totalDefects);
 
       const rftPercent =
         totalInspected > 0 ? (totalPassed / totalInspected) * 100 : 0;
       const defectRatePercent =
-        totalInspected > 0 ? (totalDefectivePcs / totalInspected) * 100 : 0;
+        totalInspected > 0
+          ? (totalDefectivePcs / totalInspected) * 100
+          : 0;
       const dhuPercent =
         totalInspected > 0 ? (totalDefects / totalInspected) * 100 : 0;
 

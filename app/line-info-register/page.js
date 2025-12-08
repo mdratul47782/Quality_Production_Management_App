@@ -26,6 +26,7 @@ function getTodayDateString() {
 }
 
 const makeEmptyForm = () => ({
+  factory: "",
   buyer: "",
   assigned_building: "",
   line: "",
@@ -46,28 +47,39 @@ export default function LineInfoRegisterPage() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
 
+  console.log("Rendering LineInfoRegisterPage with auth:", auth);
+
   useEffect(() => {
     if (!auth) return;
-    if (!auth.assigned_building) {
+
+    if (!auth.assigned_building || !auth.factory) {
       setLoading(false);
       return;
     }
 
+    // auto-fill factory + assigned_building in form
     setFormValues((prev) => ({
       ...prev,
+      factory: auth.factory,
       assigned_building: auth.assigned_building,
     }));
 
-    fetchRecords(auth.assigned_building);
+    fetchRecords(auth.factory, auth.assigned_building);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [auth?.assigned_building]);
+  }, [auth?.assigned_building, auth?.factory]);
 
-  const fetchRecords = async (assignedBuilding) => {
+  const fetchRecords = async (factory, assignedBuilding) => {
+    if (!factory || !assignedBuilding) {
+      setRecords([]);
+      setLoading(false);
+      return;
+    }
+
     setLoading(true);
     try {
       const params = new URLSearchParams();
-      if (assignedBuilding)
-        params.set("assigned_building", assignedBuilding);
+      params.set("factory", factory);
+      params.set("assigned_building", assignedBuilding);
 
       const res = await fetch(`/api/line-info-register?${params.toString()}`, {
         cache: "no-store",
@@ -88,12 +100,14 @@ export default function LineInfoRegisterPage() {
     setEditingId(null);
     setFormValues({
       ...makeEmptyForm(),
+      factory: auth?.factory || "",
       assigned_building: auth?.assigned_building || "",
     });
   };
 
   const validate = () => {
     const keys = [
+      "factory",
       "buyer",
       "assigned_building",
       "line",
@@ -117,6 +131,7 @@ export default function LineInfoRegisterPage() {
       const userId = auth._id || auth.id || "";
       const payload = {
         ...formValues,
+        factory: auth.factory, // 🔹 ensure factory from auth
         assigned_building: auth.assigned_building,
         user: {
           id: userId,
@@ -137,7 +152,7 @@ export default function LineInfoRegisterPage() {
       alert(result.message || "Saved!");
 
       if (result.success) {
-        await fetchRecords(auth.assigned_building);
+        await fetchRecords(auth.factory, auth.assigned_building);
         if (!editingId) resetForm();
       }
     } catch (err) {
@@ -160,7 +175,7 @@ export default function LineInfoRegisterPage() {
       alert(result.message || "Deleted");
 
       if (result.success) {
-        await fetchRecords(auth.assigned_building);
+        await fetchRecords(auth.factory, auth.assigned_building);
         resetForm();
       }
     } catch (err) {
@@ -172,6 +187,7 @@ export default function LineInfoRegisterPage() {
   const handleEditClick = (record) => {
     setEditingId(record._id);
     setFormValues({
+      factory: record.factory || auth?.factory || "",
       buyer: record.buyer || "",
       assigned_building: record.assigned_building || "",
       line: record.line || "",
@@ -221,7 +237,9 @@ export default function LineInfoRegisterPage() {
             Line Info Register – {auth.assigned_building}
           </p>
           <p className="text-sm opacity-80">
-            Inputter: <span className="font-semibold">{auth.user_name}</span>
+            Factory:{" "}
+            <span className="font-semibold">{auth.factory}</span> • Inputter:{" "}
+            <span className="font-semibold">{auth.user_name}</span>
           </p>
         </div>
       </div>
@@ -233,7 +251,7 @@ export default function LineInfoRegisterPage() {
           <div className="bg-gradient-to-br from-white to-slate-50 p-4 rounded-2xl border shadow-sm">
             <div className="flex items-center justify-between mb-2">
               <h3 className="font-semibold text-gray-700 text-sm">
-                Saved lines ({auth.assigned_building})
+                Saved lines ({auth.factory} – {auth.assigned_building})
               </h3>
               <button
                 type="button"
@@ -246,7 +264,7 @@ export default function LineInfoRegisterPage() {
 
             {records.length === 0 ? (
               <p className="text-xs text-gray-500">
-                No line info saved yet for this building.
+                No line info saved yet for this factory/building.
               </p>
             ) : (
               <ul className="space-y-2 max-h-[360px] overflow-auto text-sm">
@@ -276,7 +294,7 @@ export default function LineInfoRegisterPage() {
                       SMV: {r.smv} • Run Day: {r.runDay}
                     </div>
                     <div className="text-xs text-gray-400">
-                      Date: {r.date}
+                      Factory: {r.factory} • Date: {r.date}
                     </div>
                   </li>
                 ))}
@@ -290,6 +308,7 @@ export default function LineInfoRegisterPage() {
               Current form preview
             </h3>
             <dl className="mt-2 text-xs text-gray-600 space-y-1">
+              <Row label="Factory" value={auth.factory} />
               <Row label="Date" value={formValues.date} />
               <Row label="Assigned Building" value={auth.assigned_building} />
               <Row label="Buyer" value={formValues.buyer} />

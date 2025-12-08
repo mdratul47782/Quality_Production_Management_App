@@ -3,6 +3,13 @@ import mongoose from "mongoose";
 
 const lineInfoRegisterSchema = new mongoose.Schema(
   {
+    // 🔹 NEW: factory (K-1 / K-2 / K-3 ...)
+    factory: {
+      type: String,
+      required: true,
+      trim: true,
+    },
+
     buyer: { type: String, required: true },
 
     // exactly like auth: "A-2", "B-3"

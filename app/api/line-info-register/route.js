@@ -2,21 +2,23 @@
 import { dbConnect } from "@/services/mongo";
 import { LineInfoRegisterModel } from "@/models/line-info-register-model";
 
-// GET /api/line-info-register?assigned_building=A-2&userId=...
+// GET /api/line-info-register?factory=K-2&assigned_building=A-2&userId=...
 export async function GET(request) {
   try {
     await dbConnect();
 
     const { searchParams } = new URL(request.url);
+    const factory = searchParams.get("factory");
     const assignedBuilding = searchParams.get("assigned_building");
     const userId = searchParams.get("userId");
 
     const filter = {};
+    if (factory) filter.factory = factory;
     if (assignedBuilding) filter.assigned_building = assignedBuilding;
     if (userId) filter["user.id"] = userId;
 
-    // 🔹 আর date দিয়ে ফিল্টার করা হচ্ছে না
     const data = await LineInfoRegisterModel.find(filter).sort({
+      factory: 1,
       line: 1,
       createdAt: -1,
     });
@@ -31,7 +33,7 @@ export async function GET(request) {
   }
 }
 
-// POST /api/line-info-register (একই থাকবে)
+// POST /api/line-info-register
 export async function POST(request) {
   try {
     await dbConnect();
@@ -40,6 +42,12 @@ export async function POST(request) {
     if (!body.user || !body.user.id || !body.user.user_name) {
       return Response.json(
         { success: false, message: "user.id and user.user_name are required" },
+        { status: 400 }
+      );
+    }
+    if (!body.factory) {
+      return Response.json(
+        { success: false, message: "factory is required" },
         { status: 400 }
       );
     }
@@ -78,7 +86,7 @@ export async function POST(request) {
   }
 }
 
-// PUT /api/line-info-register (একই)
+// PUT /api/line-info-register
 export async function PUT(request) {
   try {
     await dbConnect();

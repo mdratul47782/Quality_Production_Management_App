@@ -3,7 +3,7 @@
 
 import { useState, useEffect } from "react";
 
-const factoryOptions = ["K-1", "K-2", "K-3"]; // 🔁 adjust to your real factory list
+const factoryOptions = ["K-1", "K-2", "K-3"]; // adjust as needed
 
 const buildingOptions = [
   "A-2",
@@ -42,8 +42,8 @@ function formatNumber(value, digits = 2) {
 }
 
 export default function FloorDashboardPage() {
-  const [factory, setFactory] = useState("K-2"); // 🔁 default factory
-  const [building, setBuilding] = useState("B-4");
+  const [factory, setFactory] = useState("K-2");
+  const [building, setBuilding] = useState("A-2");
   const [date, setDate] = useState(
     () => new Date().toISOString().slice(0, 10)
   );
@@ -235,12 +235,24 @@ function LineCard({ lineData }) {
         {/* Quality block */}
         <div className="rounded-md bg-emerald-50 border border-emerald-200 p-2 space-y-1">
           <div className="font-semibold text-[11px]">Quality</div>
-          <Row label="RFT%" value={formatNumber(quality?.rftPercent ?? 0, 1)} />
-          <Row label="DHU%" value={formatNumber(quality?.dhuPercent ?? 0, 1)} />
+          <Row
+            label="RFT%"
+            value={`${formatNumber(quality?.rftPercent ?? 0, 1)} %`}
+          />
+          <Row
+            label="DHU%"
+            value={`${formatNumber(quality?.dhuPercent ?? 0, 1)} %`}
+          />
           <Row
             label="Defect Rate%"
-            value={formatNumber(quality?.defectRatePercent ?? 0, 1)}
+            value={`${formatNumber(quality?.defectRatePercent ?? 0, 1)} %`}
           />
+
+          {/* 👉 Quality current hour */}
+          <div className="flex justify-between text-[11px] text-slate-1000 pt-1">
+            <span>Quality Current Hour</span>
+            <span>{quality?.currentHour ?? "-"}</span>
+          </div>
         </div>
 
         {/* Production block */}
@@ -266,17 +278,21 @@ function LineCard({ lineData }) {
           />
           <Row
             label="Hourly Efficiency"
-            value={formatNumber(
+            value={`${formatNumber(
               production?.currentHourEfficiency ?? 0,
               1
-            )}
+            )} %`}
           />
           <Row
             label="Average Efficiency"
-            value={formatNumber(production?.avgEffPercent ?? 0, 1)}
+            value={`${formatNumber(
+              production?.avgEffPercent ?? 0,
+              1
+            )} %`}
           />
-          <div className="flex justify-between text-[10px] text-slate-500 pt-1">
-            <span>Current Hour</span>
+
+          <div className="flex justify-between text-[11px] text-slate-1000 pt-1">
+            <span>Production Current Hour</span>
             <span>{production?.currentHour ?? "-"}</span>
           </div>
         </div>

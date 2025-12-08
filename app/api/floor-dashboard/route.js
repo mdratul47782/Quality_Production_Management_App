@@ -13,22 +13,20 @@ function toNumberOrZero(value) {
   return Number.isFinite(n) ? n : 0;
 }
 
-// 👉 Same idea as in HourlyProductionBoard:
+// Same base logic as your hourly board
 // baseTargetPerHourRaw = (MP × 60 × PlanEff% / SMV)
-// Day base target for a header = round(baseTargetPerHourRaw) × working_hour
+// Day base target per header = round(baseTargetPerHourRaw) × working_hour
 function computeBaseTargetPerHourFromHeader(header) {
   const manpowerPresent = toNumberOrZero(header.manpower_present);
   const smv = toNumberOrZero(header.smv);
   const planEffPercent = toNumberOrZero(header.plan_efficiency_percent);
   const planEffDecimal = planEffPercent / 100;
 
-  // per-hour capacity-based target
   const targetFromCapacity =
     manpowerPresent > 0 && smv > 0
       ? (manpowerPresent * 60 * planEffDecimal) / smv
       : 0;
 
-  // fallback (rare) – if MP/SMV not set, use day target / working hour
   const workingHour = toNumberOrZero(header.working_hour);
   const targetFullDay = toNumberOrZero(header.target_full_day);
   const targetFromFullDay =
@@ -37,13 +35,12 @@ function computeBaseTargetPerHourFromHeader(header) {
   return targetFromCapacity || targetFromFullDay || 0;
 }
 
-// "2025-12-04" -> local Date(2025, 11, 4, 00:00)
+// "2025-12-08" -> local Date(2025, 11, 8, 00:00)
 function parseLocalDateFromYMD(dateStr) {
   const [y, m, d] = dateStr.split("-").map(Number);
   return new Date(y, m - 1, d);
 }
 
-// Build a whole-day range based on LOCAL date
 function getDayRange(dateStr) {
   let base;
 
@@ -67,21 +64,24 @@ function getDayRange(dateStr) {
 }
 
 // ==================================================================
-// GET /api/floor-dashboard?building=B-4&date=2025-12-08&line=Line-1|ALL
-// (if you later add factory, just extend the filters accordingly)
+// GET /api/floor-dashboard?factory=K-2&building=A-2&date=2025-12-08&line=Line-1|ALL
 // ==================================================================
 export async function GET(req) {
   try {
     await dbConnect();
 
     const { searchParams } = new URL(req.url);
+    const factory = searchParams.get("factory");
     const building = searchParams.get("building");
     const date = searchParams.get("date");
     const line = searchParams.get("line"); // optional, "ALL" for all lines
 
-    if (!building || !date) {
+    if (!factory || !building || !date) {
       return NextResponse.json(
-        { success: false, message: "building and date are required" },
+        {
+          success: false,
+          message: "factory, building and date are required",
+        },
         { status: 400 }
       );
     }
@@ -90,6 +90,7 @@ export async function GET(req) {
     // PRODUCTION PART (target, eff%)
     // ============================
     const headerFilter = {
+      factory, // 👈 very important
       assigned_building: building,
       date,
     };
@@ -106,7 +107,7 @@ export async function GET(req) {
       if (!productionLineAgg[lineName]) {
         productionLineAgg[lineName] = {
           line: lineName,
-          targetQty: 0, // 👉 will store BASE TARGET (not raw header.target_full_day)
+          targetQty: 0, // base target (same logic as hourly board)
           achievedQty: 0,
           varianceQty: 0,
           currentHour: null,
@@ -121,17 +122,14 @@ export async function GET(req) {
     // 1) From headers -> base target per line
     for (const h of headers) {
       const lineName = h.line;
-      const key = lineName;
+      const agg = ensureLineAgg(lineName);
 
       headerIdToLine[h._id.toString()] = lineName;
-
-      const agg = ensureLineAgg(key);
 
       const baseTargetPerHourRaw = computeBaseTargetPerHourFromHeader(h);
       const baseTargetPerHourRounded = Math.round(baseTargetPerHourRaw);
       const workingHours = toNumberOrZero(h.working_hour);
 
-      // 🔹 This is the base target used in Hourly board (Base Target / hr × working_hour)
       const headerBaseTarget =
         (Number.isFinite(baseTargetPerHourRounded)
           ? baseTargetPerHourRounded
@@ -144,10 +142,11 @@ export async function GET(req) {
     const allHeaderIds = headers.map((h) => h._id);
     let hourlyRecs = [];
 
-    // 2) Hourly records -> achievedQty + eff
+    // 2) Hourly records -> achievedQty + eff  (strictly filtered by factory)
     if (allHeaderIds.length > 0) {
       hourlyRecs = await HourlyProductionModel.find({
-        productionDate: date, // stored as "YYYY-MM-DD"
+        factory, // 👈 filter by factory so K-1 never sees K-2 data
+        productionDate: date, // "YYYY-MM-DD"
         headerId: { $in: allHeaderIds },
       }).lean();
     }
@@ -170,7 +169,6 @@ export async function GET(req) {
 
     // 3) Finalize variance + avg eff
     Object.values(productionLineAgg).forEach((agg) => {
-      // 👉 NOW: Variance = Achieved - Target, and Target is the same base as in Hourly board
       agg.varianceQty = agg.achievedQty - agg.targetQty;
       agg.avgEffPercent =
         agg._effCount > 0 ? agg._effSum / agg._effCount : 0;
@@ -180,11 +178,12 @@ export async function GET(req) {
     });
 
     // ============================
-    // QUALITY PART (RFT, DHU, Defect Rate)
+    // QUALITY PART (RFT, DHU, Defect Rate, current hour)
     // ============================
     const { start, end } = getDayRange(date);
 
     const qualityMatch = {
+      factory, // 👈 also filter by factory here
       building,
       reportDate: { $gte: start, $lte: end },
     };
@@ -201,6 +200,7 @@ export async function GET(req) {
           totalPassed: { $sum: "$passedQty" },
           totalDefectivePcs: { $sum: "$defectivePcs" },
           totalDefects: { $sum: "$totalDefects" },
+          maxHourIndex: { $max: "$hourIndex" }, // current quality hour
         },
       },
     ]);
@@ -222,6 +222,11 @@ export async function GET(req) {
       const dhuPercent =
         totalInspected > 0 ? (totalDefects / totalInspected) * 100 : 0;
 
+      const currentHour =
+        Number(doc.maxHourIndex ?? 0) > 0
+          ? Number(doc.maxHourIndex)
+          : null;
+
       qualityLineAgg[lineName] = {
         line: lineName,
         totalInspected,
@@ -231,6 +236,7 @@ export async function GET(req) {
         rftPercent,
         defectRatePercent,
         dhuPercent,
+        currentHour,
       };
     }
 
@@ -264,6 +270,7 @@ export async function GET(req) {
           rftPercent: 0,
           defectRatePercent: 0,
           dhuPercent: 0,
+          currentHour: null,
         };
 
         return {
@@ -275,6 +282,7 @@ export async function GET(req) {
 
     return NextResponse.json({
       success: true,
+      factory,
       building,
       date,
       lineFilter: line || "ALL",

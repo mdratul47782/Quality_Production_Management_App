@@ -1,5 +1,4 @@
-// app/LineInfoRegisterComponents/LineInfo.jsx
-
+// app/line-info-register/page.js
 "use client";
 
 import React, { useEffect, useRef, useState } from "react";
@@ -20,13 +19,14 @@ const buyers = [
   "Fifth Avenur",
 ];
 
-const lines = ["Line-1", "Line-2", "Line-3"]
+const lines = ["Line-1", "Line-2", "Line-3"];
 
 function getTodayDateString() {
   return new Date().toISOString().slice(0, 10);
 }
 
 const makeEmptyForm = () => ({
+  factory: "",
   buyer: "",
   assigned_building: "",
   line: "",
@@ -47,37 +47,37 @@ export default function LineInfoRegisterPage() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
 
+  // 🔹 Load records for this building + factory
+  useEffect(() => {
+    if (!auth) return;
+    if (!auth.assigned_building) {
+      setLoading(false);
+      return;
+    }
 
- useEffect(() => {
-  if (!auth) return;
-  if (!auth.assigned_building) {
-    setLoading(false);
-    return;
-  }
+    const factoryFromAuth = auth.factory || auth.assigned_factory || "";
 
-  setFormValues((prev) => ({
-    ...prev,
-    assigned_building: auth.assigned_building,
-    // date আলাদা selectedDate থেকে না, নিজের ভেতরেই থাকবে
-  }));
+    setFormValues((prev) => ({
+      ...prev,
+      assigned_building: auth.assigned_building,
+      factory: factoryFromAuth,
+    }));
 
-  fetchRecords(auth.assigned_building);
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-}, [auth?.assigned_building]);
+    fetchRecords(auth.assigned_building, factoryFromAuth);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [auth?.assigned_building, auth?.factory, auth?.assigned_factory]);
 
-
-  const fetchRecords = async (assignedBuilding) => {
+  const fetchRecords = async (assignedBuilding, factory) => {
     setLoading(true);
     try {
       const params = new URLSearchParams();
       if (assignedBuilding)
         params.set("assigned_building", assignedBuilding);
-     
+      if (factory) params.set("factory", factory);
 
-      const res = await fetch(
-        `/api/line-info-register?${params.toString()}`,
-        { cache: "no-store" }
-      );
+      const res = await fetch(`/api/line-info-register?${params.toString()}`, {
+        cache: "no-store",
+      });
       const result = await res.json();
       if (result.success) {
         setRecords(result.data || []);
@@ -91,11 +91,12 @@ export default function LineInfoRegisterPage() {
   };
 
   const resetForm = () => {
+    const factoryFromAuth = auth?.factory || auth?.assigned_factory || "";
     setEditingId(null);
     setFormValues({
       ...makeEmptyForm(),
       assigned_building: auth?.assigned_building || "",
-      date: selectedDate,
+      factory: factoryFromAuth,
     });
   };
 
@@ -119,11 +120,15 @@ export default function LineInfoRegisterPage() {
     if (!auth) return alert("Please login before submitting this form.");
     if (!validate()) return alert("Please fill in all fields.");
 
+    const factoryFromAuth = auth.factory || auth.assigned_factory || "";
+console.log("Factory from auth:", auth);
+
     setSaving(true);
     try {
       const userId = auth._id || auth.id || "";
       const payload = {
         ...formValues,
+        factory: factoryFromAuth,
         assigned_building: auth.assigned_building,
         user: {
           id: userId,
@@ -144,7 +149,7 @@ export default function LineInfoRegisterPage() {
       alert(result.message || "Saved!");
 
       if (result.success) {
-        await fetchRecords(auth.assigned_building);
+        await fetchRecords(auth.assigned_building, factoryFromAuth);
         if (!editingId) resetForm();
       }
     } catch (err) {
@@ -167,7 +172,8 @@ export default function LineInfoRegisterPage() {
       alert(result.message || "Deleted");
 
       if (result.success) {
-        await fetchRecords(auth.assigned_building);
+        const factoryFromAuth = auth.factory || auth.assigned_factory || "";
+        await fetchRecords(auth.assigned_building, factoryFromAuth);
         resetForm();
       }
     } catch (err) {
@@ -175,21 +181,23 @@ export default function LineInfoRegisterPage() {
       alert("Delete failed. Check console for details.");
     }
   };
-
+console.log("Factory from auth:", auth)
   const handleEditClick = (record) => {
-  setEditingId(record._id);
-  setFormValues({
-    buyer: record.buyer || "",
-    assigned_building: record.assigned_building || "",
-    line: record.line || "",
-    style: record.style || "",
-    item: record.item || "",
-    color: record.color || "",
-    smv: record.smv || "",
-    runDay: record.runDay || "",
-    date: record.date || getTodayDateString(),
-  });
-};
+    const factoryFromAuth = auth?.factory || auth?.assigned_factory || "";
+    setEditingId(record._id);
+    setFormValues({
+      factory: record.factory || factoryFromAuth || "",
+      buyer: record.buyer || "",
+      assigned_building: record.assigned_building || "",
+      line: record.line || "",
+      style: record.style || "",
+      item: record.item || "",
+      color: record.color || "",
+      smv: record.smv || "",
+      runDay: record.runDay || "",
+      date: record.date || getTodayDateString(),
+    });
+  };
 
   if (!auth) {
     return (
@@ -206,6 +214,8 @@ export default function LineInfoRegisterPage() {
       </section>
     );
   }
+
+  const factoryFromAuth = auth.factory || auth.assigned_factory || "";
 
   return (
     <section className="max-w-6xl mx-auto bg-white border border-gray-200 shadow-xl rounded-2xl mt-4 overflow-hidden">
@@ -225,7 +235,8 @@ export default function LineInfoRegisterPage() {
             HKD Outdoor Innovations Ltd.
           </h1>
           <p className="text-lg opacity-90">
-            Line Info Register – {auth.assigned_building}
+            Line Info Register – {factoryFromAuth || "N/A"} •{" "}
+            {auth.assigned_building}
           </p>
           <p className="text-sm opacity-80">
             Inputter: <span className="font-semibold">{auth.user_name}</span>
@@ -240,7 +251,8 @@ export default function LineInfoRegisterPage() {
           <div className="bg-gradient-to-br from-white to-slate-50 p-4 rounded-2xl border shadow-sm">
             <div className="flex items-center justify-between mb-2">
               <h3 className="font-semibold text-gray-700 text-sm">
-                Saved lines ({auth.assigned_building})
+                Saved lines ({factoryFromAuth || "N/A"} •{" "}
+                {auth.assigned_building})
               </h3>
               <button
                 type="button"
@@ -253,7 +265,7 @@ export default function LineInfoRegisterPage() {
 
             {records.length === 0 ? (
               <p className="text-xs text-gray-500">
-                No line info saved yet for this date & building.
+                No line info saved yet for this building.
               </p>
             ) : (
               <ul className="space-y-2 max-h-[360px] overflow-auto text-sm">
@@ -283,6 +295,9 @@ export default function LineInfoRegisterPage() {
                       SMV: {r.smv} • Run Day: {r.runDay}
                     </div>
                     <div className="text-xs text-gray-400">
+                      Factory: {r.factory || factoryFromAuth || "—"}
+                    </div>
+                    <div className="text-xs text-gray-400">
                       Date: {r.date}
                     </div>
                   </li>
@@ -297,11 +312,9 @@ export default function LineInfoRegisterPage() {
               Current form preview
             </h3>
             <dl className="mt-2 text-xs text-gray-600 space-y-1">
+              <Row label="Factory" value={formValues.factory || factoryFromAuth} />
               <Row label="Date" value={formValues.date} />
-              <Row
-                label="Assigned Building"
-                value={auth.assigned_building}
-              />
+              <Row label="Assigned Building" value={auth.assigned_building} />
               <Row label="Buyer" value={formValues.buyer} />
               <Row label="Line" value={formValues.line} />
               <Row label="Style" value={formValues.style} />
@@ -328,7 +341,6 @@ export default function LineInfoRegisterPage() {
               value={formValues.date}
               onChange={(e) => {
                 setFormValues({ ...formValues, date: e.target.value });
-                
               }}
               className="w-full rounded-lg border px-3 py-2 focus:ring-2 focus:ring-sky-400 outline-none"
             />
@@ -339,6 +351,16 @@ export default function LineInfoRegisterPage() {
             <input
               type="text"
               value={auth.assigned_building || ""}
+              disabled
+              className="w-full rounded-lg border px-3 py-2 bg-gray-100 text-gray-700"
+            />
+          </Field>
+
+          {/* Factory (read-only) */}
+          <Field label="Factory">
+            <input
+              type="text"
+              value={factoryFromAuth || ""}
               disabled
               className="w-full rounded-lg border px-3 py-2 bg-gray-100 text-gray-700"
             />

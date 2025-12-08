@@ -1,16 +1,26 @@
 // models/HourlyProduction-model.js
-import mongoose from "mongoose";
+import mongoose, { Schema } from "mongoose";
 
-const hourlyProductionSchema = new mongoose.Schema(
+const HourlyProductionSchema = new Schema(
   {
     headerId: {
-      type: mongoose.Schema.Types.ObjectId,
+      type: Schema.Types.ObjectId,
       ref: "TargetSetterHeader",
       required: true,
     },
-    productionDate: { type: String, required: true }, // "YYYY-MM-DD"
-    hour: { type: Number, required: true, min: 1 },
-    achievedQty: { type: Number, required: true, min: 0 },
+    productionDate: {
+      type: String, // "YYYY-MM-DD"
+      required: true,
+    },
+    hour: {
+      type: Number,
+      required: true,
+    },
+    achievedQty: {
+      type: Number,
+      required: true,
+      min: 0,
+    },
 
     baseTargetPerHour: { type: Number, required: true },
     dynamicTarget: { type: Number, required: true },
@@ -21,9 +31,16 @@ const hourlyProductionSchema = new mongoose.Schema(
     achieveEfficiency: { type: Number, required: true },
     totalEfficiency: { type: Number, required: true },
 
+    // 🔹 NEW: multi-factory context
+    factory: { type: String, trim: true },
+    assigned_building: { type: String, trim: true },
+    line: { type: String, trim: true },
+    buyer: { type: String, trim: true },
+    style: { type: String, trim: true },
+
     productionUser: {
       id: { type: String, required: true },
-      Production_user_name: { type: String, required: true },
+      Production_user_name: { type: String },
       phone: { type: String },
       bio: { type: String },
     },
@@ -31,12 +48,12 @@ const hourlyProductionSchema = new mongoose.Schema(
   { timestamps: true }
 );
 
-// এক লাইন, এক header, এক user, এক ঘন্টায় একটাই রেকর্ড
-hourlyProductionSchema.index(
+// (optional): index to avoid duplicate per (headerId + user + hour)
+HourlyProductionSchema.index(
   { headerId: 1, "productionUser.id": 1, hour: 1 },
   { unique: true }
 );
 
 export const HourlyProductionModel =
   mongoose.models.HourlyProduction ||
-  mongoose.model("HourlyProduction", hourlyProductionSchema);
+  mongoose.model("HourlyProduction", HourlyProductionSchema);

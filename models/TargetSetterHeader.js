@@ -4,6 +4,10 @@ import mongoose from "mongoose";
 const targetSetterHeaderSchema = new mongoose.Schema(
   {
     date: { type: String, required: true }, // "YYYY-MM-DD"
+
+    // 🔹 NEW
+    factory: { type: String, required: true, trim: true },
+
     assigned_building: { type: String, required: true },
     line: { type: String, required: true },
 
@@ -24,7 +28,6 @@ const targetSetterHeaderSchema = new mongoose.Schema(
     target_full_day: { type: Number, required: true },
     capacity: { type: Number, required: true },
 
-    // 👇 store auth info with each record
     user: {
       id: { type: String },
       user_name: { type: String },

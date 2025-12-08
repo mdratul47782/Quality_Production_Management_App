@@ -126,7 +126,12 @@ export default function ProductionInputForm() {
 
   const assignedBuilding =
     auth?.assigned_building || auth?.user?.assigned_building || "";
-
+// 🔹 NEW: factory from auth
+  const factory =
+    auth?.factory ||
+    auth?.user?.factory ||
+    auth?.assigned_factory ||
+    "";
   // ---------- computed target preview ----------
   const targetPreview = useMemo(
     () => computeTargetPreview(form),
@@ -192,10 +197,13 @@ export default function ProductionInputForm() {
     setSuccess("");
   };
 
-  // ---------- fetch headers for building + line + date ----------
+   // ---------- fetch headers for building + factory + line + date ----------
   useEffect(() => {
     if (authLoading) return;
-    if (!assignedBuilding) return;
+    if (!assignedBuilding || !factory) {
+      setHeaders([]);
+      return;
+    }
     if (!selectedLine || !selectedDate) {
       setHeaders([]);
       return;
@@ -215,6 +223,9 @@ export default function ProductionInputForm() {
         url.searchParams.set("line", selectedLine);
         url.searchParams.set("date", selectedDate);
 
+        // 🔹 NEW: scope by factory
+        url.searchParams.set("factory", factory);
+
         const res = await fetch(url, { cache: "no-store" });
         const json = await res.json();
 
@@ -233,9 +244,10 @@ export default function ProductionInputForm() {
     };
 
     fetchHeaders();
-  }, [authLoading, assignedBuilding, selectedLine, selectedDate]);
+  }, [authLoading, assignedBuilding, factory, selectedLine, selectedDate]);
+  // 🔺 added `factory` in deps
 
-  // ---------- submit (create / update) ----------
+ // ---------- submit (create / update) ----------
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError("");
@@ -250,6 +262,11 @@ export default function ProductionInputForm() {
 
     if (!assignedBuilding) {
       setError("Supervisor has no assigned building.");
+      return;
+    }
+
+    if (!factory) {
+      setError("Supervisor has no assigned factory.");
       return;
     }
 
@@ -274,6 +291,7 @@ export default function ProductionInputForm() {
       const payload = {
         date: selectedDate,
         assigned_building: assignedBuilding,
+        factory,                         // 🔹 NEW
         line: selectedLine,
         buyer: form.buyer,
         style: form.style,
@@ -293,8 +311,12 @@ export default function ProductionInputForm() {
         user: userInfo,
       };
 
+      const query = factory
+        ? `?factory=${encodeURIComponent(factory)}`
+        : "";
+
       const endpoint = editingId
-        ? `/api/target-setter-header/${editingId}`
+        ? `/api/target-setter-header/${editingId}${query}` // 🔹 include factory
         : "/api/target-setter-header";
 
       const method = editingId ? "PATCH" : "POST";
@@ -321,7 +343,7 @@ export default function ProductionInputForm() {
       resetForm();
 
       // refetch list
-      if (assignedBuilding && selectedLine && selectedDate) {
+      if (assignedBuilding && selectedLine && selectedDate && factory) {
         try {
           const url = new URL(
             "/api/target-setter-header",
@@ -330,6 +352,7 @@ export default function ProductionInputForm() {
           url.searchParams.set("assigned_building", assignedBuilding);
           url.searchParams.set("line", selectedLine);
           url.searchParams.set("date", selectedDate);
+          url.searchParams.set("factory", factory); // 🔹 NEW
 
           const listRes = await fetch(url, { cache: "no-store" });
           const listJson = await listRes.json();
@@ -394,7 +417,7 @@ export default function ProductionInputForm() {
     setSuccess("");
   };
 
-  // ---------- delete ----------
+// ---------- delete ----------
   const handleDelete = async (id) => {
     const ok = window.confirm("Delete this target header?");
     if (!ok) return;
@@ -404,7 +427,11 @@ export default function ProductionInputForm() {
     setDeletingId(id);
 
     try {
-      const res = await fetch(`/api/target-setter-header/${id}`, {
+      const query = factory
+        ? `?factory=${encodeURIComponent(factory)}`
+        : "";
+
+      const res = await fetch(`/api/target-setter-header/${id}${query}`, {
         method: "DELETE",
       });
 
@@ -434,20 +461,21 @@ export default function ProductionInputForm() {
       setDeletingId(null);
     }
   };
-
   // ---------- UI ----------
   return (
-    <div className="space-y-3">
-      {/* Card wrapper */}
+  <div className="space-y-3">
       <div className="card card-bordered shadow-sm border-slate-200 bg-base-100 rounded-2xl">
-        {/* Card header strip */}
         <div className="border-b border-slate-200 bg-gray-200 px-2 py-2 flex flex-wrap items-center justify-between gap-2">
           <div>
             <h2 className="text-xs md:text-sm font-semibold text-slate-900">
               Target Setter Header
             </h2>
             <p className="text-[10px] text-slate-800 mt-0.5 font-medium">
-              Building:&nbsp;
+              Factory:&nbsp;
+              <span className="badge badge-xs border-0 bg-blue-500/80 text-white font-semibold px-2 py-1 text-[10px]">
+                {factory || "Not assigned"}
+              </span>
+              &nbsp;| Building:&nbsp;
               <span className="badge badge-xs border-0 bg-amber-500/80 text-white font-semibold px-2 py-1 text-[10px]">
                 {assignedBuilding || "Not assigned"}
               </span>

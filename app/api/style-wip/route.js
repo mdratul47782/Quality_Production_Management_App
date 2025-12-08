@@ -14,25 +14,28 @@ export async function GET(request) {
     await dbConnect();
 
     const { searchParams } = new URL(request.url);
+
+    const factory = searchParams.get("factory");
     const assigned_building = searchParams.get("assigned_building");
     const line = searchParams.get("line");
     const buyer = searchParams.get("buyer");
     const style = searchParams.get("style");
     const date = searchParams.get("date"); // "YYYY-MM-DD"
 
-    if (!assigned_building || !line || !buyer || !style || !date) {
+    if (!factory || !assigned_building || !line || !buyer || !style || !date) {
       return Response.json(
         {
           success: false,
           message:
-            "assigned_building, line, buyer, style, date সবগুলোই required",
+            "factory, assigned_building, line, buyer, style, date সবগুলোই required",
         },
         { status: 400 }
       );
     }
 
-    // 1) Capacity doc বের করি এই style এর জন্য
+    // 1) Capacity doc বের করি এই factory+style এর জন্য
     const capacityDoc = await StyleCapacityModel.findOne({
+      factory,
       assigned_building,
       line,
       buyer,
@@ -41,8 +44,9 @@ export async function GET(request) {
 
     const capacity = capacityDoc ? toNumberOrZero(capacityDoc.capacity) : 0;
 
-    // 2) এই building+line+buyer+style এর সব header যেগুলোর date <= current date
+    // 2) এই factory+building+line+buyer+style এর সব header যেগুলোর date <= current date
     const headers = await TargetSetterHeader.find({
+      factory,
       assigned_building,
       line,
       buyer,
@@ -58,13 +62,16 @@ export async function GET(request) {
       const headerIds = headers.map((h) => h._id);
 
       // সব hourly records থেকে মোট achievedQty sum
+      const match = {
+        headerId: { $in: headerIds },
+        productionDate: { $lte: date },
+      };
+
+      // HourlyProductionModel এও factory ফিল্ড থাকলে, scope করি
+      match.factory = factory;
+
       const agg = await HourlyProductionModel.aggregate([
-        {
-          $match: {
-            headerId: { $in: headerIds },
-            productionDate: { $lte: date }, // "YYYY-MM-DD"
-          },
-        },
+        { $match: match },
         {
           $group: {
             _id: null,
@@ -79,12 +86,13 @@ export async function GET(request) {
     }
 
     const rawWip = capacity - totalAchieved;
-    const wip = Math.max(rawWip, 0); // চাইলে negative allow করতে পারো
+    const wip = Math.max(rawWip, 0);
 
     return Response.json(
       {
         success: true,
         data: {
+          factory,
           capacity,
           totalAchieved,
           wip,

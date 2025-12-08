@@ -7,12 +7,13 @@ function toNumberOrZero(value) {
   return Number.isFinite(n) ? n : 0;
 }
 
-// 🔹 GET -> capacity list (filter with building+line+buyer+style, optional userId)
+// 🔹 GET -> capacity list (filter with factory+building+line+buyer+style, optional userId)
 export async function GET(request) {
   try {
     await dbConnect();
     const { searchParams } = new URL(request.url);
 
+    const factory = searchParams.get("factory");
     const assigned_building = searchParams.get("assigned_building");
     const line = searchParams.get("line");
     const buyer = searchParams.get("buyer");
@@ -21,11 +22,12 @@ export async function GET(request) {
 
     const query = {};
 
+    if (factory) query.factory = factory;
     if (assigned_building) query.assigned_building = assigned_building;
     if (line) query.line = line;
     if (buyer) query.buyer = buyer;
     if (style) query.style = style;
-    if (userId) query["user.id"] = userId; // ✅ schema-তে আছে user.id
+    if (userId) query["user.id"] = userId;
 
     const docs = await StyleCapacityModel.find(query)
       .sort({ createdAt: -1 })
@@ -41,7 +43,7 @@ export async function GET(request) {
   }
 }
 
-// 🔹 POST -> UPSERT (create or update) capacity
+// 🔹 POST -> UPSERT (create or update) capacity (factory + building + line + buyer + style)
 export async function POST(request) {
   try {
     await dbConnect();
@@ -49,14 +51,16 @@ export async function POST(request) {
     const body = await request.json();
     const errors = [];
 
+    const factory = body.factory;
     const assigned_building = body.assigned_building;
     const line = body.line;
     const buyer = body.buyer;
     const style = body.style;
-    const date = body.date; // latest effective date (optional but nice)
+    const date = body.date; // latest effective date (optional)
     const capacity = toNumberOrZero(body.capacity);
     const user = body.user; // { id, user_name, role }
 
+    if (!factory) errors.push("factory is required");
     if (!assigned_building) errors.push("assigned_building is required");
     if (!line) errors.push("line is required");
     if (!buyer) errors.push("buyer is required");
@@ -69,8 +73,9 @@ export async function POST(request) {
       return Response.json({ success: false, errors }, { status: 400 });
     }
 
-    // 🔑 unique key -> schema index অনুযায়ী
+    // 🔑 unique key -> factory + building + line + buyer + style
     const key = {
+      factory,
       assigned_building,
       line,
       buyer,
@@ -79,7 +84,6 @@ export async function POST(request) {
 
     const docToSet = {
       ...key,
-      // সর্বশেষ effective date (optional)
       ...(date ? { date } : {}),
       capacity,
       user: {
@@ -89,7 +93,6 @@ export async function POST(request) {
       },
     };
 
-    // 🔥 upsert: আছে হলে update, না থাকলে create
     const saved = await StyleCapacityModel.findOneAndUpdate(
       key,
       { $set: docToSet },

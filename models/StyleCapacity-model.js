@@ -3,6 +3,13 @@ import mongoose, { Schema } from "mongoose";
 
 const StyleCapacitySchema = new Schema(
   {
+    // 🔹 NEW: factory scope
+    factory: {
+      type: String,
+      required: true,
+      trim: true,
+    },
+
     assigned_building: {
       type: String,
       required: true,
@@ -42,9 +49,9 @@ const StyleCapacitySchema = new Schema(
   { timestamps: true }
 );
 
-// প্রতি building+line+buyer+style এর জন্য একটাই capacity ডকুমেন্ট থাকবে
+// প্রতি factory+building+line+buyer+style এর জন্য একটাই capacity ডকুমেন্ট
 StyleCapacitySchema.index(
-  { assigned_building: 1, line: 1, buyer: 1, style: 1 },
+  { factory: 1, assigned_building: 1, line: 1, buyer: 1, style: 1 },
   { unique: true }
 );
 

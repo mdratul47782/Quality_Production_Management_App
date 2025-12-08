@@ -51,9 +51,18 @@ export default function HourlyProductionBoard() {
   const [loadingHeaders, setLoadingHeaders] = useState(false);
   const [error, setError] = useState("");
 
-  const assignedBuilding = auth?.assigned_building || "";
+  const assignedBuilding =
+    auth?.assigned_building || auth?.user?.assigned_building || "";
 
-  // Fetch headers by building + line + date
+  // 🔹 NEW: factory from auth (you can adjust keys as per your auth shape)
+  const factory =
+    auth?.factory ||
+    auth?.assigned_factory ||
+    auth?.user?.factory ||
+    auth?.user?.assigned_factory ||
+    "";
+
+  // Fetch headers by factory + building + line + date
   useEffect(() => {
     if (authLoading) return;
 
@@ -74,6 +83,11 @@ export default function HourlyProductionBoard() {
           line: selectedLine,
           date: selectedDate,
         });
+
+        // 🔹 include factory if available (backend GET can filter on this)
+        if (factory) {
+          params.set("factory", factory);
+        }
 
         const res = await fetch(
           `/api/target-setter-header?${params.toString()}`,
@@ -103,14 +117,12 @@ export default function HourlyProductionBoard() {
     fetchHeaders();
 
     return () => controller.abort();
-  }, [authLoading, assignedBuilding, selectedLine, selectedDate]);
+  }, [authLoading, assignedBuilding, selectedLine, selectedDate, factory]);
 
   if (authLoading) {
     return (
       <div className="card bg-base-100 border border-base-200 shadow-sm">
-        <div className="card-body py-2 px-3 text-xs">
-          Loading user...
-        </div>
+        <div className="card-body py-2 px-3 text-xs">Loading user...</div>
       </div>
     );
   }
@@ -131,6 +143,17 @@ export default function HourlyProductionBoard() {
       <div className="card bg-base-100 border border-base-200 shadow-sm">
         <div className="card-body p-3 space-y-2 text-xs">
           <div className="flex flex-wrap items-end gap-4">
+            {/* Factory chip */}
+            <div className="space-y-1">
+              <div className="text-[11px] font-semibold text-slate-1000 uppercase">
+                Factory
+              </div>
+              <div className="badge bg-slate-100 border border-amber-500 text-[11px] font-semibold text-slate-900 px-3 py-2">
+                <span className="mr-1 text-slate-500">Assigned:</span>
+                <span>{factory || "Not set"}</span>
+              </div>
+            </div>
+
             {/* Building chip */}
             <div className="space-y-1">
               <div className="text-[11px] font-semibold text-slate-1000 uppercase">
@@ -185,6 +208,7 @@ export default function HourlyProductionBoard() {
           {selectedLine && !loadingHeaders && headers.length === 0 && (
             <div className="text-[11px] text-slate-600">
               No target headers for{" "}
+              <span className="font-semibold">{factory || "?"}</span> •{" "}
               <span className="font-semibold">{assignedBuilding}</span> •{" "}
               <span className="font-semibold">{selectedLine}</span> •{" "}
               <span className="font-semibold">{selectedDate}</span>
@@ -207,17 +231,19 @@ export default function HourlyProductionBoard() {
 
       {headers.length === 0 && !loadingHeaders && !error && selectedLine && (
         <div className="text-[11px] text-slate-500">
-          When you create target headers for this line & date, they will show
-          here with hourly input cards.
+          When you create target headers for this factory, line & date, they
+          will show here with hourly input cards.
         </div>
       )}
     </div>
   );
 }
+
+// ===================================================================================
 // CHILD: One hourly card per TargetSetterHeader (for a specific style segment)
-// 
+// ===================================================================================
+
 function HourlyHeaderCard({ header, auth }) {
-  console.log("header--",header)
   const [selectedHour, setSelectedHour] = useState(1);
   const [achievedInput, setAchievedInput] = useState("");
   const [hourlyRecords, setHourlyRecords] = useState([]);
@@ -237,13 +263,24 @@ function HourlyHeaderCard({ header, auth }) {
   const productionUserId =
     auth?.user?.id || auth?.user?._id || auth?.id || auth?._id || "";
 
+  // 🔹 factory resolved from header > auth
+  const factory =
+    header?.factory ||
+    auth?.factory ||
+    auth?.assigned_factory ||
+    auth?.user?.factory ||
+    auth?.user?.assigned_factory ||
+    "";
+
   // 🔁 helper – reload only WIP (for realtime update after save)
   const refreshWip = async () => {
-    if (!header) return;
+    if (!header || !factory) return;
+
     try {
       setWipLoading(true);
 
       const wipParams = new URLSearchParams({
+        factory,
         assigned_building: header.assigned_building,
         line: header.line,
         buyer: header.buyer,
@@ -296,6 +333,8 @@ function HourlyHeaderCard({ header, auth }) {
         const params = new URLSearchParams({
           headerId: header._id,
           productionUserId: productionUserId,
+          // ❗ we could pass factory, but for headerId-specific fetch
+          // backend already knows the context, so it's optional.
         });
 
         const res = await fetch(
@@ -328,7 +367,7 @@ function HourlyHeaderCard({ header, auth }) {
     return () => controller.abort();
   }, [header?._id, productionUserId]);
 
-  // Capacity + WIP fetch for this style/building/line/buyer/date (initial)
+  // Capacity + WIP fetch for this factory/style/building/line/buyer/date (initial)
   useEffect(() => {
     if (!header) return;
 
@@ -345,6 +384,10 @@ function HourlyHeaderCard({ header, auth }) {
           buyer: header.buyer,
           style: header.style,
         });
+
+        if (factory) {
+          baseParams.set("factory", factory);
+        }
 
         // Capacity
         try {
@@ -370,25 +413,33 @@ function HourlyHeaderCard({ header, auth }) {
           if (err.name !== "AbortError") console.error(err);
         }
 
-        // WIP
+        // WIP (factory required in backend)
         try {
-          const wipParams = new URLSearchParams({
-            assigned_building: header.assigned_building,
-            line: header.line,
-            buyer: header.buyer,
-            style: header.style,
-            date: header.date,
-          });
+          if (!factory) {
+            console.warn("No factory set – WIP cannot be calculated");
+          } else {
+            const wipParams = new URLSearchParams({
+              factory,
+              assigned_building: header.assigned_building,
+              line: header.line,
+              buyer: header.buyer,
+              style: header.style,
+              date: header.date,
+            });
 
-          const resWip = await fetch(`/api/style-wip?${wipParams.toString()}`, {
-            cache: "no-store",
-            signal: controller.signal,
-          });
+            const resWip = await fetch(
+              `/api/style-wip?${wipParams.toString()}`,
+              {
+                cache: "no-store",
+                signal: controller.signal,
+              }
+            );
 
-          if (resWip.ok) {
-            const jsonWip = await resWip.json();
-            if (jsonWip.success) {
-              setWipInfo(jsonWip.data);
+            if (resWip.ok) {
+              const jsonWip = await resWip.json();
+              if (jsonWip.success) {
+                setWipInfo(jsonWip.data);
+              }
             }
           }
         } catch (err) {
@@ -409,6 +460,7 @@ function HourlyHeaderCard({ header, auth }) {
     header?.buyer,
     header?.style,
     header?.date,
+    factory,
   ]);
 
   if (!header) return null;
@@ -420,8 +472,9 @@ function HourlyHeaderCard({ header, auth }) {
   const planEfficiencyPercent = header.plan_efficiency_percent ?? 0;
   const planEffDecimal = planEfficiencyPercent / 100;
   const targetFullDay = header.target_full_day ?? 0;
-const CapacityFromHeader = header.capacity ?? 0;
-const plan_quantity = header.plan_quantity ?? 0;
+  const CapacityFromHeader = header.capacity ?? 0;
+  const plan_quantity = header.plan_quantity ?? 0;
+
   const hoursOptions = Array.from(
     { length: Math.max(1, totalWorkingHours) },
     (_, i) => i + 1
@@ -490,9 +543,9 @@ const plan_quantity = header.plan_quantity ?? 0;
 
   const totalAchievedAll = hasRecords
     ? recordsDecorated.reduce(
-      (sum, rec) => sum + (rec._achievedRounded ?? 0),
-      0
-    )
+        (sum, rec) => sum + (rec._achievedRounded ?? 0),
+        0
+      )
     : 0;
 
   const lastRecord = hasRecords
@@ -557,7 +610,7 @@ const plan_quantity = header.plan_quantity ?? 0;
   const achieveEfficiency =
     manpowerPresent > 0 && smv > 0 && selectedHourInt > 0
       ? (totalAchievedPreview * smv * 100) /
-      (manpowerPresent * 60 * selectedHourInt)
+        (manpowerPresent * 60 * selectedHourInt)
       : 0;
 
   // ---------- save handler ----------
@@ -614,8 +667,8 @@ const plan_quantity = header.plan_quantity ?? 0;
       if (!res.ok || !json.success) {
         throw new Error(
           json?.errors?.join(", ") ||
-          json?.message ||
-          "Failed to save hourly production record"
+            json?.message ||
+            "Failed to save hourly production record"
         );
       }
 
@@ -656,6 +709,10 @@ const plan_quantity = header.plan_quantity ?? 0;
         throw new Error("User not authenticated");
       }
 
+      if (!factory) {
+        throw new Error("Factory not set. Cannot save capacity.");
+      }
+
       const capNum = Number(capacityInput);
       if (!Number.isFinite(capNum) || capNum < 0) {
         throw new Error("Capacity must be a non-negative number.");
@@ -671,6 +728,7 @@ const plan_quantity = header.plan_quantity ?? 0;
       setCapacitySaving(true);
 
       const payload = {
+        factory,
         assigned_building: header.assigned_building,
         line: header.line,
         buyer: header.buyer,
@@ -695,8 +753,8 @@ const plan_quantity = header.plan_quantity ?? 0;
       if (!res.ok || !json.success) {
         throw new Error(
           json?.errors?.join(", ") ||
-          json?.message ||
-          "Failed to save capacity."
+            json?.message ||
+            "Failed to save capacity."
         );
       }
 
@@ -707,7 +765,7 @@ const plan_quantity = header.plan_quantity ?? 0;
         savedDoc?.capacity != null ? String(savedDoc.capacity) : ""
       );
 
-      // 🔁 realtime WIP refresh after capacity change (if your WIP calc depends on it)
+      // 🔁 realtime WIP refresh after capacity change
       await refreshWip();
 
       setMessage("Capacity saved/updated successfully.");
@@ -728,6 +786,13 @@ const plan_quantity = header.plan_quantity ?? 0;
           <div className="space-y-1 text-xs">
             <div className="text-sm font-semibold tracking-wide text-slate-1000">
               {header.line} • {header.date}
+            </div>
+            <div className="text-[13px] text-slate-1000">
+              <span className="font-semibold">Factory:</span>{" "}
+              {factory || "-"}
+              <span className="mx-1 text-slate-1000">•</span>
+              <span className="font-semibold">Building:</span>{" "}
+              {header.assigned_building}
             </div>
             <div className="text-[16px] text-slate-1000">
               <span className="font-semibold ">Buyer:</span> {header.buyer}
@@ -770,12 +835,12 @@ const plan_quantity = header.plan_quantity ?? 0;
             </div>
             <div>
               <span className="font-semibold text-slate-1000">
-                Capacity :{ CapacityFromHeader}{/* //CapacityFromHeader */}
+                Capacity : {CapacityFromHeader}
               </span>{" "}
             </div>
             <div>
               <span className="font-semibold text-slate-1000">
-                Plan Quantity :{ plan_quantity}
+                Plan Quantity : {plan_quantity}
               </span>{" "}
             </div>
           </div>
@@ -842,10 +907,11 @@ const plan_quantity = header.plan_quantity ?? 0;
                 Net variance vs base (to date):
               </span>{" "}
               <span
-                className={`font-semibold ${netVarVsBaseToDateSelected >= 0
+                className={`font-semibold ${
+                  netVarVsBaseToDateSelected >= 0
                     ? "text-green-700"
                     : "text-red-700"
-                  }`}
+                }`}
               >
                 {formatNumber(netVarVsBaseToDateSelected, 0)}
               </span>
@@ -856,10 +922,11 @@ const plan_quantity = header.plan_quantity ?? 0;
                 Cumulative variance (prev vs dynamic):
               </span>{" "}
               <span
-                className={`font-semibold ${cumulativeVarianceDynamicPrev >= 0
+                className={`font-semibold ${
+                  cumulativeVarianceDynamicPrev >= 0
                     ? "text-green-700"
                     : "text-red-700"
-                  }`}
+                }`}
               >
                 {formatNumber(cumulativeVarianceDynamicPrev, 0)}
               </span>
@@ -871,10 +938,11 @@ const plan_quantity = header.plan_quantity ?? 0;
                   Last hour variance (Δ vs dynamic):
                 </span>{" "}
                 <span
-                  className={`font-semibold ${previousVariance >= 0
+                  className={`font-semibold ${
+                    previousVariance >= 0
                       ? "text-green-700"
                       : "text-red-700"
-                    }`}
+                  }`}
                 >
                   {formatNumber(previousVariance, 0)}
                 </span>
@@ -986,14 +1054,13 @@ const plan_quantity = header.plan_quantity ?? 0;
           </button>
         </div>
 
-        {/* ✅ FIXED WIP BLOCK – no <td> inside <div> */}
+        {/* WIP BLOCK */}
         <div className="mt-2 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-[11px] space-y-1.5">
           <div className="flex items-center gap-2">
-            {/* <span className="font-semibold text-slate-800">WIP</span> */}
-
             <div className="flex items-center gap-3">
-              {/* //previous name was Capacity now for requirement i had to change Capacity->Total Input : */}
-              <span className="text-slate-1000 font-bold"> Total Input :   </span>
+              <span className="text-slate-1000 font-bold">
+                Total Input :
+              </span>
 
               <input
                 type="number"
@@ -1024,24 +1091,28 @@ const plan_quantity = header.plan_quantity ?? 0;
                 {wipLoading || capacityLoading
                   ? "..."
                   : wipInfo
-                    ? formatNumber(wipInfo.totalAchieved, 0)
-                    : "-"}
+                  ? formatNumber(wipInfo.totalAchieved, 0)
+                  : "-"}
               </span>
             </div>
 
             <div>
-              <span className="text-slate-1000 mr-1 font-bold 0"> WIP:</span>
+              <span className="text-slate-1000 mr-1 font-bold 0">
+                {" "}
+                WIP:
+              </span>
               <span
-                className={`font-bold ${(wipInfo?.wip ?? 0) > 0
+                className={`font-bold ${
+                  (wipInfo?.wip ?? 0) > 0
                     ? "text-amber-1000"
                     : "text-emerald-1000"
-                  }`}
+                }`}
               >
                 {wipLoading || capacityLoading
                   ? "..."
                   : wipInfo
-                    ? formatNumber(wipInfo.wip, 0)
-                    : "-"}
+                  ? formatNumber(wipInfo.wip, 0)
+                  : "-"}
               </span>
             </div>
           </div>
@@ -1076,7 +1147,6 @@ const plan_quantity = header.plan_quantity ?? 0;
                     <th className="px-2">Δ Var (hr vs dynamic)</th>
                     <th className="px-2">Net Var vs Base (to date)</th>
                     <th className="px-2">Hourly Eff %</th>
-                    {/* <th className="px-2">Achieve Eff</th> */}
                     <th className="px-2">AVG Eff %</th>
                     <th className="px-2">Updated At</th>
                   </tr>
@@ -1088,31 +1158,32 @@ const plan_quantity = header.plan_quantity ?? 0;
                       <td className="px-2 py-1">
                         {formatNumber(rec._dynTargetRounded, 0)}
                       </td>
-                      <td className="px-2 py-1">{rec._achievedRounded}</td>
+                      <td className="px-2 py-1">
+                        {rec._achievedRounded}
+                      </td>
                       <td
-                        className={`px-2 py-1 ${(rec._perHourVarDynamic ?? 0) >= 0
+                        className={`px-2 py-1 ${
+                          (rec._perHourVarDynamic ?? 0) >= 0
                             ? "text-green-700"
                             : "text-red-700"
-                          }`}
+                        }`}
                       >
                         {formatNumber(rec._perHourVarDynamic ?? 0, 0)}
                       </td>
                       <td
-                        className={`px-2 py-1 ${(rec._netVarVsBaseToDate ?? 0) >= 0
+                        className={`px-2 py-1 ${
+                          (rec._netVarVsBaseToDate ?? 0) >= 0
                             ? "text-green-700"
                             : "text-red-700"
-                          }`}
+                        }`}
                       >
                         {formatNumber(rec._netVarVsBaseToDate ?? 0, 0)}
                       </td>
                       <td className="px-2 py-1">
                         {formatNumber(rec.hourlyEfficiency)}
                       </td>
-                      {/* <td className="px-2 py-1">
-                        {formatNumber(rec.achieveEfficiency)}
-                      </td> */}
                       <td className="px-2 py-1">
-                        {formatNumber(rec.totalEfficiency)}{" "}%
+                        {formatNumber(rec.totalEfficiency)} %
                       </td>
                       <td className="px-2 py-1">
                         {rec.updatedAt
@@ -1123,31 +1194,28 @@ const plan_quantity = header.plan_quantity ?? 0;
                   ))}
                 </tbody>
 
-                {/* ✅ SUMMARY ROW */}
+                {/* SUMMARY ROW */}
                 {hasRecords && (
                   <tfoot>
                     <tr className="bg-amber-300 text-[12px] font-bold ">
                       <td className="px-2 py-1">Total</td>
                       <td className="px-2 py-1 ">-</td>
-                      {/* Total Achieved */}
                       <td className="px-1 py-1 ">
                         {formatNumber(totalAchievedAll, 0)}
                       </td>
                       <td className="px-2 py-1 ">-</td>
-                      {/* Final Net Var vs Base (to date) */}
                       <td
-                        className={`px-2 py-1   ${totalNetVarVsBaseToDate >= 0
+                        className={`px-2 py-1   ${
+                          totalNetVarVsBaseToDate >= 0
                             ? "text-green-700"
                             : "text-red-700"
-                          }`}
+                        }`}
                       >
                         {formatNumber(totalNetVarVsBaseToDate, 0)}
                       </td>
                       <td className="px-2 py-1 ">-</td>
-                      {/* <td className="px-2 py-1">-</td> */}
-                      {/* Final AVG Eff % (overall) */}
                       <td className="px-2 py-1">
-                        {formatNumber(totalAvgEffPercent)}{" "}%
+                        {formatNumber(totalAvgEffPercent)} %
                       </td>
                       <td className="px-2 py-1">-</td>
                     </tr>

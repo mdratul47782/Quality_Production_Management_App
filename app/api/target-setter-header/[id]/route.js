@@ -3,7 +3,6 @@ import { NextResponse } from "next/server";
 import { dbConnect } from "@/services/mongo";
 import TargetSetterHeader from "@/models/TargetSetterHeader";
 
-// helpers
 function toNumberOrNull(value) {
   const n = Number(value);
   return Number.isFinite(n) ? n : null;
@@ -24,14 +23,20 @@ function computeTargetFullDay(doc) {
   return Math.round(target);
 }
 
-// GET /api/target-setter-header/[id]
+// GET /api/target-setter-header/[id]?factory=K-2
 export async function GET(req, context) {
   try {
     await dbConnect();
 
     const { id } = await context.params;
+    const { searchParams } = new URL(req.url);
+    const factory = searchParams.get("factory");
 
-    const doc = await TargetSetterHeader.findById(id);
+    const query = { _id: id };
+    if (factory) query.factory = factory;
+
+    const doc = await TargetSetterHeader.findOne(query);
+
     if (!doc) {
       return NextResponse.json(
         { success: false, message: "Target setter header not found" },
@@ -49,15 +54,21 @@ export async function GET(req, context) {
   }
 }
 
-// PATCH /api/target-setter-header/[id]
+// PATCH /api/target-setter-header/[id]?factory=K-2
 export async function PATCH(req, context) {
   try {
     await dbConnect();
 
     const { id } = await context.params;
+    const { searchParams } = new URL(req.url);
+    const factory = searchParams.get("factory");
+
     const updates = await req.json();
 
-    const doc = await TargetSetterHeader.findById(id);
+    const query = { _id: id };
+    if (factory) query.factory = factory;
+
+    const doc = await TargetSetterHeader.findOne(query);
     if (!doc) {
       return NextResponse.json(
         { success: false, message: "Target setter header not found" },
@@ -68,6 +79,7 @@ export async function PATCH(req, context) {
     const updatableFields = [
       "date",
       "assigned_building",
+      "factory", // 🔹 allow updating factory if you ever need
       "line",
       "buyer",
       "style",
@@ -81,13 +93,12 @@ export async function PATCH(req, context) {
       "plan_efficiency_percent",
       "smv",
       "capacity",
-      "user", // 👈 allow updating auth info too
+      "user",
     ];
 
     for (const field of updatableFields) {
       if (Object.prototype.hasOwnProperty.call(updates, field)) {
         if (field === "user") {
-          // normalize user info a bit
           const u = updates.user;
           if (u) {
             const idVal = u.id || u._id || u.user_id;
@@ -146,14 +157,19 @@ export async function PATCH(req, context) {
   }
 }
 
-// DELETE /api/target-setter-header/[id]
+// DELETE /api/target-setter-header/[id]?factory=K-2
 export async function DELETE(req, context) {
   try {
     await dbConnect();
 
     const { id } = await context.params;
+    const { searchParams } = new URL(req.url);
+    const factory = searchParams.get("factory");
 
-    const deleted = await TargetSetterHeader.findByIdAndDelete(id);
+    const query = { _id: id };
+    if (factory) query.factory = factory;
+
+    const deleted = await TargetSetterHeader.findOneAndDelete(query);
 
     if (!deleted) {
       return NextResponse.json(

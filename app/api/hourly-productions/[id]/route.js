@@ -8,8 +8,8 @@ function toNumberOrUndefined(value) {
   return Number.isFinite(num) ? num : undefined;
 }
 
-// GET /api/hourly-productions/:id
-export async function GET(_request, { params = {} } = {}) {
+// GET /api/hourly-productions/:id?factory=...
+export async function GET(request, { params = {} } = {}) {
   try {
     await dbConnect();
     const { id } = params;
@@ -21,7 +21,13 @@ export async function GET(_request, { params = {} } = {}) {
       );
     }
 
-    const rec = await HourlyProductionModel.findById(id).lean();
+    const { searchParams } = new URL(request.url);
+    const factory = searchParams.get("factory");
+
+    const query = { _id: id };
+    if (factory) query.factory = factory;
+
+    const rec = await HourlyProductionModel.findOne(query).lean();
     if (!rec) {
       return Response.json(
         { success: false, message: "Hourly production record not found" },
@@ -39,7 +45,7 @@ export async function GET(_request, { params = {} } = {}) {
   }
 }
 
-// PATCH /api/hourly-productions/:id  (partial update, no global recalculation)
+// PATCH /api/hourly-productions/:id?factory=...
 export async function PATCH(request, { params = {} } = {}) {
   try {
     await dbConnect();
@@ -51,6 +57,9 @@ export async function PATCH(request, { params = {} } = {}) {
         { status: 400 }
       );
     }
+
+    const { searchParams } = new URL(request.url);
+    const factory = searchParams.get("factory");
 
     const body = await request.json();
     const update = {};
@@ -87,8 +96,11 @@ export async function PATCH(request, { params = {} } = {}) {
       return Response.json({ success: false, errors }, { status: 400 });
     }
 
-    const rec = await HourlyProductionModel.findByIdAndUpdate(
-      id,
+    const query = { _id: id };
+    if (factory) query.factory = factory;
+
+    const rec = await HourlyProductionModel.findOneAndUpdate(
+      query,
       { $set: update },
       { new: true }
     ).lean();
@@ -117,8 +129,8 @@ export async function PATCH(request, { params = {} } = {}) {
   }
 }
 
-// DELETE /api/hourly-productions/:id
-export async function DELETE(_request, { params = {} } = {}) {
+// DELETE /api/hourly-productions/:id?factory=...
+export async function DELETE(request, { params = {} } = {}) {
   try {
     await dbConnect();
     const { id } = params;
@@ -130,7 +142,13 @@ export async function DELETE(_request, { params = {} } = {}) {
       );
     }
 
-    const deleted = await HourlyProductionModel.findByIdAndDelete(id);
+    const { searchParams } = new URL(request.url);
+    const factory = searchParams.get("factory");
+
+    const query = { _id: id };
+    if (factory) query.factory = factory;
+
+    const deleted = await HourlyProductionModel.findOneAndDelete(query);
     if (!deleted) {
       return Response.json(
         { success: false, message: "Hourly production record not found" },
@@ -139,7 +157,10 @@ export async function DELETE(_request, { params = {} } = {}) {
     }
 
     return Response.json(
-      { success: true, message: "Hourly production record deleted successfully" },
+      {
+        success: true,
+        message: "Hourly production record deleted successfully",
+      },
       { status: 200 }
     );
   } catch (error) {

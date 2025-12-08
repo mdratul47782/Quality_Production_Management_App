@@ -3,13 +3,11 @@ import { dbConnect } from "@/services/mongo";
 import TargetSetterHeader from "@/models/TargetSetterHeader";
 import { HourlyProductionModel } from "@/models/HourlyProduction-model";
 
-// Safe number parse
 function toNumberOrZero(value) {
   const n = Number(value);
   return Number.isFinite(n) ? n : 0;
 }
 
-// Base target/hr from TargetSetterHeader
 function computeBaseTargetPerHourFromHeader(header) {
   const workingHour = toNumberOrZero(header.working_hour);
   const manpowerPresent = toNumberOrZero(header.manpower_present);
@@ -38,6 +36,7 @@ export async function GET(request) {
 
     const headerId = searchParams.get("headerId");
     const productionUserId = searchParams.get("productionUserId");
+    const factory = searchParams.get("factory");
     const assigned_building = searchParams.get("assigned_building");
     const line = searchParams.get("line");
     const date = searchParams.get("date");
@@ -49,6 +48,9 @@ export async function GET(request) {
       if (productionUserId) {
         query["productionUser.id"] = productionUserId;
       }
+      if (factory) {
+        query.factory = factory;
+      }
 
       const records = await HourlyProductionModel.find(query)
         .sort({ hour: 1 })
@@ -58,13 +60,11 @@ export async function GET(request) {
     }
 
     // 2) Building + Line + Date ভিত্তিক API
-    // /api/hourly-productions?assigned_building=B-4&line=Line-3&date=2025-12-02&productionUserId=...
     if (assigned_building && line && date) {
-      const headers = await TargetSetterHeader.find({
-        assigned_building,
-        line,
-        date,
-      })
+      const headerFilter = { assigned_building, line, date };
+      if (factory) headerFilter.factory = factory;
+
+      const headers = await TargetSetterHeader.find(headerFilter)
         .select("_id")
         .lean();
 
@@ -77,6 +77,9 @@ export async function GET(request) {
       const query = { headerId: { $in: headerIds } };
       if (productionUserId) {
         query["productionUser.id"] = productionUserId;
+      }
+      if (factory) {
+        query.factory = factory;
       }
 
       const records = await HourlyProductionModel.find(query)
@@ -105,13 +108,19 @@ export async function GET(request) {
     const startStr = startDate.toISOString().slice(0, 10); // "YYYY-MM-DD"
     const endStr = endDate.toISOString().slice(0, 10);
 
-    const records = await HourlyProductionModel.find({
+    const query = {
       "productionUser.id": productionUserId,
       productionDate: {
         $gte: startStr,
         $lte: endStr,
       },
-    })
+    };
+
+    if (factory) {
+      query.factory = factory;
+    }
+
+    const records = await HourlyProductionModel.find(query)
       .sort({ productionDate: 1, hour: 1 })
       .lean();
 
@@ -161,11 +170,11 @@ export async function POST(request) {
 
     const manpowerPresent = toNumberOrZero(header.manpower_present);
     const smv = toNumberOrZero(header.smv);
-    const productionDate = header.date || new Date().toISOString().slice(0, 10);
+    const productionDate =
+      header.date || new Date().toISOString().slice(0, 10);
 
     const baseTargetPerHour = computeBaseTargetPerHourFromHeader(header);
 
-    // Previous hours for same header + same user
     const previousRecords = await HourlyProductionModel.find({
       headerId,
       "productionUser.id": productionUser.id,
@@ -206,6 +215,12 @@ export async function POST(request) {
 
     const totalEfficiency = achieveEfficiency;
 
+    const factory = header.factory || "";
+    const assigned_building = header.assigned_building || "";
+    const line = header.line || "";
+    const buyer = header.buyer || "";
+    const style = header.style || "";
+
     const doc = {
       headerId,
       productionDate,
@@ -218,6 +233,13 @@ export async function POST(request) {
       hourlyEfficiency,
       achieveEfficiency,
       totalEfficiency,
+
+      factory,
+      assigned_building,
+      line,
+      buyer,
+      style,
+
       productionUser: {
         id: productionUser.id,
         Production_user_name: productionUser.Production_user_name,
@@ -226,7 +248,6 @@ export async function POST(request) {
       },
     };
 
-    // ✅ Upsert per (headerId + productionUser.id + hour)
     const existing = await HourlyProductionModel.findOne({
       headerId,
       "productionUser.id": productionUser.id,
@@ -252,7 +273,6 @@ export async function POST(request) {
   } catch (error) {
     console.error("POST /api/hourly-productions error:", error);
 
-    // Duplicate key nice handling
     if (error.code === 11000) {
       return Response.json(
         {

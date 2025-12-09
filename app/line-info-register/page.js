@@ -259,16 +259,16 @@ export default function LineInfoRegisterPage() {
 
   if (loading) {
     return (
-      <section className="max-w-3xl mx-auto bg-white border border-gray-200 min-h-[400px] shadow-lg rounded-lg mt-12 flex items-center justify-center">
+      <section className="max-w-3xl mx-auto bg-white border border-gray-200 min-h-[400px] shadow-lg rounded-lg mt-12 flex items-center justify-center ">
         <div className="text-gray-500 text-lg">Loading...</div>
       </section>
     );
   }
 
   return (
-    <section className="max-w-5xl mx-auto bg-white border border-gray-200 shadow-xl rounded-2xl mt-4 overflow-hidden">
+    <section className="max-w-3xl mx-auto bg-white border border-gray-200 shadow-xl rounded-2xl mt-3 overflow-hidden ">
       {/* Header */}
-      <div className="flex items-center bg-gradient-to-br from-blue-600 to-blue-700 text-white px-5 py-3 rounded-t-lg gap-3">
+      <div className="flex items-center bg-gradient-to-br from-blue-600 to-blue-700 text-white px-4 py-2 rounded-t-lg gap-3">
         <div className="w-10 h-10 bg-white rounded-md flex items-center justify-center">
           <Image
             src="/HKD_LOGO.png"

@@ -3,6 +3,7 @@ import "./globals.css";
 import { dbConnect } from "@/services/mongo";
 import AuthProvider from "./providers/AuthProvider";
 import { Bebas_Neue, Roboto } from "next/font/google";
+import SideNavbar from "./SideNavBarComponent/SideNavbar";
 
 const bebasNeue = Bebas_Neue({
   subsets: ["latin"],
@@ -12,7 +13,7 @@ const bebasNeue = Bebas_Neue({
 
 const roboto = Roboto({
   subsets: ["latin"],
-  weight: ["400", "500", "700"], // যেগুলো লাগবে সেগুলো রাখো
+  weight: ["400", "500", "700"],
   variable: "--font-roboto",
 });
 
@@ -27,9 +28,14 @@ export default async function RootLayout({ children }) {
   return (
     <html lang="en">
       <body
-        className={`${roboto.variable} ${bebasNeue.variable} antialiased`}
+        className={`${roboto.variable} ${bebasNeue.variable} antialiased `}
       >
-        <AuthProvider>{children}</AuthProvider>
+        <AuthProvider>
+          {/* Fixed left icon bar */}
+          <SideNavbar />
+          {/* Content shifted so it's not under the bar */}
+          <div className="min-h-screen pl-14">{children}</div>
+        </AuthProvider>
       </body>
     </html>
   );

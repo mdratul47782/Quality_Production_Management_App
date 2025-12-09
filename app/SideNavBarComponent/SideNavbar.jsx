@@ -12,6 +12,8 @@ import {
   BarChart2,
   LogOut,
   LogIn,
+  ChartNoAxesCombined,
+  MonitorCloud
 } from "lucide-react";
 
 export default function SideNavbar() {
@@ -25,7 +27,8 @@ export default function SideNavbar() {
   };
 
   const navItems = [
-    { href: "/floor-dashboard", icon: LayoutDashboard },
+    { href: "/floor-dashboard", icon: MonitorCloud },
+    { href: "/floor-summary", icon: ChartNoAxesCombined },
     { href: "/ProductionInput", icon: Activity },
     { href: "/QualityInput", icon: ClipboardList },
     { href: "/QualitySummaryTable", icon: BarChart2 },

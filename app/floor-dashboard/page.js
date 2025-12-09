@@ -400,7 +400,7 @@ function LineCard({ lineData, lineInfo, wipData }) {
           <div className="space-y-1">
             <div className="flex flex-wrap gap-1">
               <span className="px-2 py-0.5 rounded-full bg-slate-900 border border-slate-700 text-[9px] uppercase tracking-wide text-slate-300">
-                Floor / Line&nbsp;
+               Line&nbsp;
                 <span className="font-semibold text-cyan-300">{line}</span>
               </span>
               <span className="px-2 py-0.5 rounded-full bg-amber-500/10 border border-amber-500/60 text-[9px] text-amber-100">
@@ -469,7 +469,7 @@ function LineCard({ lineData, lineInfo, wipData }) {
           <div className="space-y-1">
             <div className="flex items-center justify-between text-[9px] text-slate-400">
               <span className="uppercase tracking-wide">
-                Quality KPIs
+                Quality 
               </span>
               <span className="px-2 py-0.5 rounded-full bg-emerald-500/10 border border-emerald-500/50 text-[8px] text-emerald-200">
                 Quality Current Hour:{" "}
@@ -487,7 +487,7 @@ function LineCard({ lineData, lineInfo, wipData }) {
           <div className="space-y-1">
             <div className="flex items-center justify-between text-[9px] text-slate-400">
               <span className="uppercase tracking-wide">
-                Production Eff%
+                Production 
               </span>
               <span className="px-2 py-0.5 rounded-full bg-sky-500/10 border border-sky-500/50 text-[8px] text-sky-200">
                 Production's Current Hour:{" "}

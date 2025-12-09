@@ -36,10 +36,20 @@ const lineOptions = [
   "Line-15",
 ];
 
+// কত সময় পর পর refresh করবে (ms)
+const REFRESH_INTERVAL_MS = 10000;
+
 function formatNumber(value, digits = 2) {
   const num = Number(value);
   if (!Number.isFinite(num)) return "-";
   return num.toFixed(digits);
+}
+
+// clamp percent between 0–100
+function clampPercent(value) {
+  const n = Number(value);
+  if (!Number.isFinite(n)) return 0;
+  return Math.max(0, Math.min(100, n));
 }
 
 export default function FloorDashboardPage() {
@@ -59,6 +69,29 @@ export default function FloorDashboardPage() {
   // 🔹 WIP data per line
   const [wipMap, setWipMap] = useState({});
 
+  // 🔁 শুধু এই tick change হলেই সব data re-fetch হবে
+  const [refreshTick, setRefreshTick] = useState(0);
+
+  // ================================
+  // Global polling timer (10 sec)
+  // ================================
+  useEffect(() => {
+    const id = setInterval(() => {
+      setRefreshTick((prev) => prev + 1);
+    }, REFRESH_INTERVAL_MS);
+
+    // Tab এ ফিরে আসলেই সাথে সাথে refresh
+    const handleFocus = () => {
+      setRefreshTick((prev) => prev + 1);
+    };
+    window.addEventListener("focus", handleFocus);
+
+    return () => {
+      clearInterval(id);
+      window.removeEventListener("focus", handleFocus);
+    };
+  }, []);
+
   // ============================================================
   // 1) Main dashboard data (production + quality) – auto refresh
   // ============================================================
@@ -68,7 +101,7 @@ export default function FloorDashboardPage() {
       return;
     }
 
-    let cancelled = false;
+    const controller = new AbortController();
 
     const fetchDashboard = async () => {
       try {
@@ -84,6 +117,7 @@ export default function FloorDashboardPage() {
 
         const res = await fetch(`/api/floor-dashboard?${params.toString()}`, {
           cache: "no-store",
+          signal: controller.signal,
         });
 
         const json = await res.json();
@@ -92,37 +126,28 @@ export default function FloorDashboardPage() {
           throw new Error(json.message || "Failed to load dashboard.");
         }
 
-        if (!cancelled) {
-          setRows(json.lines || []);
-        }
+        setRows(json.lines || []);
       } catch (err) {
-        if (!cancelled) {
-          console.error(err);
-          setError(err.message || "Failed to load dashboard.");
-          setRows([]);
-        }
+        if (err.name === "AbortError") return; // নতুন request এসেছে
+        console.error(err);
+        setError(err.message || "Failed to load dashboard.");
+        setRows([]);
       } finally {
-        if (!cancelled) {
-          setLoading(false);
-        }
+        setLoading(false);
       }
     };
 
-    // initial load
     fetchDashboard();
 
-    // polling for "realtime" updates (every 10 seconds)
-    const intervalId = setInterval(fetchDashboard, 10000);
-
     return () => {
-      cancelled = true;
-      clearInterval(intervalId);
+      controller.abort();
     };
-  }, [factory, building, date, line]);
+  }, [factory, building, date, line, refreshTick]);
 
   // ============================================================
   // 2) Load Line Info (buyer, style, runDay, smv) by factory+building
   //    -> we keep latest record per line in a map
+  //    (এগুলো সাধারণত কম change হয়, তাই এখানে polling দিইনি)
   // ============================================================
   useEffect(() => {
     if (!factory || !building) {
@@ -172,7 +197,6 @@ export default function FloorDashboardPage() {
 
     fetchLineInfo();
 
-    // optional: can also poll if you want, but usually line info changes rarely
     return () => {
       cancelled = true;
     };
@@ -181,6 +205,7 @@ export default function FloorDashboardPage() {
   // ============================================================
   // 3) Load WIP per line using /api/style-wip
   //    Depends on: factory, building, date, rows, lineInfoMap
+  //    rows পরিবর্তন হলেই (মানে fresh dashboard data এলে) আবার call
   // ============================================================
   useEffect(() => {
     if (!factory || !building || !date || rows.length === 0) {
@@ -236,7 +261,6 @@ export default function FloorDashboardPage() {
 
     fetchWipForAllLines();
 
-    // this effect will re-run whenever rows change
     return () => {
       cancelled = true;
     };
@@ -258,7 +282,7 @@ export default function FloorDashboardPage() {
                   Factory
                 </label>
                 <select
-                  className="select select-xs select-bordered min-w-[120px]"
+                  className="select select-xs bg-amber-300 select-bordered min-w-[120px]"
                   value={factory}
                   onChange={(e) => setFactory(e.target.value)}
                 >
@@ -277,7 +301,7 @@ export default function FloorDashboardPage() {
                   Building
                 </label>
                 <select
-                  className="select select-xs select-bordered min-w-[120px]"
+                  className="select select-xs bg-amber-300 select-bordered min-w-[120px]"
                   value={building}
                   onChange={(e) => setBuilding(e.target.value)}
                 >
@@ -297,7 +321,7 @@ export default function FloorDashboardPage() {
                 </label>
                 <input
                   type="date"
-                  className="input input-xs input-bordered"
+                  className="input input-xs input-bordered bg-amber-300"
                   value={date}
                   onChange={(e) => setDate(e.target.value)}
                 />
@@ -305,11 +329,11 @@ export default function FloorDashboardPage() {
 
               {/* Line */}
               <div className="space-y-1">
-                <label className="block text-[11px] font-semibold uppercase text-amber-100">
+                <label className="block text-[11px] font-semibold uppercase text-amber-100 ">
                   Line
                 </label>
                 <select
-                  className="select select-xs select-bordered min-w-[120px]"
+                  className="select select-xs bg-amber-300 select-bordered min-w-[120px]"
                   value={line}
                   onChange={(e) => setLine(e.target.value)}
                 >
@@ -400,7 +424,7 @@ function LineCard({ lineData, lineInfo, wipData }) {
           <div className="space-y-1">
             <div className="flex flex-wrap gap-1">
               <span className="px-2 py-0.5 rounded-full bg-slate-900 border border-slate-700 text-[9px] uppercase tracking-wide text-slate-300">
-               Line&nbsp;
+                Line&nbsp;
                 <span className="font-semibold text-cyan-300">{line}</span>
               </span>
               <span className="px-2 py-0.5 rounded-full bg-amber-500/10 border border-amber-500/60 text-[9px] text-amber-100">
@@ -430,7 +454,7 @@ function LineCard({ lineData, lineInfo, wipData }) {
               size={46}
             />
 
-            <div className="text-[9px] leading-tight text-right rounded-xl border border-sky-500/60  bg-slate-950/80 px-2 py-1.5 shadow-[0_0_0_1px_rgba(15,23,42,0.9)]">
+            <div className="text-[9px] leading-tight text-right rounded-xl border border-sky-500/60 bg-slate-950/80 px-2 py-1.5 shadow-[0_0_0_1px_rgba(15,23,42,0.9)]">
               <div className="text-[8px] uppercase tracking-wide text-slate-400 mb-0.5">
                 Plan Summary
               </div>
@@ -450,8 +474,9 @@ function LineCard({ lineData, lineInfo, wipData }) {
               </div>
 
               <div
-                className={`${varianceQty >= 0 ? "text-emerald-400" : "text-rose-400"
-                  }`}
+                className={`${
+                  varianceQty >= 0 ? "text-emerald-400" : "text-rose-400"
+                }`}
               >
                 Var:{" "}
                 <span className="font-semibold">
@@ -460,7 +485,6 @@ function LineCard({ lineData, lineInfo, wipData }) {
               </div>
             </div>
           </div>
-
         </div>
 
         {/* MIDDLE: quality + production pies */}
@@ -468,9 +492,7 @@ function LineCard({ lineData, lineInfo, wipData }) {
           {/* QUALITY KPIs */}
           <div className="space-y-1">
             <div className="flex items-center justify-between text-[9px] text-slate-400">
-              <span className="uppercase tracking-wide">
-                Quality 
-              </span>
+              <span className="uppercase tracking-wide">Quality</span>
               <span className="px-2 py-0.5 rounded-full bg-emerald-500/10 border border-emerald-500/50 text-[8px] text-emerald-200">
                 Quality Current Hour:{" "}
                 <span className="font-semibold">{qualityHourLabel}</span>
@@ -486,9 +508,7 @@ function LineCard({ lineData, lineInfo, wipData }) {
           {/* PRODUCTION KPIs */}
           <div className="space-y-1">
             <div className="flex items-center justify-between text-[9px] text-slate-400">
-              <span className="uppercase tracking-wide">
-                Production 
-              </span>
+              <span className="uppercase tracking-wide">Production</span>
               <span className="px-2 py-0.5 rounded-full bg-sky-500/10 border border-sky-500/50 text-[8px] text-sky-200">
                 Production's Current Hour:{" "}
                 <span className="font-semibold">{prodHourLabel}</span>
@@ -545,24 +565,6 @@ function LineCard({ lineData, lineInfo, wipData }) {
   );
 }
 
-function Row({ label, value, valueClass = "" }) {
-  return (
-    <div className="flex justify-between text-[10px]">
-      <span className="text-slate-400">{label}</span>
-      <span className={`font-semibold text-slate-100 ${valueClass}`}>
-        {value}
-      </span>
-    </div>
-  );
-}
-
-// clamp percent between 0–100
-function clampPercent(value) {
-  const n = Number(value);
-  if (!Number.isFinite(n)) return 0;
-  return Math.max(0, Math.min(100, n));
-}
-
 // generic pie using react-minimal-pie-chart
 function KpiPie({ value, label, color, size = 40 }) {
   const pct = clampPercent(value);
@@ -570,10 +572,7 @@ function KpiPie({ value, label, color, size = 40 }) {
 
   return (
     <div className="flex flex-col items-center gap-0.5">
-      <div
-        className="relative"
-        style={{ width: size, height: size }}
-      >
+      <div className="relative" style={{ width: size, height: size }}>
         <PieChart
           data={[
             { title: "value", value: pct, color },

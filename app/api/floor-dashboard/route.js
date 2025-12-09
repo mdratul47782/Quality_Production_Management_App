@@ -1,10 +1,12 @@
-// app/api/floor-dashboard/route.js
 import { NextResponse } from "next/server";
 import { dbConnect } from "@/services/mongo";
 
 import TargetSetterHeader from "@/models/TargetSetterHeader";
 import { HourlyProductionModel } from "@/models/HourlyProduction-model";
 import { HourlyInspectionModel } from "@/models/hourly-inspections";
+
+// এই লাইন মানে: এই API কখনোই cache হবে না, সবসময় fresh data
+export const dynamic = "force-dynamic";
 
 // ---------- helpers ----------
 
@@ -13,7 +15,6 @@ function toNumberOrZero(value) {
   return Number.isFinite(n) ? n : 0;
 }
 
-// Same base logic as your hourly board
 // baseTargetPerHourRaw = (MP × 60 × PlanEff% / SMV)
 // Day base target per header = round(baseTargetPerHourRaw) × working_hour
 function computeBaseTargetPerHourFromHeader(header) {
@@ -90,7 +91,7 @@ export async function GET(req) {
     // PRODUCTION PART (target, eff%)
     // ============================
     const headerFilter = {
-      factory, // 👈 very important
+      factory,
       assigned_building: building,
       date,
     };
@@ -101,19 +102,23 @@ export async function GET(req) {
     const headers = await TargetSetterHeader.find(headerFilter).lean();
 
     const headerIdToLine = {};
+    const headerIdToContext = {};
     const productionLineAgg = {};
 
     function ensureLineAgg(lineName) {
       if (!productionLineAgg[lineName]) {
         productionLineAgg[lineName] = {
           line: lineName,
-          targetQty: 0, // base target (same logic as hourly board)
+          targetQty: 0,
           achievedQty: 0,
           varianceQty: 0,
           currentHour: null,
           currentHourEfficiency: 0,
-          _effSum: 0,
-          _effCount: 0,
+          avgEffPercent: 0,
+          // internal for weighted avg eff
+          _produceMinSum: 0,
+          _availMinSum: 0,
+          _lastTotalEfficiency: null,
         };
       }
       return productionLineAgg[lineName];
@@ -122,9 +127,14 @@ export async function GET(req) {
     // 1) From headers -> base target per line
     for (const h of headers) {
       const lineName = h.line;
+      const headerIdStr = h._id.toString();
       const agg = ensureLineAgg(lineName);
 
-      headerIdToLine[h._id.toString()] = lineName;
+      headerIdToLine[headerIdStr] = lineName;
+      headerIdToContext[headerIdStr] = {
+        manpower_present: toNumberOrZero(h.manpower_present),
+        smv: toNumberOrZero(h.smv),
+      };
 
       const baseTargetPerHourRaw = computeBaseTargetPerHourFromHeader(h);
       const baseTargetPerHourRounded = Math.round(baseTargetPerHourRaw);
@@ -140,41 +150,74 @@ export async function GET(req) {
     }
 
     const allHeaderIds = headers.map((h) => h._id);
+
     let hourlyRecs = [];
 
-    // 2) Hourly records -> achievedQty + eff  (strictly filtered by factory)
+    // ✅ এখানে আর factory দিয়ে filter করিনি
+    // কারণ অনেক সময় HourlyProduction document-এ factory ফিল্ড না থাকলে
+    // ডেটা ধরা পড়ছিল না, আপডেট হয় না মনে হচ্ছিল।
     if (allHeaderIds.length > 0) {
       hourlyRecs = await HourlyProductionModel.find({
-        factory, // 👈 filter by factory so K-1 never sees K-2 data
-        productionDate: date, // "YYYY-MM-DD"
         headerId: { $in: allHeaderIds },
       }).lean();
     }
 
+    // 2) Hourly records -> achievedQty + current hr eff + weighted avg eff
     for (const rec of hourlyRecs) {
-      const lineName = headerIdToLine[rec.headerId.toString()];
+      const headerIdStr = rec.headerId.toString();
+      const lineName = headerIdToLine[headerIdStr];
       if (!lineName) continue;
 
       const agg = ensureLineAgg(lineName);
+      const ctx = headerIdToContext[headerIdStr] || {};
 
-      agg.achievedQty += toNumberOrZero(rec.achievedQty);
-      agg._effSum += toNumberOrZero(rec.hourlyEfficiency);
-      agg._effCount += 1;
+      const mp = toNumberOrZero(ctx.manpower_present);
+      const smv = toNumberOrZero(ctx.smv);
+      const achieved = toNumberOrZero(rec.achievedQty);
 
-      if (agg.currentHour === null || rec.hour > agg.currentHour) {
-        agg.currentHour = rec.hour;
+      agg.achievedQty += achieved;
+
+      // weighted avg efficiency জন্য total produce minute / total available minute
+      // produce min = achieved × smv
+      // available min = manpower × 60
+      if (mp > 0 && smv > 0) {
+        const produceMin = achieved * smv;
+        const availMin = mp * 60;
+
+        agg._produceMinSum += produceMin;
+        agg._availMinSum += availMin;
+      }
+
+      // current hour + hourly efficiency + last totalEfficiency track করা
+      const hourNum = toNumberOrZero(rec.hour);
+      if (agg.currentHour === null || hourNum > agg.currentHour) {
+        agg.currentHour = hourNum;
         agg.currentHourEfficiency = toNumberOrZero(rec.hourlyEfficiency);
+        agg._lastTotalEfficiency = toNumberOrZero(rec.totalEfficiency);
       }
     }
 
     // 3) Finalize variance + avg eff
     Object.values(productionLineAgg).forEach((agg) => {
       agg.varianceQty = agg.achievedQty - agg.targetQty;
-      agg.avgEffPercent =
-        agg._effCount > 0 ? agg._effSum / agg._effCount : 0;
 
-      delete agg._effSum;
-      delete agg._effCount;
+      // weighted avg eff = (total produce min / total available min) × 100
+      if (agg._availMinSum > 0) {
+        agg.avgEffPercent =
+          (agg._produceMinSum / agg._availMinSum) * 100;
+      } else if (
+        typeof agg._lastTotalEfficiency === "number" &&
+        !Number.isNaN(agg._lastTotalEfficiency)
+      ) {
+        // fallback: last record-এর totalEfficiency ব্যবহার করা
+        agg.avgEffPercent = agg._lastTotalEfficiency;
+      } else {
+        agg.avgEffPercent = 0;
+      }
+
+      delete agg._produceMinSum;
+      delete agg._availMinSum;
+      delete agg._lastTotalEfficiency;
     });
 
     // ============================
@@ -183,7 +226,7 @@ export async function GET(req) {
     const { start, end } = getDayRange(date);
 
     const qualityMatch = {
-      factory, // 👈 also filter by factory here
+      factory,
       building,
       reportDate: { $gte: start, $lte: end },
     };

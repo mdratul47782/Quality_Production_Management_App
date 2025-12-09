@@ -36,6 +36,8 @@ const makeEmptyForm = () => ({
   smv: "",
   runDay: "",
   date: getTodayDateString(),
+  imageSrc: "",
+  videoSrc: "",
 });
 
 export default function LineInfoRegisterPage() {
@@ -47,7 +49,32 @@ export default function LineInfoRegisterPage() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
 
-  console.log("Rendering LineInfoRegisterPage with auth:", auth);
+  // 🔹 local files + preview
+  const [imageFile, setImageFile] = useState(null);
+  const [videoFile, setVideoFile] = useState(null);
+  const [imagePreview, setImagePreview] = useState("");
+  const [videoPreview, setVideoPreview] = useState("");
+
+  // preview logic
+  useEffect(() => {
+    if (imageFile) {
+      const url = URL.createObjectURL(imageFile);
+      setImagePreview(url);
+      return () => URL.revokeObjectURL(url);
+    } else {
+      setImagePreview(formValues.imageSrc || "");
+    }
+  }, [imageFile, formValues.imageSrc]);
+
+  useEffect(() => {
+    if (videoFile) {
+      const url = URL.createObjectURL(videoFile);
+      setVideoPreview(url);
+      return () => URL.revokeObjectURL(url);
+    } else {
+      setVideoPreview(formValues.videoSrc || "");
+    }
+  }, [videoFile, formValues.videoSrc]);
 
   useEffect(() => {
     if (!auth) return;
@@ -57,7 +84,6 @@ export default function LineInfoRegisterPage() {
       return;
     }
 
-    // auto-fill factory + assigned_building in form
     setFormValues((prev) => ({
       ...prev,
       factory: auth.factory,
@@ -98,6 +124,8 @@ export default function LineInfoRegisterPage() {
 
   const resetForm = () => {
     setEditingId(null);
+    setImageFile(null);
+    setVideoFile(null);
     setFormValues({
       ...makeEmptyForm(),
       factory: auth?.factory || "",
@@ -129,23 +157,40 @@ export default function LineInfoRegisterPage() {
     setSaving(true);
     try {
       const userId = auth._id || auth.id || "";
-      const payload = {
-        ...formValues,
-        factory: auth.factory, // 🔹 ensure factory from auth
-        assigned_building: auth.assigned_building,
-        user: {
-          id: userId,
-          user_name: auth.user_name,
-        },
-      };
 
       const method = editingId ? "PUT" : "POST";
-      const body = editingId ? { ...payload, id: editingId } : payload;
+
+      // 🔹 Use FormData so we can send files + text together
+      const formData = new FormData();
+      formData.append("factory", auth.factory);
+      formData.append("buyer", formValues.buyer);
+      formData.append("assigned_building", auth.assigned_building);
+      formData.append("line", formValues.line);
+      formData.append("style", formValues.style);
+      formData.append("item", formValues.item);
+      formData.append("color", formValues.color);
+      formData.append("smv", formValues.smv);
+      formData.append("runDay", formValues.runDay);
+      formData.append("date", formValues.date);
+      formData.append("imageSrc", formValues.imageSrc || "");
+      formData.append("videoSrc", formValues.videoSrc || "");
+      formData.append("userId", userId);
+      formData.append("userName", auth.user_name);
+
+      if (editingId) {
+        formData.append("id", editingId);
+      }
+
+      if (imageFile) {
+        formData.append("imageFile", imageFile);
+      }
+      if (videoFile) {
+        formData.append("videoFile", videoFile);
+      }
 
       const res = await fetch("/api/line-info-register", {
         method,
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(body),
+        body: formData,
       });
 
       const result = await res.json();
@@ -186,6 +231,8 @@ export default function LineInfoRegisterPage() {
 
   const handleEditClick = (record) => {
     setEditingId(record._id);
+    setImageFile(null);
+    setVideoFile(null);
     setFormValues({
       factory: record.factory || auth?.factory || "",
       buyer: record.buyer || "",
@@ -197,6 +244,8 @@ export default function LineInfoRegisterPage() {
       smv: record.smv || "",
       runDay: record.runDay || "",
       date: record.date || getTodayDateString(),
+      imageSrc: record.imageSrc || "",
+      videoSrc: record.videoSrc || "",
     });
   };
 
@@ -217,26 +266,26 @@ export default function LineInfoRegisterPage() {
   }
 
   return (
-    <section className="max-w-6xl mx-auto bg-white border border-gray-200 shadow-xl rounded-2xl mt-4 overflow-hidden">
+    <section className="max-w-5xl mx-auto bg-white border border-gray-200 shadow-xl rounded-2xl mt-4 overflow-hidden">
       {/* Header */}
-      <div className="flex items-center bg-gradient-to-br from-blue-600 to-blue-700 text-white px-6 py-4 rounded-t-lg">
-        <div className="w-12 h-12 bg-white rounded-md mr-3 flex items-center justify-center">
+      <div className="flex items-center bg-gradient-to-br from-blue-600 to-blue-700 text-white px-5 py-3 rounded-t-lg gap-3">
+        <div className="w-10 h-10 bg-white rounded-md flex items-center justify-center">
           <Image
             src="/HKD_LOGO.png"
             alt="HKD Outdoor Innovations Ltd. Logo"
-            width={80}
-            height={80}
+            width={64}
+            height={64}
             priority
           />
         </div>
-        <div>
-          <h1 className="text-2xl font-semibold leading-tight">
+        <div className="space-y-0.5">
+          <h1 className="text-xl font-semibold leading-tight">
             HKD Outdoor Innovations Ltd.
           </h1>
-          <p className="text-lg opacity-90">
+          <p className="text-sm opacity-90">
             Line Info Register – {auth.assigned_building}
           </p>
-          <p className="text-sm opacity-80">
+          <p className="text-xs opacity-80">
             Factory:{" "}
             <span className="font-semibold">{auth.factory}</span> • Inputter:{" "}
             <span className="font-semibold">{auth.user_name}</span>
@@ -245,29 +294,29 @@ export default function LineInfoRegisterPage() {
       </div>
 
       {/* Body */}
-      <div className="px-6 py-6 grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* LEFT: saved lines */}
+      <div className="px-5 py-5 grid grid-cols-1 lg:grid-cols-3 gap-5">
+        {/* LEFT: saved lines + preview */}
         <aside className="space-y-4">
-          <div className="bg-gradient-to-br from-white to-slate-50 p-4 rounded-2xl border shadow-sm">
+          <div className="bg-gradient-to-br from-white to-slate-50 p-3 rounded-2xl border shadow-sm">
             <div className="flex items-center justify-between mb-2">
-              <h3 className="font-semibold text-gray-700 text-sm">
+              <h3 className="font-semibold text-gray-700 text-xs">
                 Saved lines ({auth.factory} – {auth.assigned_building})
               </h3>
               <button
                 type="button"
                 onClick={resetForm}
-                className="text-xs px-2 py-1 rounded bg-sky-100 text-sky-700 hover:bg-sky-200"
+                className="text-[11px] px-2 py-1 rounded bg-sky-100 text-sky-700 hover:bg-sky-200"
               >
                 + New line
               </button>
             </div>
 
             {records.length === 0 ? (
-              <p className="text-xs text-gray-500">
+              <p className="text-[11px] text-gray-500">
                 No line info saved yet for this factory/building.
               </p>
             ) : (
-              <ul className="space-y-2 max-h-[360px] overflow-auto text-sm">
+              <ul className="space-y-2 max-h-[360px] overflow-auto text-xs">
                 {records.map((r) => (
                   <li
                     key={r._id}
@@ -280,22 +329,27 @@ export default function LineInfoRegisterPage() {
                       <span className="font-semibold text-gray-800">
                         {r.line}
                       </span>
-                      <span className="text-xs text-gray-500">
+                      <span className="text-[11px] text-gray-500">
                         {r.buyer}
                       </span>
                     </div>
-                    <div className="text-xs text-gray-600 mt-1">
+                    <div className="text-[11px] text-gray-600 mt-1">
                       Style: <span className="font-medium">{r.style}</span>
                     </div>
-                    <div className="text-xs text-gray-500">
+                    <div className="text-[11px] text-gray-500">
                       Item: {r.item} • Color: {r.color}
                     </div>
-                    <div className="text-xs text-gray-500">
+                    <div className="text-[11px] text-gray-500">
                       SMV: {r.smv} • Run Day: {r.runDay}
                     </div>
-                    <div className="text-xs text-gray-400">
+                    <div className="text-[10px] text-gray-400">
                       Factory: {r.factory} • Date: {r.date}
                     </div>
+                    {(r.imageSrc || r.videoSrc) && (
+                      <div className="mt-0.5 text-[10px] text-sky-600">
+                        {r.imageSrc && "🖼️"} {r.videoSrc && "🎥"} media attached
+                      </div>
+                    )}
                   </li>
                 ))}
               </ul>
@@ -303,11 +357,11 @@ export default function LineInfoRegisterPage() {
           </div>
 
           {/* small preview */}
-          <div className="bg-white p-4 rounded-2xl border shadow-sm">
-            <h3 className="font-semibold text-gray-700 text-sm">
+          <div className="bg-white p-3 rounded-2xl border shadow-sm">
+            <h3 className="font-semibold text-gray-700 text-xs">
               Current form preview
             </h3>
-            <dl className="mt-2 text-xs text-gray-600 space-y-1">
+            <dl className="mt-2 text-[11px] text-gray-600 space-y-1.5">
               <Row label="Factory" value={auth.factory} />
               <Row label="Date" value={formValues.date} />
               <Row label="Assigned Building" value={auth.assigned_building} />
@@ -318,13 +372,15 @@ export default function LineInfoRegisterPage() {
               <Row label="Color" value={formValues.color} />
               <Row label="SMV" value={formValues.smv} />
               <Row label="Run Day" value={formValues.runDay} />
+              <Row label="Image URL" value={formValues.imageSrc} />
+              <Row label="Video URL" value={formValues.videoSrc} />
             </dl>
           </div>
         </aside>
 
         {/* RIGHT: form */}
         <form
-          className="lg:col-span-2 grid grid-cols-1 md:grid-cols-2 gap-4"
+          className="lg:col-span-2 grid grid-cols-1 md:grid-cols-2 gap-3 text-sm"
           onSubmit={(e) => {
             e.preventDefault();
             handleSave();
@@ -338,7 +394,7 @@ export default function LineInfoRegisterPage() {
               onChange={(e) => {
                 setFormValues({ ...formValues, date: e.target.value });
               }}
-              className="w-full rounded-lg border px-3 py-2 focus:ring-2 focus:ring-sky-400 outline-none"
+              className="w-full rounded-lg border px-3 py-1.5 focus:ring-2 focus:ring-sky-400 outline-none text-sm"
             />
           </Field>
 
@@ -348,7 +404,7 @@ export default function LineInfoRegisterPage() {
               type="text"
               value={auth.assigned_building || ""}
               disabled
-              className="w-full rounded-lg border px-3 py-2 bg-gray-100 text-gray-700"
+              className="w-full rounded-lg border px-3 py-1.5 bg-gray-100 text-gray-700 text-sm"
             />
           </Field>
 
@@ -381,7 +437,7 @@ export default function LineInfoRegisterPage() {
               onChange={(e) =>
                 setFormValues({ ...formValues, style: e.target.value })
               }
-              className="w-full rounded-lg border px-3 py-2 focus:ring-2 focus:ring-sky-400 outline-none"
+              className="w-full rounded-lg border px-3 py-1.5 focus:ring-2 focus:ring-sky-400 outline-none text-sm"
             />
           </Field>
 
@@ -394,7 +450,7 @@ export default function LineInfoRegisterPage() {
               onChange={(e) =>
                 setFormValues({ ...formValues, item: e.target.value })
               }
-              className="w-full rounded-lg border px-3 py-2 focus:ring-2 focus:ring-sky-400 outline-none"
+              className="w-full rounded-lg border px-3 py-1.5 focus:ring-2 focus:ring-sky-400 outline-none text-sm"
             />
           </Field>
 
@@ -407,7 +463,7 @@ export default function LineInfoRegisterPage() {
               onChange={(e) =>
                 setFormValues({ ...formValues, color: e.target.value })
               }
-              className="w-full rounded-lg border px-3 py-2 focus:ring-2 focus:ring-sky-400 outline-none"
+              className="w-full rounded-lg border px-3 py-1.5 focus:ring-2 focus:ring-sky-400 outline-none text-sm"
             />
           </Field>
 
@@ -421,7 +477,7 @@ export default function LineInfoRegisterPage() {
               onChange={(e) =>
                 setFormValues({ ...formValues, smv: e.target.value })
               }
-              className="w-full rounded-lg border px-3 py-2 focus:ring-2 focus:ring-sky-400 outline-none"
+              className="w-full rounded-lg border px-3 py-1.5 focus:ring-2 focus:ring-sky-400 outline-none text-sm"
             />
           </Field>
 
@@ -434,28 +490,137 @@ export default function LineInfoRegisterPage() {
               onChange={(e) =>
                 setFormValues({ ...formValues, runDay: e.target.value })
               }
-              className="w-full rounded-lg border px-3 py-2 focus:ring-2 focus:ring-sky-400 outline-none"
+              className="w-full rounded-lg border px-3 py-1.5 focus:ring-2 focus:ring-sky-400 outline-none text-sm"
             />
           </Field>
 
-          <div className="md:col-span-2 flex items-center justify-between gap-3 mt-2">
+          {/* Image URL + file */}
+          <Field label="Image (URL or file)">
+            <div className="space-y-2">
+              <input
+                type="url"
+                placeholder="https://example.com/image.jpg"
+                value={formValues.imageSrc}
+                onChange={(e) => {
+                  setFormValues({ ...formValues, imageSrc: e.target.value });
+                  if (e.target.value) setImageFile(null);
+                }}
+                className="w-full rounded-lg border px-3 py-1.5 focus:ring-2 focus:ring-sky-400 outline-none text-sm"
+              />
+              <div className="flex items-center gap-2">
+                <label className="inline-flex cursor-pointer items-center rounded-lg border border-dashed border-slate-400 bg-slate-50 px-3 py-1.5 text-[11px] text-slate-700 hover:border-sky-500">
+                  <span>Choose image</span>
+                  <input
+                    type="file"
+                    accept="image/*"
+                    className="hidden"
+                    onChange={(e) => {
+                      const file = e.target.files?.[0];
+                      setImageFile(file || null);
+                    }}
+                  />
+                </label>
+                {imageFile && (
+                  <span className="max-w-[140px] truncate text-[11px] text-gray-500">
+                    {imageFile.name}
+                  </span>
+                )}
+              </div>
+            </div>
+          </Field>
+
+          {/* Video URL + file */}
+          <Field label="Video (URL or file)">
+            <div className="space-y-2">
+              <input
+                type="url"
+                placeholder="https://example.com/video.mp4"
+                value={formValues.videoSrc}
+                onChange={(e) => {
+                  setFormValues({ ...formValues, videoSrc: e.target.value });
+                  if (e.target.value) setVideoFile(null);
+                }}
+                className="w-full rounded-lg border px-3 py-1.5 focus:ring-2 focus:ring-sky-400 outline-none text-sm"
+              />
+              <div className="flex items-center gap-2">
+                <label className="inline-flex cursor-pointer items-center rounded-lg border border-dashed border-slate-400 bg-slate-50 px-3 py-1.5 text-[11px] text-slate-700 hover:border-sky-500">
+                  <span>Choose video</span>
+                  <input
+                    type="file"
+                    accept="video/*"
+                    className="hidden"
+                    onChange={(e) => {
+                      const file = e.target.files?.[0];
+                      setVideoFile(file || null);
+                    }}
+                  />
+                </label>
+                {videoFile && (
+                  <span className="max-w-[140px] truncate text-[11px] text-gray-500">
+                    {videoFile.name}
+                  </span>
+                )}
+              </div>
+            </div>
+          </Field>
+
+          {/* Media preview */}
+          <div className="md:col-span-2 mt-2">
+            <h3 className="text-xs font-semibold text-gray-700 mb-2">
+              Image & Video preview
+            </h3>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+              <div className="border rounded-lg p-2 bg-gray-50">
+                <p className="text-[11px] text-gray-500 mb-1">Image</p>
+                {imagePreview ? (
+                  <img
+                    src={imagePreview}
+                    alt="Line image"
+                    className="w-full h-36 object-cover rounded"
+                  />
+                ) : (
+                  <p className="text-[11px] text-gray-400">
+                    No image selected
+                  </p>
+                )}
+              </div>
+              <div className="border rounded-lg p-2 bg-gray-50">
+                <p className="text-[11px] text-gray-500 mb-1">Video</p>
+                {videoPreview ? (
+                  <video
+                    src={videoPreview}
+                    className="w-full h-36 rounded"
+                    controls
+                    muted
+                  />
+                ) : (
+                  <p className="text-[11px] text-gray-400">
+                    No video selected
+                  </p>
+                )}
+              </div>
+            </div>
+          </div>
+
+          {/* Buttons */}
+          <div className="md:col-span-2 flex items-center justify-between gap-3 mt-3">
             <div className="flex gap-2">
               {editingId && (
                 <button
                   type="button"
                   onClick={handleDelete}
-                  className="inline-flex items-center gap-2 px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg"
+                  className="inline-flex items-center gap-2 px-3 py-1.5 bg-red-600 hover:bg-red-700 text-white rounded-lg text-xs"
                 >
-                  <Trash2 size={16} /> Delete
+                  <Trash2 size={14} /> Delete
                 </button>
               )}
 
               <button
                 type="submit"
                 disabled={saving}
-                className="inline-flex items-center gap-2 px-4 py-2 bg-sky-600 hover:bg-sky-700 text-white rounded-lg"
+                className="inline-flex items-center gap-2 px-3 py-1.5 bg-sky-600 hover:bg-sky-700 text-white rounded-lg text-xs disabled:opacity-70"
               >
-                <Save size={16} />{" "}
+                <Save size={14} />{" "}
                 {editingId ? "Update Line" : "Save New Line"}
               </button>
             </div>
@@ -463,7 +628,7 @@ export default function LineInfoRegisterPage() {
         </form>
       </div>
 
-      <div className="px-6 py-4 bg-gray-50 text-right text-sm text-gray-600 border-t">
+      <div className="px-5 py-3 bg-gray-50 text-right text-[11px] text-gray-600 border-t">
         • HKD OUTDOOR INNOVATIONS LTD.
       </div>
     </section>
@@ -473,8 +638,8 @@ export default function LineInfoRegisterPage() {
 /* ---------- helpers ---------- */
 function Field({ label, children }) {
   return (
-    <label className="flex flex-col text-sm text-gray-700">
-      <span className="mb-2 font-medium">{label}</span>
+    <label className="flex flex-col text-[13px] text-gray-700 gap-1">
+      <span className="font-medium">{label}</span>
       {children}
     </label>
   );
@@ -484,7 +649,7 @@ function Row({ label, value }) {
   return (
     <div className="flex justify-between gap-3">
       <dt className="text-gray-500">{label}</dt>
-      <dd className="font-medium text-gray-800">
+      <dd className="font-medium text-gray-800 max-w-[150px] text-right truncate">
         {value && value !== "" ? value : "—"}
       </dd>
     </div>
@@ -525,16 +690,16 @@ function SearchableDropdown({ options, value, onChange, placeholder }) {
             setQuery(e.target.value);
             setOpen(true);
           }}
-          className="w-full rounded-lg border px-3 py-2 pr-10 focus:ring-2 focus:ring-sky-400 outline-none"
+          className="w-full rounded-lg border px-3 py-1.5 pr-8 focus:ring-2 focus:ring-sky-400 outline-none text-sm"
         />
 
         <div className="absolute right-2 top-2 text-gray-400">
-          <Search size={16} />
+          <Search size={14} />
         </div>
       </div>
 
       {open && (
-        <ul className="absolute z-50 mt-2 max-h-48 w-full overflow-auto rounded-lg border bg-white shadow-lg text-sm">
+        <ul className="absolute z-50 mt-1 max-h-40 w-full overflow-auto rounded-lg border bg-white shadow-lg text-xs">
           {filtered.length > 0 ? (
             filtered.map((opt) => (
               <li
@@ -544,7 +709,7 @@ function SearchableDropdown({ options, value, onChange, placeholder }) {
                   setQuery(opt);
                   setOpen(false);
                 }}
-                className={`cursor-pointer px-3 py-2 hover:bg-sky-600 hover:text-white ${
+                className={`cursor-pointer px-3 py-1.5 hover:bg-sky-600 hover:text-white ${
                   opt === value ? "bg-sky-100" : ""
                 }`}
               >
@@ -552,7 +717,7 @@ function SearchableDropdown({ options, value, onChange, placeholder }) {
               </li>
             ))
           ) : (
-            <li className="px-3 py-2 text-gray-500 italic">
+            <li className="px-3 py-1.5 text-gray-500 italic">
               No results found
             </li>
           )}

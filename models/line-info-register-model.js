@@ -3,7 +3,6 @@ import mongoose from "mongoose";
 
 const lineInfoRegisterSchema = new mongoose.Schema(
   {
-    // 🔹 NEW: factory (K-1 / K-2 / K-3 ...)
     factory: {
       type: String,
       required: true,
@@ -12,7 +11,6 @@ const lineInfoRegisterSchema = new mongoose.Schema(
 
     buyer: { type: String, required: true },
 
-    // exactly like auth: "A-2", "B-3"
     assigned_building: { type: String, required: true },
 
     line: { type: String, required: true },
@@ -22,8 +20,11 @@ const lineInfoRegisterSchema = new mongoose.Schema(
     smv: { type: String, required: true },
     runDay: { type: String, required: true },
 
-    // date of input (user can edit later)
     date: { type: String, required: true }, // "YYYY-MM-DD"
+
+    // 🔹 NEW: Cloudinary URLs per line
+    imageSrc: { type: String, default: "" },
+    videoSrc: { type: String, default: "" },
 
     user: {
       id: { type: String, required: true },

@@ -9,13 +9,15 @@
     "lint": "eslint"
   },
   "dependencies": {
+    "cloudinary": "^2.8.0",
     "framer-motion": "^12.23.24",
     "lucide-react": "^0.554.0",
     "mongoose": "^9.0.0",
     "motion": "^12.23.24",
     "next": "16.0.4",
     "react": "19.2.0",
-    "react-dom": "19.2.0"
+    "react-dom": "19.2.0",
+    "react-minimal-pie-chart": "^9.1.2"
   },
   "devDependencies": {
     "@tailwindcss/postcss": "^4.1.17",

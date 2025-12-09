@@ -5,7 +5,7 @@ import React, { useEffect, useRef, useState } from "react";
 import Image from "next/image";
 import { useAuth } from "@/app/hooks/useAuth";
 import { Search, Trash2, Save } from "lucide-react";
-
+import ImageVideoLink from "../LineInfoRegisterComponents/ImageVideoLink";
 const buyers = [
   "Decathlon - knit",
   "Decathlon - woven",
@@ -575,3 +575,4 @@ function SearchableDropdown({ options, value, onChange, placeholder }) {
     </div>
   );
 }
+<ImageVideoLink/>

@@ -1,3 +1,4 @@
+// app/floor-dashboard/page.jsx
 "use client";
 
 import { useState, useEffect } from "react";
@@ -70,11 +71,6 @@ export default function FloorDashboardPage() {
 
   // 🔁 শুধু এই tick change হলেই সব data re-fetch হবে
   const [refreshTick, setRefreshTick] = useState(0);
-
-  // 🔹 View mode -> "grid" (full view) | "tv" (single card auto slide)
-  const [viewMode, setViewMode] = useState("grid");
-  // 🔹 এখন কোন card দেখাচ্ছে (tv mode)
-  const [currentCardIndex, setCurrentCardIndex] = useState(0);
 
   // ================================
   // Global polling timer (10 sec)
@@ -150,6 +146,8 @@ export default function FloorDashboardPage() {
 
   // ============================================================
   // 2) Load Line Info (buyer, style, runDay, smv) by factory+building
+  //    -> we keep latest record per line in a map
+  //    (এগুলো সাধারণত কম change হয়, তাই এখানে polling দিইনি)
   // ============================================================
   useEffect(() => {
     if (!factory || !building) {
@@ -206,6 +204,8 @@ export default function FloorDashboardPage() {
 
   // ============================================================
   // 3) Load WIP per line using /api/style-wip
+  //    Depends on: factory, building, date, rows, lineInfoMap
+  //    rows পরিবর্তন হলেই (মানে fresh dashboard data এলে) আবার call
   // ============================================================
   useEffect(() => {
     if (!factory || !building || !date || rows.length === 0) {
@@ -267,56 +267,14 @@ export default function FloorDashboardPage() {
   }, [factory, building, date, rows, lineInfoMap]);
 
   // ============================================================
-  // 4) TV MODE: auto-slide single card every 10s
-  // ============================================================
-  useEffect(() => {
-    setCurrentCardIndex(0);
-  }, [rows.length, viewMode, factory, building, date, line]);
-
-  useEffect(() => {
-    if (viewMode !== "tv") return;
-    if (rows.length <= 1) return;
-
-    const id = setInterval(() => {
-      setCurrentCardIndex((prev) =>
-        rows.length === 0 ? 0 : (prev + 1) % rows.length
-      );
-    }, 10000);
-
-    return () => clearInterval(id);
-  }, [viewMode, rows.length]);
-
-  // ============================================================
   // RENDER
   // ============================================================
-  const hasData = rows.length > 0;
-  const safeIndex = rows.length > 0 ? currentCardIndex % rows.length : 0;
-  const currentRow = rows[safeIndex];
-
   return (
-    <div className="min-h-screen bg-gradient-to-b from-slate-950 via-slate-950 to-slate-900 text-slate-50 py-2 px-2 mb-0">
-      <div className="space-y-3 max-w-[1600px] mx-auto">
-        {/* Header */}
-        <div className="flex items-center justify-between gap-2">
-          <div>
-            <h1 className="text-lg md:text-2xl font-semibold tracking-tight text-slate-50">
-              Floor Live Dashboard
-            </h1>
-            <p className="text-[11px] text-slate-400">
-              Real-time production &amp; quality view for TV / control room
-            </p>
-          </div>
-          <div className="hidden sm:flex items-center gap-2 text-[10px] text-slate-400">
-            <span className="px-2 py-0.5 rounded-full border border-slate-700 bg-slate-950/80">
-              Auto refresh:{" "}
-              <span className="font-semibold text-emerald-400">10s</span>
-            </span>
-          </div>
-        </div>
-
+    <div className="min-h-screen bg-slate-950 py-1 px-1 mb-0">
+      <div className="space-y-4">
         {/* Filter Panel */}
-        <div className="card bg-gradient-to-r from-slate-950 via-slate-950 to-slate-900 border border-slate-800/80 shadow-[0_10px_35px_rgba(0,0,0,0.9)]">
-          <div className="card-body p-2 md:p-3 text-xs space-y-2">
+        <div className="card bg-slate-950/80 border border-slate-800 shadow-[0_10px_30px_rgba(0,0,0,0.8)]">
+          <div className="card-body p-2 text-xs space-y-2">
             <div className="flex flex-wrap items-end gap-4">
               {/* Factory */}
               <div className="space-y-1">
@@ -324,7 +282,7 @@ export default function FloorDashboardPage() {
                   Factory
                 </label>
                 <select
-                  className="select select-xs bg-amber-300/95 select-bordered min-w-[140px] text-slate-900"
+                  className="select select-xs bg-amber-300 select-bordered min-w-[140px]"
                   value={factory}
                   onChange={(e) => setFactory(e.target.value)}
                 >
@@ -343,7 +301,7 @@ export default function FloorDashboardPage() {
                   Building
                 </label>
                 <select
-                  className="select select-xs bg-amber-300/95 select-bordered min-w-[140px] text-slate-900"
+                  className="select select-xs bg-amber-300 select-bordered min-w-[140px]"
                   value={building}
                   onChange={(e) => setBuilding(e.target.value)}
                 >
@@ -363,7 +321,7 @@ export default function FloorDashboardPage() {
                 </label>
                 <input
                   type="date"
-                  className="input input-xs input-bordered bg-amber-300/95 text-slate-900"
+                  className="input input-xs input-bordered bg-amber-300"
                   value={date}
                   onChange={(e) => setDate(e.target.value)}
                 />
@@ -375,7 +333,7 @@ export default function FloorDashboardPage() {
                   Line
                 </label>
                 <select
-                  className="select select-xs bg-amber-300/95 select-bordered min-w-[120px] text-slate-900"
+                  className="select select-xs bg-amber-300 select-bordered min-w-[120px]"
                   value={line}
                   onChange={(e) => setLine(e.target.value)}
                 >
@@ -387,23 +345,8 @@ export default function FloorDashboardPage() {
                 </select>
               </div>
 
-              {/* View mode */}
-              <div className="space-y-1">
-                <label className="block text-[11px] font-semibold uppercase text-amber-100">
-                  View
-                </label>
-                <select
-                  className="select select-xs bg-amber-300/95 select-bordered min-w-[130px] text-slate-900"
-                  value={viewMode}
-                  onChange={(e) => setViewMode(e.target.value)}
-                >
-                  <option value="grid">Full View (All Cards)</option>
-                  <option value="tv">TV Auto Slide (1 Card)</option>
-                </select>
-              </div>
-
               {loading && (
-                <span className="ml-auto flex items-center gap-1 text-[10px] text-slate-400">
+                <span className="ml-auto flex items-center gap-1 text-[10px] text-slate-500">
                   <span className="loading loading-spinner loading-xs" />
                   Auto updating...
                 </span>
@@ -418,16 +361,15 @@ export default function FloorDashboardPage() {
           </div>
         </div>
 
-        {/* No data msg */}
-        {!hasData && !loading && !error && (
+        {/* Cards */}
+        {rows.length === 0 && !loading && !error && (
           <p className="text-[11px] text-slate-500">
             No data for this factory/building/date yet.
           </p>
         )}
 
-        {/* FULL VIEW (GRID) */}
-        {hasData && viewMode === "grid" && (
-          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+        {rows.length > 0 && (
+          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
             {rows.map((row) => (
               <LineCard
                 key={row.line}
@@ -438,36 +380,10 @@ export default function FloorDashboardPage() {
             ))}
           </div>
         )}
-
-        {/* TV VIEW (SCREEN LIKE YOUR SCREENSHOT) */}
-        {hasData && viewMode === "tv" && currentRow && (
-          <div className="space-y-2">
-            <div className="h-[calc(100vh-170px)]">
-              <TvLineCard
-                lineData={currentRow}
-                lineInfo={lineInfoMap[currentRow.line]}
-                wipData={wipMap[currentRow.line]}
-              />
-            </div>
-            <div className="flex items-center justify-center text-[9px] text-slate-400">
-              Showing{" "}
-              <span className="mx-1 font-semibold text-sky-300">
-                {safeIndex + 1}
-              </span>
-              of{" "}
-              <span className="mx-1 font-semibold text-slate-200">
-                {rows.length}
-              </span>
-              lines • Auto slide every 10s
-            </div>
-          </div>
-        )}
       </div>
     </div>
   );
 }
-
-/* ------------ NORMAL GRID CARD (mobile / desktop view) ------------ */
 
 function LineCard({ lineData, lineInfo, wipData }) {
   const { line, quality, production } = lineData || {};
@@ -480,31 +396,39 @@ function LineCard({ lineData, lineInfo, wipData }) {
   const imageSrc = lineInfo?.imageSrc || "";
   const videoSrc = lineInfo?.videoSrc || "";
 
+  // --- main KPI: Plan vs Achieved ---
   const targetQty = production?.targetQty ?? 0;
   const achievedQty = production?.achievedQty ?? 0;
   const rawPlan = targetQty > 0 ? (achievedQty / targetQty) * 100 : 0;
   const planPercent = clampPercent(rawPlan);
   const varianceQty = production?.varianceQty ?? 0;
 
+  // --- quality KPIs ---
   const rft = clampPercent(quality?.rftPercent ?? 0);
   const dhu = clampPercent(quality?.dhuPercent ?? 0);
   const defectRate = clampPercent(quality?.defectRatePercent ?? 0);
 
+  // --- production KPIs ---
   const hourlyEff = clampPercent(production?.currentHourEfficiency ?? 0);
   const avgEff = clampPercent(production?.avgEffPercent ?? 0);
 
   const qualityHourLabel = quality?.currentHour ?? "-";
   const prodHourLabel = production?.currentHour ?? "-";
 
+  // 🔹 from API + style-wip
   const manpowerPresent = production?.manpowerPresent ?? 0;
+  const totalInput = wipData?.capacity ?? 0; // তুমি capacity ফিল্ডকে Total Input হিসেবে ব্যবহার করছ
   const wip = wipData?.wip ?? 0;
 
   const isBehind = varianceQty < 0;
 
   return (
     <div
-      className={`card h-full rounded-2xl border bg-slate-950/95 shadow-[0_12px_36px_rgba(0,0,0,0.7)] overflow-hidden 
-      ${isBehind ? "border-rose-500/40" : "border-emerald-500/35"}`}
+      className={`card rounded-2xl border bg-slate-950/95 shadow-[0_12px_36px_rgba(0,0,0,0.7)] overflow-hidden 
+      ${isBehind
+          ? "border-rose-500/40"
+          : "border-emerald-500/35"
+        }`}
     >
       <div className="card-body p-2 space-y-0 text-[11px] text-slate-100 bg-gradient-to-b from-slate-950 via-slate-950/95 to-slate-950">
         {/* TOP: meta + main donut */}
@@ -536,7 +460,12 @@ function LineCard({ lineData, lineInfo, wipData }) {
 
           {/* right: main pie + compact plan summary */}
           <div className="flex items-center gap-2">
-            <KpiPie value={planPercent} label="PLAN" color="#22d3ee" size={46} />
+            <KpiPie
+              value={planPercent}
+              label="PLAN"
+              color="#22d3ee"
+              size={46}
+            />
 
             <div className="text-[9px] leading-tight text-right rounded-lg border border-sky-500/60 bg-slate-950/85 px-2 py-1.5">
               <div className="text-[8px] uppercase tracking-wide text-slate-400 mb-0.5">
@@ -558,9 +487,8 @@ function LineCard({ lineData, lineInfo, wipData }) {
               </div>
 
               <div
-                className={`${
-                  varianceQty >= 0 ? "text-emerald-400" : "text-rose-400"
-                }`}
+                className={`${varianceQty >= 0 ? "text-emerald-400" : "text-rose-400"
+                  }`}
               >
                 Var:{" "}
                 <span className="font-semibold">
@@ -568,8 +496,9 @@ function LineCard({ lineData, lineInfo, wipData }) {
                 </span>
               </div>
 
-              {/* MP chip + optional WIP */}
+              {/* 🔹 Compact MP + WIP chips (no extra height explosion) */}
               <div className="mt-1 flex items-center justify-end gap-1 text-[8px]">
+                {/* MP chip */}
                 <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-full bg-slate-900/80 border border-slate-600/70">
                   <span className="uppercase tracking-wide text-[7px] text-slate-400">
                     MP
@@ -579,25 +508,26 @@ function LineCard({ lineData, lineInfo, wipData }) {
                   </span>
                 </span>
 
-                {/* চাইলে নিচের WIP chip আনকমেন্ট করো */}
+                {/* WIP chip – optional, uses same wipData you already have */}
                 {/* {wipData && (
-                  <span
-                    className={`inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-full border ${
-                      wip > 0
-                        ? "bg-amber-500/15 border-amber-400/70 text-amber-200"
-                        : "bg-emerald-500/15 border-emerald-400/70 text-emerald-200"
-                    }`}
-                  >
-                    <span className="uppercase tracking-wide text-[7px] opacity-80">
-                      WIP
-                    </span>
-                    <span className="text-[9px] font-semibold">
-                      {formatNumber(wip, 0)}
-                    </span>
-                  </span>
-                )} */}
+      <span
+        className={`inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-full border ${
+          wip > 0
+            ? "bg-amber-500/15 border-amber-400/70 text-amber-200"
+            : "bg-emerald-500/15 border-emerald-400/70 text-emerald-200"
+        }`}
+      >
+        <span className="uppercase tracking-wide text-[7px] opacity-80">
+          WIP
+        </span>
+        <span className="text-[9px] font-semibold">
+          {formatNumber(wip, 0)}
+        </span>
+      </span>
+    )} */}
               </div>
             </div>
+
           </div>
         </div>
 
@@ -679,244 +609,7 @@ function LineCard({ lineData, lineInfo, wipData }) {
   );
 }
 
-/* ------------ TV CARD (full-screen, like your screenshot) ------------ */
-
-function TvLineCard({ lineData, lineInfo, wipData }) {
-  const { line, quality, production } = lineData || {};
-
-  const buyer = lineInfo?.buyer || "-";
-  const style = lineInfo?.style || "-";
-  const item = lineInfo?.styleItem || lineInfo?.garmentType || "Item";
-  const colorModel = lineInfo?.colorModel || lineInfo?.color || "-";
-
-  const runDay = lineInfo?.runDay || "-";
-  const smv = lineInfo?.smv || "-";
-
-  const imageSrc = lineInfo?.imageSrc || "";
-  const videoSrc = lineInfo?.videoSrc || "";
-
-  const targetQty = production?.targetQty ?? 0;
-  const achievedQty = production?.achievedQty ?? 0;
-  const rawPlan = targetQty > 0 ? (achievedQty / targetQty) * 100 : 0;
-  const planPercent = clampPercent(rawPlan);
-  const varianceQty = production?.varianceQty ?? 0;
-
-  const rft = clampPercent(quality?.rftPercent ?? 0);
-  const dhu = clampPercent(quality?.dhuPercent ?? 0);
-  const defectRate = clampPercent(quality?.defectRatePercent ?? 0);
-
-  const hourlyEff = clampPercent(production?.currentHourEfficiency ?? 0);
-  const avgEff = clampPercent(production?.avgEffPercent ?? 0);
-
-  const qualityHourLabel = quality?.currentHour ?? "-";
-  const prodHourLabel = production?.currentHour ?? "-";
-
-  const manpowerPresent = production?.manpowerPresent ?? 0;
-  const totalInput = wipData?.capacity ?? 0;
-  const wip = wipData?.wip ?? 0;
-
-  const isBehind = varianceQty < 0;
-
-  return (
-    <div
-      className={`h-full w-full rounded-3xl border-2 bg-gradient-to-br from-slate-950 via-slate-950 to-slate-900 shadow-[0_0_80px_rgba(0,0,0,0.9)] px-4 py-3 flex flex-col gap-3
-      ${isBehind ? "border-rose-500/70" : "border-emerald-500/70"}`}
-    >
-      {/* TOP meta chips row */}
-      <div className="flex items-center justify-between gap-4">
-        <div className="flex flex-wrap gap-2 text-xs">
-          <span className="px-3 py-1 rounded-full bg-slate-900/80 border border-slate-600 text-amber-100 uppercase tracking-wide">
-            Buyer&nbsp;:&nbsp;
-            <span className="font-semibold text-amber-300">{buyer}</span>
-          </span>
-          <span className="px-3 py-1 rounded-full bg-slate-900/80 border border-fuchsia-500/70 text-fuchsia-100 uppercase tracking-wide">
-            Style&nbsp;:&nbsp;
-            <span className="font-semibold text-fuchsia-300">{style}</span>
-          </span>
-          <span className="px-3 py-1 rounded-full bg-slate-900/80 border border-cyan-500/70 text-cyan-100 uppercase tracking-wide">
-            Item&nbsp;:&nbsp;
-            <span className="font-semibold text-cyan-300">{item}</span>
-          </span>
-          <span className="px-3 py-1 rounded-full bg-slate-900/80 border border-emerald-500/70 text-emerald-100 uppercase tracking-wide">
-            Color/Model&nbsp;:&nbsp;
-            <span className="font-semibold text-emerald-300">
-              {colorModel}
-            </span>
-          </span>
-        </div>
-
-        <div className="text-right">
-          <div className="text-[11px] uppercase tracking-wide text-slate-400">
-            Line
-          </div>
-          <div className="text-2xl md:text-3xl font-semibold text-cyan-300 drop-shadow-[0_0_12px_rgba(34,211,238,0.7)]">
-            {line}
-          </div>
-          <div className="text-[11px] text-slate-400">
-            Run Day:{" "}
-            <span className="font-semibold text-slate-100">{runDay}</span> •
-            SMV: <span className="font-semibold text-slate-100">{smv}</span>
-          </div>
-        </div>
-      </div>
-
-      {/* MAIN 3-COLUMN AREA (IMAGE | VIDEO | STATS) */}
-      <div className="flex-1 grid grid-cols-12 gap-3">
-        {/* IMAGE column */}
-        <div className="col-span-4 flex flex-col">
-          <div className="flex-1 rounded-2xl border border-cyan-500/70 bg-slate-950/95 overflow-hidden flex flex-col">
-            <div className="px-3 py-1.5 text-xs uppercase tracking-[0.16em] text-cyan-200 bg-gradient-to-r from-cyan-500/25 to-transparent border-b border-cyan-500/40 flex items-center justify-between">
-              <span>IMAGE</span>
-              <span className="text-[10px] text-cyan-200/70">View</span>
-            </div>
-
-            {/* 🔸 FIXED HEIGHT + SAME SIZE FOR ALL LINES */}
-            <div className="h-[220px] md:h-[260px] lg:h-[300px] w-full bg-black/90 flex items-center justify-center">
-              {imageSrc ? (
-                <img
-                  src={imageSrc}
-                  alt={`${line} image`}
-                  className="h-full w-full object-contain"
-                />
-              ) : (
-                <span className="text-xs text-slate-500">No image attached</span>
-              )}
-            </div>
-          </div>
-        </div>
-
-        {/* VIDEO column */}
-        <div className="col-span-4 flex flex-col">
-          <div className="flex-1 rounded-2xl border border-emerald-500/70 bg-slate-950/95 overflow-hidden flex flex-col">
-            <div className="px-3 py-1.5 text-xs uppercase tracking-[0.16em] text-emerald-200 bg-gradient-to-r from-emerald-500/25 to-transparent border-b border-emerald-500/40 flex items-center justify-between">
-              <span>VIDEO</span>
-              <span className="text-[10px] text-emerald-200/70">Auto Play</span>
-            </div>
-
-            {/* 🔸 FIXED HEIGHT + SAME SIZE FOR ALL LINES */}
-            <div className="h-[220px] md:h-[260px] lg:h-[300px] w-full bg-black/90 flex items-center justify-center">
-              {videoSrc ? (
-                <video
-                  src={videoSrc}
-                  className="h-full w-full object-contain"
-                  autoPlay
-                  muted
-                  loop
-                  playsInline
-                />
-              ) : (
-                <span className="text-xs text-slate-500">No video attached</span>
-              )}
-            </div>
-          </div>
-        </div>
-
-        {/* STATS column */}
-        <div className="col-span-4 flex flex-col gap-3">
-          {/* TOP: PLAN vs ACHV + MP + WIP */}
-          <div className="flex-1 rounded-2xl border border-sky-700 bg-gradient-to-br from-slate-950 via-slate-950/95 to-slate-900/90 p-3 flex gap-3 items-center">
-            <KpiPie
-              value={planPercent}
-              label="PLAN VS ACHV"
-              color="#22d3ee"
-              size={90}
-            />
-            <div className="space-y-1.5 text-xs">
-              <div className="text-[11px] uppercase tracking-wide text-sky-300">
-                Production Summary
-              </div>
-              <div className="flex flex-wrap gap-2">
-                <TvStatBox
-                  label="Target"
-                  value={formatNumber(targetQty, 0)}
-                  accent="text-sky-200 border-sky-500/80"
-                />
-                <TvStatBox
-                  label="Achieved"
-                  value={formatNumber(achievedQty, 0)}
-                  accent="text-emerald-200 border-emerald-500/80"
-                />
-              </div>
-              <div className="flex flex-wrap gap-2">
-                <TvStatBox
-                  label="Variance"
-                  value={formatNumber(varianceQty, 0)}
-                  accent={
-                    varianceQty >= 0
-                      ? "text-emerald-200 border-emerald-500/80"
-                      : "text-rose-200 border-rose-500/80"
-                  }
-                />
-                <TvStatBox
-                  label="MP"
-                  value={
-                    manpowerPresent ? formatNumber(manpowerPresent, 0) : "-"
-                  }
-                  accent="text-amber-200 border-amber-500/80"
-                />
-              </div>
-              <div className="flex flex-wrap gap-2">
-                <TvStatBox
-                  label="Total Input"
-                  value={formatNumber(totalInput, 0)}
-                  accent="text-cyan-200 border-cyan-500/80"
-                />
-                <TvStatBox
-                  label="WIP"
-                  value={formatNumber(wip, 0)}
-                  accent="text-fuchsia-200 border-fuchsia-500/80"
-                />
-              </div>
-            </div>
-          </div>
-
-          {/* BOTTOM: QUALITY & EFFICIENCY BLOCKS */}
-         {/* BOTTOM: QUALITY & EFFICIENCY BLOCKS */}
-<div className="grid grid-cols-3 gap-2 text-xs">
-  <TvPieStat
-    label="RFT%"
-    value={rft}
-    color="#22c55e"
-  />
-  <TvPieStat
-    label="Defect Rate%"
-    value={defectRate}
-    color="#e11d48"
-  />
-  <TvPieStat
-    label="DHU%"
-    value={dhu}
-    color="#f97316"
-  />
-</div>
-
-<div className="grid grid-cols-3 gap-2 text-xs">
-  <TvPieStat
-    label="Hr Eff%"
-    value={hourlyEff}
-    color="#0ea5e9"
-  />
-  <TvPieStat
-    label="Avg Eff%"
-    value={avgEff}
-    color="#6366f1"
-  />
-  {/* এইটা percentage না, তাই normal box রাখলাম */}
-  <TvStatBox
-    label="Q Hr / P Hr"
-    value={`${qualityHourLabel} / ${prodHourLabel}`}
-    accent="text-slate-200 border-slate-500/80"
-  />
-</div>
-
-        </div>
-      </div>
-    </div>
-  );
-}
-
-/* ------------ shared small components ------------ */
-
+// generic pie using react-minimal-pie-chart
 function KpiPie({ value, label, color, size = 40 }) {
   const pct = clampPercent(value);
   const display = formatNumber(pct, 0);
@@ -940,13 +633,13 @@ function KpiPie({ value, label, color, size = 40 }) {
           animate
         />
         <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-          <span className="text-[10px] md:text-[11px] font-semibold text-slate-100">
+          <span className="text-[9px] font-semibold text-slate-100">
             {display}%
           </span>
         </div>
       </div>
       {label && (
-        <span className="text-[8px] uppercase tracking-wide text-slate-400 text-center">
+        <span className="text-[8px] uppercase tracking-wide text-slate-400">
           {label}
         </span>
       )}
@@ -954,6 +647,7 @@ function KpiPie({ value, label, color, size = 40 }) {
   );
 }
 
+// compact KPI tile with small pie
 function MiniKpi({ label, value, color }) {
   const pct = clampPercent(value);
   const display = formatNumber(pct, 1);
@@ -966,41 +660,6 @@ function MiniKpi({ label, value, color }) {
           {label}
         </span>
         <span className="text-[11px] font-semibold text-slate-50">
-          {display}%
-        </span>
-      </div>
-    </div>
-  );
-}
-
-function TvStatBox({ label, value, accent = "", big = false }) {
-  return (
-    <div
-      className={`rounded-xl border bg-slate-950/90 px-2 py-1.5 flex flex-col justify-center ${
-        accent || "border-slate-600 text-slate-100"
-      }`}
-    >
-      <span className="text-[9px] uppercase tracking-wide text-slate-400">
-        {label}
-      </span>
-      <span className={`font-semibold ${big ? "text-[15px]" : "text-[13px]"}`}>
-        {value}
-      </span>
-    </div>
-  );
-}
-function TvPieStat({ label, value, color }) {
-  const pct = clampPercent(value);
-  const display = formatNumber(pct, 1);
-
-  return (
-    <div className="rounded-2xl border border-slate-700 bg-slate-950/95 px-2 py-1.5 flex items-center gap-2">
-      <KpiPie value={pct} label="" color={color} size={46} />
-      <div className="flex flex-col leading-tight">
-        <span className="text-[9px] uppercase tracking-wide text-slate-400">
-          {label}
-        </span>
-        <span className="text-[14px] font-semibold text-slate-50">
           {display}%
         </span>
       </div>

@@ -288,23 +288,7 @@ export default function FloorDashboardPage() {
   return (
     <div className="min-h-screen bg-gradient-to-b from-slate-950 via-slate-950 to-slate-900 text-slate-50 py-2 px-2 mb-0">
       <div className="space-y-3 max-w-[1700px] mx-auto">
-        {/* Header */}
-        <div className="flex items-center justify-between gap-2">
-          <div>
-            <h1 className="text-lg md:text-2xl font-semibold tracking-tight text-slate-50">
-              Floor Live Dashboard
-            </h1>
-            <p className="text-[11px] text-slate-400">
-              Real-time production &amp; quality view for TV / control room
-            </p>
-          </div>
-          <div className="hidden sm:flex items-center gap-2 text-[10px] text-slate-400">
-            <span className="px-2 py-0.5 rounded-full border border-slate-700 bg-slate-950/80">
-              Auto refresh:{" "}
-              <span className="font-semibold text-emerald-400">10s</span>
-            </span>
-          </div>
-        </div>
+        
 
         {/* Filter Panel */}
         <div className="card bg-base-300/10 border border-slate-800/80 shadow-[0_10px_35px_rgba(0,0,0,0.9)]">
@@ -327,6 +311,7 @@ export default function FloorDashboardPage() {
                     </option>
                   ))}
                 </select>
+                
               </div>
 
               {/* Building */}
@@ -384,6 +369,7 @@ export default function FloorDashboardPage() {
                 <label className="block text-[11px] font-semibold uppercase text-amber-100">
                   View
                 </label>
+                
                 <select
                   className="select select-xs bg-amber-300/95 select-bordered min-w-[130px] text-slate-900"
                   value={viewMode}
@@ -408,6 +394,7 @@ export default function FloorDashboardPage() {
               </div>
             )}
           </div>
+          
         </div>
 
         {/* No data msg */}

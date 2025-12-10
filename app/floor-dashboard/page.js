@@ -316,8 +316,8 @@ export default function FloorDashboardPage() {
 
               {/* Building */}
               <div className="space-y-1">
-                <label className="block text-[11px] font-semibold uppercase text-amber-100">
-                  Building
+                <label className="block text-[11px] font-semibold uppercase text-amber-100">Floor
+                  {/* unfortunetly i used in db as Building */}
                 </label>
                 <select
                   className="select select-xs bg-amber-300/95 select-bordered min-w-[140px] text-slate-900"
@@ -518,14 +518,14 @@ function LineCard({ lineData, lineInfo, wipData }) {
               </span>
             </div>
 
-            <div className="flex flex-wrap gap-1 text-[9px]">
-              <span className="badge border-fuchsia-500/60 bg-fuchsia-500/10 text-fuchsia-100">
+            <div className="flex flex-wrap gap-1 ">
+              <span className="badge border-fuchsia-500/60 bg-fuchsia-500/10 text-fuchsia-100 text-[9px]">
                 Style: <span className="font-semibold">{style}</span>
               </span>
-              <span className="badge border-emerald-500/60 bg-emerald-500/10 text-emerald-100">
+              <span className="badge border-emerald-500/60 bg-emerald-500/10 text-emerald-100 text-[9px]">
                 SMV: <span className="font-semibold">{smv}</span>
               </span>
-              <span className="badge border-sky-500/60 bg-sky-500/10 text-sky-100">
+              <span className="badge border-sky-500/60 bg-sky-500/10 text-sky-100 text-[9px]">
                 Run Day: <span className="font-semibold">{runDay}</span>
               </span>
             </div>
@@ -716,11 +716,29 @@ function TvLineCard({ lineData, lineInfo, wipData }) {
               Style:&nbsp;
               <span className="font-semibold text-fuchsia-300">{style}</span>
             </span>
-            <span className="badge badge-lg border-cyan-500/70 bg-cyan-500/10 text-cyan-100">
+            {/* <span className="badge badge-lg border-cyan-500/70 bg-cyan-500/10 text-cyan-100">
               Item:&nbsp;
               <span className="font-semibold text-cyan-300">{item}</span>
-            </span>
+            </span> */}
             <span className="badge badge-lg border-emerald-500/70 bg-emerald-500/10 text-emerald-100">
+              Rundey:&nbsp;
+              <span className="font-semibold text-emerald-300">
+                {runDay}
+              </span>
+            </span>
+             <span className="badge badge-lg border-emerald-500/70 bg-emerald-500/10 text-emerald-100">
+              SMV:&nbsp;
+              <span className="font-semibold text-emerald-300">
+                {smv}
+              </span>
+            </span>
+             <span className="badge badge-lg border-emerald-500/70 bg-emerald-500/10 text-emerald-100">
+              Man Power:&nbsp;
+              <span className="font-semibold text-emerald-300">
+                {manpowerPresent}
+              </span>
+            </span>
+             <span className="badge badge-lg border-emerald-500/70 bg-emerald-500/10 text-emerald-100">
               Color/Model:&nbsp;
               <span className="font-semibold text-emerald-300">
                 {colorModel}
@@ -735,16 +753,7 @@ function TvLineCard({ lineData, lineInfo, wipData }) {
             <div className="text-3xl md:text-4xl font-semibold text-cyan-300 drop-shadow-[0_0_24px_rgba(34,211,238,0.9)]">
               {line}
             </div>
-            <div className="text-[11px] md:text-xs text-slate-400">
-              Run Day:{" "}
-              <span className="font-semibold text-slate-100">{runDay}</span>{" "}
-              • SMV:{" "}
-              <span className="font-semibold text-slate-100">{smv}</span>{" "}
-              • MP:{" "}
-              <span className="font-semibold text-emerald-300">
-                {manpowerPresent ? formatNumber(manpowerPresent, 0) : "-"}
-              </span>
-            </div>
+            
           </div>
         </div>
 

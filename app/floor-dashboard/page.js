@@ -35,7 +35,7 @@ const lineOptions = [
   "Line-15",
 ];
 
-// কত সময় পর পর refresh করবে (ms)
+// refresh every X ms
 const REFRESH_INTERVAL_MS = 10000;
 
 function formatNumber(value, digits = 2) {
@@ -63,17 +63,17 @@ export default function FloorDashboardPage() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
 
-  // 🔹 line-info register data (buyer, style, runDay, smv, etc.)
+  // line-info register data (buyer, style, runDay, smv, etc.)
   const [lineInfoMap, setLineInfoMap] = useState({});
-  // 🔹 WIP data per line
+  // WIP data per line
   const [wipMap, setWipMap] = useState({});
 
-  // 🔁 শুধু এই tick change হলেই সব data re-fetch হবে
+  // শুধু এই tick change হলেই সব data re-fetch হবে
   const [refreshTick, setRefreshTick] = useState(0);
 
-  // 🔹 View mode -> "grid" (full view) | "tv" (single card auto slide)
+  // View mode -> "grid" (full view) | "tv" (single card auto slide)
   const [viewMode, setViewMode] = useState("grid");
-  // 🔹 এখন কোন card দেখাচ্ছে (tv mode)
+  // এখন কোন card দেখাচ্ছে (tv mode)
   const [currentCardIndex, setCurrentCardIndex] = useState(0);
 
   // ================================
@@ -84,7 +84,6 @@ export default function FloorDashboardPage() {
       setRefreshTick((prev) => prev + 1);
     }, REFRESH_INTERVAL_MS);
 
-    // Tab এ ফিরে আসলেই সাথে সাথে refresh
     const handleFocus = () => {
       setRefreshTick((prev) => prev + 1);
     };
@@ -97,7 +96,7 @@ export default function FloorDashboardPage() {
   }, []);
 
   // ============================================================
-  // 1) Main dashboard data (production + quality) – auto refresh
+  // 1) Main dashboard data (production + quality)
   // ============================================================
   useEffect(() => {
     if (!factory || !building || !date) {
@@ -132,7 +131,7 @@ export default function FloorDashboardPage() {
 
         setRows(json.lines || []);
       } catch (err) {
-        if (err.name === "AbortError") return; // নতুন request এসেছে
+        if (err.name === "AbortError") return;
         console.error(err);
         setError(err.message || "Failed to load dashboard.");
         setRows([]);
@@ -143,9 +142,7 @@ export default function FloorDashboardPage() {
 
     fetchDashboard();
 
-    return () => {
-      controller.abort();
-    };
+    return () => controller.abort();
   }, [factory, building, date, line, refreshTick]);
 
   // ============================================================
@@ -180,7 +177,6 @@ export default function FloorDashboardPage() {
 
         const list = json.data || [];
 
-        // pick latest per line (API already sorted, but we are safe)
         const map = {};
         for (const doc of list) {
           if (!map[doc.line]) {
@@ -188,9 +184,7 @@ export default function FloorDashboardPage() {
           }
         }
 
-        if (!cancelled) {
-          setLineInfoMap(map);
-        }
+        if (!cancelled) setLineInfoMap(map);
       } catch (err) {
         console.error("Error fetching line info:", err);
         if (!cancelled) setLineInfoMap({});
@@ -213,7 +207,6 @@ export default function FloorDashboardPage() {
       return;
     }
 
-    // need line info for buyer + style
     if (!lineInfoMap || Object.keys(lineInfoMap).length === 0) {
       setWipMap({});
       return;
@@ -228,7 +221,6 @@ export default function FloorDashboardPage() {
         const lineName = row.line;
         const info = lineInfoMap[lineName];
 
-        // Without buyer/style we can't calculate WIP
         if (!info || !info.buyer || !info.style) continue;
 
         const params = new URLSearchParams({
@@ -247,7 +239,7 @@ export default function FloorDashboardPage() {
           const json = await res.json();
 
           if (res.ok && json.success && !cancelled) {
-            newMap[lineName] = json.data; // {capacity, totalAchieved, wip, ...}
+            newMap[lineName] = json.data;
           }
         } catch (err) {
           console.error("Error fetching WIP for", lineName, err);
@@ -295,7 +287,7 @@ export default function FloorDashboardPage() {
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-slate-950 via-slate-950 to-slate-900 text-slate-50 py-2 px-2 mb-0">
-      <div className="space-y-3 max-w-[1600px] mx-auto">
+      <div className="space-y-3 max-w-[1700px] mx-auto">
         {/* Header */}
         <div className="flex items-center justify-between gap-2">
           <div>
@@ -315,7 +307,7 @@ export default function FloorDashboardPage() {
         </div>
 
         {/* Filter Panel */}
-        <div className="card bg-gradient-to-r from-slate-950 via-slate-950 to-slate-900 border border-slate-800/80 shadow-[0_10px_35px_rgba(0,0,0,0.9)]">
+        <div className="card bg-base-300/10 border border-slate-800/80 shadow-[0_10px_35px_rgba(0,0,0,0.9)]">
           <div className="card-body p-2 md:p-3 text-xs space-y-2">
             <div className="flex flex-wrap items-end gap-4">
               {/* Factory */}
@@ -371,7 +363,7 @@ export default function FloorDashboardPage() {
 
               {/* Line */}
               <div className="space-y-1">
-                <label className="block text-[11px] font-semibold uppercase text-amber-100 ">
+                <label className="block text-[12px] font-semibold uppercase text-amber-100 ">
                   Line
                 </label>
                 <select
@@ -439,26 +431,44 @@ export default function FloorDashboardPage() {
           </div>
         )}
 
-        {/* TV VIEW (SCREEN LIKE YOUR SCREENSHOT) */}
+        {/* TV VIEW */}
         {hasData && viewMode === "tv" && currentRow && (
-          <div className="space-y-2">
-            <div className="h-[calc(100vh-170px)]">
+          <div className="space-y-3">
+            <div className="h-[calc(100vh-180px)]">
               <TvLineCard
                 lineData={currentRow}
                 lineInfo={lineInfoMap[currentRow.line]}
                 wipData={wipMap[currentRow.line]}
               />
             </div>
-            <div className="flex items-center justify-center text-[9px] text-slate-400">
-              Showing{" "}
-              <span className="mx-1 font-semibold text-sky-300">
-                {safeIndex + 1}
-              </span>
-              of{" "}
-              <span className="mx-1 font-semibold text-slate-200">
-                {rows.length}
-              </span>
-              lines • Auto slide every 10s
+
+            {/* Slider dots + info */}
+            <div className="flex flex-col items-center gap-1 text-[9px] text-slate-400">
+              <div className="flex items-center gap-1">
+                {rows.map((row, idx) => (
+                  <button
+                    key={row.line + idx}
+                    type="button"
+                    onClick={() => setCurrentCardIndex(idx)}
+                    className={`h-2 rounded-full transition-all duration-300 ${
+                      idx === safeIndex
+                        ? "w-5 bg-sky-400"
+                        : "w-2 bg-slate-600 hover:bg-slate-400"
+                    }`}
+                  />
+                ))}
+              </div>
+              <div>
+                Showing{" "}
+                <span className="mx-1 font-semibold text-sky-300">
+                  {safeIndex + 1}
+                </span>
+                of{" "}
+                <span className="mx-1 font-semibold text-slate-200">
+                  {rows.length}
+                </span>
+                lines • Auto slide every 10s
+              </div>
             </div>
           </div>
         )}
@@ -467,7 +477,7 @@ export default function FloorDashboardPage() {
   );
 }
 
-/* ------------ NORMAL GRID CARD (mobile / desktop view) ------------ */
+/* ------------ NORMAL GRID CARD ------------ */
 
 function LineCard({ lineData, lineInfo, wipData }) {
   const { line, quality, production } = lineData || {};
@@ -512,23 +522,23 @@ function LineCard({ lineData, lineInfo, wipData }) {
           {/* left chips */}
           <div className="space-y-1">
             <div className="flex flex-wrap gap-1">
-              <span className="px-1 py-0.5 rounded-full bg-slate-900 border border-slate-700 text-[9px] uppercase tracking-wide text-slate-300">
+              <span className="badge badge-outline border-slate-600 bg-slate-900 text-[9px]">
                 Line&nbsp;
                 <span className="font-semibold text-cyan-300">{line}</span>
               </span>
-              <span className="px-2 py-0.5 rounded-full bg-amber-500/10 border border-amber-500/60 text-[9px] text-amber-100">
+              <span className="badge border-amber-500/60 bg-amber-500/10 text-[9px] text-amber-100">
                 Buyer: <span className="font-semibold">{buyer}</span>
               </span>
             </div>
 
             <div className="flex flex-wrap gap-1 text-[9px]">
-              <span className="px-2 py-0.5 rounded-full bg-fuchsia-500/10 border border-fuchsia-500/60 text-fuchsia-100">
+              <span className="badge border-fuchsia-500/60 bg-fuchsia-500/10 text-fuchsia-100">
                 Style: <span className="font-semibold">{style}</span>
               </span>
-              <span className="px-2 py-0.5 rounded-full bg-emerald-500/10 border border-emerald-500/60 text-emerald-100">
+              <span className="badge border-emerald-500/60 bg-emerald-500/10 text-emerald-100">
                 SMV: <span className="font-semibold">{smv}</span>
               </span>
-              <span className="px-2 py-0.5 rounded-full bg-sky-500/10 border border-sky-500/60 text-sky-100">
+              <span className="badge border-sky-500/60 bg-sky-500/10 text-sky-100">
                 Run Day: <span className="font-semibold">{runDay}</span>
               </span>
             </div>
@@ -568,34 +578,15 @@ function LineCard({ lineData, lineInfo, wipData }) {
                 </span>
               </div>
 
-              {/* MP chip + optional WIP */}
               <div className="mt-1 flex items-center justify-end gap-1 text-[8px]">
-                <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-full bg-slate-900/80 border border-slate-600/70">
+                <span className="badge badge-outline border-slate-600 bg-slate-900/80 px-1.5 py-0.5">
                   <span className="uppercase tracking-wide text-[7px] text-slate-400">
                     MP
                   </span>
-                  <span className="text-[9px] font-semibold text-emerald-300">
+                  <span className="ml-1 text-[9px] font-semibold text-emerald-300">
                     {manpowerPresent ? formatNumber(manpowerPresent, 0) : "-"}
                   </span>
                 </span>
-
-                {/* চাইলে নিচের WIP chip আনকমেন্ট করো */}
-                {/* {wipData && (
-                  <span
-                    className={`inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-full border ${
-                      wip > 0
-                        ? "bg-amber-500/15 border-amber-400/70 text-amber-200"
-                        : "bg-emerald-500/15 border-emerald-400/70 text-emerald-200"
-                    }`}
-                  >
-                    <span className="uppercase tracking-wide text-[7px] opacity-80">
-                      WIP
-                    </span>
-                    <span className="text-[9px] font-semibold">
-                      {formatNumber(wip, 0)}
-                    </span>
-                  </span>
-                )} */}
               </div>
             </div>
           </div>
@@ -607,24 +598,24 @@ function LineCard({ lineData, lineInfo, wipData }) {
           <div className="space-y-1">
             <div className="flex items-center justify-between text-[9px] text-slate-400">
               <span className="uppercase tracking-wide">Quality</span>
-              <span className="px-2 py-0.5 rounded-full bg-emerald-500/10 border border-emerald-500/50 text-[8px] text-emerald-200">
-                Quality Current Hour:{" "}
+              <span className="badge border-emerald-500/50 bg-emerald-500/10 text-[8px] text-emerald-200">
+                Q Hour:{" "}
                 <span className="font-semibold">{qualityHourLabel}</span>
               </span>
             </div>
-            <div className="flex gap-1.5">
-              <MiniKpi label="RFT%" value={rft} color="#22c55e" />
-              <MiniKpi label="DHU%" value={dhu} color="#f97316" />
-              <MiniKpi label="Defect RATE" value={defectRate} color="#e11d48" />
-            </div>
+            <div className="flex flex-wrap gap-1.5 overflow-hidden">
+  <MiniKpi label="RFT%" value={rft} color="#22c55e" />
+  <MiniKpi label="DHU%" value={dhu} color="#f97316" />
+  <MiniKpi label="Defect RATE" value={defectRate} color="#e11d48" />
+</div>
           </div>
 
           {/* PRODUCTION KPIs */}
           <div className="space-y-1">
             <div className="flex items-center justify-between text-[9px] text-slate-400">
               <span className="uppercase tracking-wide">Production</span>
-              <span className="px-2 py-0.5 rounded-full bg-sky-500/10 border border-sky-500/50 text-[8px] text-sky-200">
-                Production's Current Hour:{" "}
+              <span className="badge border-sky-500/50 bg-sky-500/10 text-[8px] text-sky-200">
+                P Hour:{" "}
                 <span className="font-semibold">{prodHourLabel}</span>
               </span>
             </div>
@@ -644,11 +635,12 @@ function LineCard({ lineData, lineInfo, wipData }) {
                   <span>Image</span>
                   <span className="opacity-60">View</span>
                 </div>
-                <div className="h-16 bg-slate-900 flex items-center justify-center">
+                <div className="h-16 bg-slate-900 flex items-center justify-center overflow-hidden">
                   <img
                     src={imageSrc}
                     alt={`${line} image`}
-                    className="h-full w-full object-cover"
+                    className="w-full h-full object-cover"
+                    style={{ maxHeight: "100%", maxWidth: "100%" }}
                   />
                 </div>
               </div>
@@ -660,10 +652,11 @@ function LineCard({ lineData, lineInfo, wipData }) {
                   <span>Video</span>
                   <span className="opacity-60">Auto</span>
                 </div>
-                <div className="h-16 bg-slate-900 flex items-center justify-center">
+                <div className="h-16 bg-slate-900 flex items-center justify-center overflow-hidden">
                   <video
                     src={videoSrc}
-                    className="h-full w-full object-cover"
+                    className="w-full h-full object-cover"
+                    style={{ maxHeight: "100%", maxWidth: "100%" }}
                     autoPlay
                     muted
                     loop
@@ -679,7 +672,7 @@ function LineCard({ lineData, lineInfo, wipData }) {
   );
 }
 
-/* ------------ TV CARD (full-screen, like your screenshot) ------------ */
+/* ------------ TV CARD (full-screen) ------------ */
 
 function TvLineCard({ lineData, lineInfo, wipData }) {
   const { line, quality, production } = lineData || {};
@@ -719,201 +712,238 @@ function TvLineCard({ lineData, lineInfo, wipData }) {
 
   return (
     <div
-      className={`h-full w-full rounded-3xl border-2 bg-gradient-to-br from-slate-950 via-slate-950 to-slate-900 shadow-[0_0_80px_rgba(0,0,0,0.9)] px-4 py-3 flex flex-col gap-3
+      className={`h-full w-full rounded-3xl border-2 shadow-[0_0_80px_rgba(0,0,0,0.9)] overflow-hidden
+      bg-gradient-to-br from-slate-950 via-slate-950 to-slate-900
       ${isBehind ? "border-rose-500/70" : "border-emerald-500/70"}`}
     >
-      {/* TOP meta chips row */}
-      <div className="flex items-center justify-between gap-4">
-        <div className="flex flex-wrap gap-2 text-xs">
-          <span className="px-3 py-1 rounded-full bg-slate-900/80 border border-slate-600 text-amber-100 uppercase tracking-wide">
-            Buyer&nbsp;:&nbsp;
-            <span className="font-semibold text-amber-300">{buyer}</span>
-          </span>
-          <span className="px-3 py-1 rounded-full bg-slate-900/80 border border-fuchsia-500/70 text-fuchsia-100 uppercase tracking-wide">
-            Style&nbsp;:&nbsp;
-            <span className="font-semibold text-fuchsia-300">{style}</span>
-          </span>
-          <span className="px-3 py-1 rounded-full bg-slate-900/80 border border-cyan-500/70 text-cyan-100 uppercase tracking-wide">
-            Item&nbsp;:&nbsp;
-            <span className="font-semibold text-cyan-300">{item}</span>
-          </span>
-          <span className="px-3 py-1 rounded-full bg-slate-900/80 border border-emerald-500/70 text-emerald-100 uppercase tracking-wide">
-            Color/Model&nbsp;:&nbsp;
-            <span className="font-semibold text-emerald-300">
-              {colorModel}
+      {/* whole card is fixed-height flex column */}
+      <div className="h-full flex flex-col gap-4 p-3 md:p-4 lg:p-5 text-xs md:text-sm overflow-hidden">
+        {/* TOP meta row */}
+        <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3">
+          <div className="flex flex-wrap gap-2">
+            <span className="badge badge-lg border-slate-600 bg-slate-900/80 text-amber-100">
+              Buyer:&nbsp;
+              <span className="font-semibold text-amber-300">{buyer}</span>
             </span>
-          </span>
-        </div>
+            <span className="badge badge-lg border-fuchsia-500/70 bg-fuchsia-500/10 text-fuchsia-100">
+              Style:&nbsp;
+              <span className="font-semibold text-fuchsia-300">{style}</span>
+            </span>
+            <span className="badge badge-lg border-cyan-500/70 bg-cyan-500/10 text-cyan-100">
+              Item:&nbsp;
+              <span className="font-semibold text-cyan-300">{item}</span>
+            </span>
+            <span className="badge badge-lg border-emerald-500/70 bg-emerald-500/10 text-emerald-100">
+              Color/Model:&nbsp;
+              <span className="font-semibold text-emerald-300">
+                {colorModel}
+              </span>
+            </span>
+          </div>
 
-        <div className="text-right">
-          <div className="text-[11px] uppercase tracking-wide text-slate-400">
-            Line
-          </div>
-          <div className="text-2xl md:text-3xl font-semibold text-cyan-300 drop-shadow-[0_0_12px_rgba(34,211,238,0.7)]">
-            {line}
-          </div>
-          <div className="text-[11px] text-slate-400">
-            Run Day:{" "}
-            <span className="font-semibold text-slate-100">{runDay}</span> •
-            SMV: <span className="font-semibold text-slate-100">{smv}</span>
-          </div>
-        </div>
-      </div>
-
-      {/* MAIN 3-COLUMN AREA (IMAGE | VIDEO | STATS) */}
-      <div className="flex-1 grid grid-cols-12 gap-3">
-        {/* IMAGE column */}
-        <div className="col-span-4 flex flex-col">
-          <div className="flex-1 rounded-2xl border border-cyan-500/70 bg-slate-950/95 overflow-hidden flex flex-col">
-            <div className="px-3 py-1.5 text-xs uppercase tracking-[0.16em] text-cyan-200 bg-gradient-to-r from-cyan-500/25 to-transparent border-b border-cyan-500/40 flex items-center justify-between">
-              <span>IMAGE</span>
-              <span className="text-[10px] text-cyan-200/70">View</span>
+          <div className="text-right">
+            <div className="text-[11px] uppercase tracking-wide text-slate-400">
+              Line
             </div>
-
-            {/* 🔸 FIXED HEIGHT + SAME SIZE FOR ALL LINES */}
-            <div className="h-[220px] md:h-[260px] lg:h-[300px] w-full bg-black/90 flex items-center justify-center">
-              {imageSrc ? (
-                <img
-                  src={imageSrc}
-                  alt={`${line} image`}
-                  className="h-full w-full object-contain"
-                />
-              ) : (
-                <span className="text-xs text-slate-500">No image attached</span>
-              )}
+            <div className="text-3xl md:text-4xl font-semibold text-cyan-300 drop-shadow-[0_0_24px_rgba(34,211,238,0.9)]">
+              {line}
+            </div>
+            <div className="text-[11px] md:text-xs text-slate-400">
+              Run Day:{" "}
+              <span className="font-semibold text-slate-100">{runDay}</span>{" "}
+              • SMV:{" "}
+              <span className="font-semibold text-slate-100">{smv}</span>{" "}
+              • MP:{" "}
+              <span className="font-semibold text-emerald-300">
+                {manpowerPresent ? formatNumber(manpowerPresent, 0) : "-"}
+              </span>
             </div>
           </div>
         </div>
 
-        {/* VIDEO column */}
-        <div className="col-span-4 flex flex-col">
-          <div className="flex-1 rounded-2xl border border-emerald-500/70 bg-slate-950/95 overflow-hidden flex flex-col">
-            <div className="px-3 py-1.5 text-xs uppercase tracking-[0.16em] text-emerald-200 bg-gradient-to-r from-emerald-500/25 to-transparent border-b border-emerald-500/40 flex items-center justify-between">
-              <span>VIDEO</span>
-              <span className="text-[10px] text-emerald-200/70">Auto Play</span>
-            </div>
-
-            {/* 🔸 FIXED HEIGHT + SAME SIZE FOR ALL LINES */}
-            <div className="h-[220px] md:h-[260px] lg:h-[300px] w-full bg-black/90 flex items-center justify-center">
-              {videoSrc ? (
-                <video
-                  src={videoSrc}
-                  className="h-full w-full object-contain"
-                  autoPlay
-                  muted
-                  loop
-                  playsInline
-                />
-              ) : (
-                <span className="text-xs text-slate-500">No video attached</span>
-              )}
-            </div>
-          </div>
-        </div>
-
-        {/* STATS column */}
-        <div className="col-span-4 flex flex-col gap-3">
-          {/* TOP: PLAN vs ACHV + MP + WIP */}
-          <div className="flex-1 rounded-2xl border border-sky-700 bg-gradient-to-br from-slate-950 via-slate-950/95 to-slate-900/90 p-3 flex gap-3 items-center">
-            <KpiPie
-              value={planPercent}
-              label="PLAN VS ACHV"
-              color="#22d3ee"
-              size={90}
-            />
-            <div className="space-y-1.5 text-xs">
-              <div className="text-[11px] uppercase tracking-wide text-sky-300">
-                Production Summary
+        {/* MAIN AREA (takes the rest of height, no overflow) */}
+        <div className="flex-1 min-h-0 grid gap-3 md:grid-cols-2 lg:grid-cols-12 overflow-hidden">
+          {/* IMAGE column */}
+          <div className="md:col-span-1 lg:col-span-4 flex flex-col min-h-0">
+            <div className="flex-1 min-h-0 rounded-2xl border border-cyan-500/70 bg-slate-950/95 overflow-hidden flex flex-col">
+              <div className="px-3 py-1.5 text-[10px] md:text-xs uppercase tracking-[0.14em] text-cyan-200 bg-gradient-to-r from-cyan-500/25 to-transparent border-b border-cyan-500/40 flex items-center justify-between">
+                <span>STYLE IMAGE</span>
+                <span className="text-[10px] text-cyan-200/70">View</span>
               </div>
-              <div className="flex flex-wrap gap-2">
-                <TvStatBox
-                  label="Target"
-                  value={formatNumber(targetQty, 0)}
-                  accent="text-sky-200 border-sky-500/80"
-                />
-                <TvStatBox
-                  label="Achieved"
-                  value={formatNumber(achievedQty, 0)}
-                  accent="text-emerald-200 border-emerald-500/80"
-                />
-              </div>
-              <div className="flex flex-wrap gap-2">
-                <TvStatBox
-                  label="Variance"
-                  value={formatNumber(varianceQty, 0)}
-                  accent={
-                    varianceQty >= 0
-                      ? "text-emerald-200 border-emerald-500/80"
-                      : "text-rose-200 border-rose-500/80"
-                  }
-                />
-                <TvStatBox
-                  label="MP"
-                  value={
-                    manpowerPresent ? formatNumber(manpowerPresent, 0) : "-"
-                  }
-                  accent="text-amber-200 border-amber-500/80"
-                />
-              </div>
-              <div className="flex flex-wrap gap-2">
-                <TvStatBox
-                  label="Total Input"
-                  value={formatNumber(totalInput, 0)}
-                  accent="text-cyan-200 border-cyan-500/80"
-                />
-                <TvStatBox
-                  label="WIP"
-                  value={formatNumber(wip, 0)}
-                  accent="text-fuchsia-200 border-fuchsia-500/80"
-                />
+              {/* fixed area, content cannot resize parent */}
+              <div className="flex-1 min-h-0 w-full bg-black/90 relative">
+                {imageSrc ? (
+                  <img
+                    src={imageSrc}
+                    alt={`${line} image`}
+                    className="absolute inset-0 m-auto max-w-full max-h-full object-contain"
+                  />
+                ) : (
+                  <div className="absolute inset-0 flex items-center justify-center">
+                    <span className="text-xs text-slate-500">
+                      No image attached
+                    </span>
+                  </div>
+                )}
               </div>
             </div>
           </div>
 
-          {/* BOTTOM: QUALITY & EFFICIENCY BLOCKS */}
-         {/* BOTTOM: QUALITY & EFFICIENCY BLOCKS */}
-<div className="grid grid-cols-3 gap-2 text-xs">
-  <TvPieStat
-    label="RFT%"
-    value={rft}
-    color="#22c55e"
-  />
-  <TvPieStat
-    label="Defect Rate%"
-    value={defectRate}
-    color="#e11d48"
-  />
-  <TvPieStat
-    label="DHU%"
-    value={dhu}
-    color="#f97316"
-  />
-</div>
+          {/* VIDEO column */}
+          <div className="md:col-span-1 lg:col-span-4 flex flex-col min-h-0">
+            <div className="flex-1 min-h-0 rounded-2xl border border-emerald-500/70 bg-slate-950/95 overflow-hidden flex flex-col">
+              <div className="px-3 py-1.5 text-[10px] md:text-xs uppercase tracking-[0.14em] text-emerald-200 bg-gradient-to-r from-emerald-500/25 to-transparent border-b border-emerald-500/40 flex items-center justify-between">
+                <span>LIVE VIDEO</span>
+                <span className="text-[10px] text-emerald-200/70">
+                  Auto Play
+                </span>
+              </div>
+              {/* fixed area, content cannot resize parent */}
+              <div className="flex-1 min-h-0 w-full bg-black/90 relative">
+                {videoSrc ? (
+                  <video
+                    src={videoSrc}
+                    className="absolute inset-0 m-auto max-w-full max-h-full object-contain"
+                    autoPlay
+                    muted
+                    loop
+                    playsInline
+                  />
+                ) : (
+                  <div className="absolute inset-0 flex items-center justify-center">
+                    <span className="text-xs text-slate-500">
+                      No video attached
+                    </span>
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
 
-<div className="grid grid-cols-3 gap-2 text-xs">
-  <TvPieStat
-    label="Hr Eff%"
-    value={hourlyEff}
-    color="#0ea5e9"
-  />
-  <TvPieStat
-    label="Avg Eff%"
-    value={avgEff}
-    color="#6366f1"
-  />
-  {/* এইটা percentage না, তাই normal box রাখলাম */}
-  <TvStatBox
-    label="Q Hr / P Hr"
-    value={`${qualityHourLabel} / ${prodHourLabel}`}
-    accent="text-slate-200 border-slate-500/80"
-  />
-</div>
+          {/* STATS column */}
+          <div className="md:col-span-2 lg:col-span-4 flex flex-col gap-3 min-h-0 overflow-hidden">
+            {/* PLAN vs ACHV block */}
+            <div className="flex-1 min-h-0 rounded-2xl border border-sky-700 bg-gradient-to-br from-slate-950 via-slate-950/95 to-slate-900/90 p-3 md:p-4 flex flex-col gap-3 overflow-hidden">
+              <div className="flex flex-col sm:flex-row items-center gap-4">
+                <KpiPie
+                  value={planPercent}
+                  label="PLAN VS ACHV"
+                  color="#22d3ee"
+                  size={110}
+                />
+                <div className="grid grid-cols-2 gap-2 w-full text-[11px] md:text-xs">
+                  <TvStatBox
+                    label="Target"
+                    value={formatNumber(targetQty, 0)}
+                    accent="text-sky-200 border-sky-500/80"
+                  />
+                  <TvStatBox
+                    label="Achieved"
+                    value={formatNumber(achievedQty, 0)}
+                    accent="text-emerald-200 border-emerald-500/80"
+                  />
+                  <TvStatBox
+                    label="Variance"
+                    value={formatNumber(varianceQty, 0)}
+                    accent={
+                      varianceQty >= 0
+                        ? "text-emerald-200 border-emerald-500/80"
+                        : "text-rose-200 border-rose-500/80"
+                    }
+                  />
+                  {/* <TvStatBox
+                    label="Total Input"
+                    value={formatNumber(totalInput, 0)}
+                    accent="text-cyan-200 border-cyan-500/80"
+                  />
+                  <TvStatBox
+                    label="WIP"
+                    value={formatNumber(wip, 0)}
+                    accent="text-fuchsia-200 border-fuchsia-500/80"
+                  /> */}
+                </div>
+              </div>
 
+              {/* horizontal slider of plan% */}
+              <div className="mt-1">
+                <div className="w-full h-2 rounded-full bg-slate-900 overflow-hidden border border-slate-700/70">
+                  <div
+                    className="h-full bg-gradient-to-r from-emerald-400 via-sky-400 to-fuchsia-400 transition-all duration-700"
+                    style={{ width: `${planPercent}%` }}
+                  />
+                </div>
+                <div className="flex justify-between text-[9px] text-slate-400 mt-0.5">
+                  <span>0%</span>
+                  <span className="font-semibold text-sky-200">
+                    Plan: {formatNumber(planPercent, 1)}%
+                  </span>
+                  <span>100%</span>
+                </div>
+              </div>
+            </div>
+
+            {/* QUALITY + EFFICIENCY pies */}
+            <div className="grid grid-cols-2 gap-3 text-[11px] md:text-xs min-h-[140px]">
+              {/* Quality block */}
+              <div className="rounded-2xl border border-emerald-600 bg-slate-950/95 p-3 flex flex-col gap-2">
+                <div className="flex items-center justify-between">
+                  <span className="text-[11px] uppercase tracking-wide text-emerald-300">
+                    Quality
+                  </span>
+                  <span className="badge border-emerald-500/60 bg-emerald-500/10 text-[8px] text-emerald-100">
+                    Q Hour:{" "}
+                    <span className="font-semibold">{qualityHourLabel}</span>
+                  </span>
+                </div>
+                <div className="flex gap-2">
+                  <TvPieStatBox label="RFT%" value={rft} color="#22c55e" />
+                  <TvPieStatBox
+                    label="DEFECT RATE%"
+                    value={defectRate}
+                    color="#ef4444"
+                  />
+                  <TvPieStatBox label="DHU%" value={dhu} color="#eab308" />
+                </div>
+              </div>
+
+              {/* Efficiency block */}
+              <div className="rounded-2xl border border-sky-600 bg-slate-950/95 p-3 flex flex-col gap-2">
+                <div className="flex items-center justify-between">
+                  <span className="text-[11px] uppercase tracking-wide text-sky-300">
+                    Efficiency
+                  </span>
+                  <span className="badge border-sky-500/60 bg-sky-500/10 text-[8px] text-sky-100">
+                    P Hour:{" "}
+                    <span className="font-semibold">{prodHourLabel}</span>
+                  </span>
+                </div>
+                <div className="flex gap-2">
+                  <TvPieStatBox
+                    label="HR EFF%"
+                    value={hourlyEff}
+                    color="#0ea5e9"
+                  />
+                  <TvPieStatBox
+                    label="AVG EFF%"
+                    value={avgEff}
+                    color="#6366f1"
+                  />
+                  {/* <TvStatBox
+                    label="Q Hr / P Hr"
+                    value={`${qualityHourLabel} / ${prodHourLabel}`}
+                    accent="text-slate-200 border-slate-500/80"
+                    big
+                  /> */}
+                </div>
+              </div>
+            </div>
+          </div>
         </div>
-      </div>
+      </div>      
     </div>
   );
 }
+
 
 /* ------------ shared small components ------------ */
 
@@ -960,9 +990,11 @@ function MiniKpi({ label, value, color }) {
 
   return (
     <div className="flex-1 min-w-[0] flex items-center gap-1 rounded-lg border border-slate-800 bg-slate-950/90 px-1.5 py-1">
-      <KpiPie value={pct} label="" color={color} size={32} />
-      <div className="flex flex-col leading-tight">
-        <span className="text-[8px] uppercase tracking-wide text-slate-400">
+      <div className="flex-shrink-0">
+        <KpiPie value={pct} label="" color={color} size={28} />
+      </div>
+      <div className="flex flex-col leading-tight min-w-0">
+        <span className="text-[8px] uppercase tracking-wide text-slate-400 truncate">
           {label}
         </span>
         <span className="text-[11px] font-semibold text-slate-50">
@@ -972,6 +1004,7 @@ function MiniKpi({ label, value, color }) {
     </div>
   );
 }
+
 
 function TvStatBox({ label, value, accent = "", big = false }) {
   return (
@@ -989,21 +1022,18 @@ function TvStatBox({ label, value, accent = "", big = false }) {
     </div>
   );
 }
-function TvPieStat({ label, value, color }) {
-  const pct = clampPercent(value);
-  const display = formatNumber(pct, 1);
 
+function TvPieStatBox({ label, value, color }) {
+  const pct = clampPercent(value);
   return (
-    <div className="rounded-2xl border border-slate-700 bg-slate-950/95 px-2 py-1.5 flex items-center gap-2">
-      <KpiPie value={pct} label="" color={color} size={46} />
-      <div className="flex flex-col leading-tight">
-        <span className="text-[9px] uppercase tracking-wide text-slate-400">
-          {label}
-        </span>
-        <span className="text-[14px] font-semibold text-slate-50">
-          {display}%
-        </span>
-      </div>
+    <div className="flex-1 flex flex-col items-center gap-1">
+      <KpiPie value={pct} label="" color={color} size={60} />
+      <span className="text-[9px] uppercase tracking-wide text-slate-400 text-center">
+        {label}
+      </span>
+      <span className="text-[11px] font-semibold text-slate-100">
+        {formatNumber(pct, 1)}%
+      </span>
     </div>
   );
 }

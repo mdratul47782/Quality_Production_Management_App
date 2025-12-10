@@ -40,13 +40,14 @@ function clampPercent(value) {
 
 export default function FloorSummaryPage() {
   const [factory, setFactory] = useState("K-2");
-  const [building, setBuilding] = useState("A-2");
+  const [building, setBuilding] = useState("A-2"); // "" => All
   const [date, setDate] = useState(
     () => new Date().toISOString().slice(0, 10)
   );
 
   const [summary, setSummary] = useState(null);
   const [lines, setLines] = useState([]);
+  const [buildingsData, setBuildingsData] = useState([]); // 🔹 NEW
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
 
@@ -54,6 +55,7 @@ export default function FloorSummaryPage() {
     if (!factory || !date) {
       setSummary(null);
       setLines([]);
+      setBuildingsData([]);
       return;
     }
 
@@ -82,6 +84,7 @@ export default function FloorSummaryPage() {
         if (!cancelled) {
           setSummary(json.summary || null);
           setLines(json.lines || []);
+          setBuildingsData(json.buildings || []); // 🔹 NEW
         }
       } catch (err) {
         if (!cancelled) {
@@ -89,6 +92,7 @@ export default function FloorSummaryPage() {
           setError(err.message || "Failed to load summary");
           setSummary(null);
           setLines([]);
+          setBuildingsData([]);
         }
       } finally {
         if (!cancelled) {
@@ -109,36 +113,36 @@ export default function FloorSummaryPage() {
   const production = summary?.production || {};
   const quality = summary?.quality || {};
 
-  const effChartData = useMemo(
-    () =>
-      (lines || []).map((l) => ({
-        line: l.line,
-        hourlyEff: Number(l.production?.currentHourEfficiency ?? 0),
-        avgEff: Number(l.production?.avgEffPercent ?? 0),
-      })),
-    [lines]
-  );
+  const isAllBuildings = !building; // "" => All
 
-  const qualityChartData = useMemo(
-    () =>
-      (lines || []).map((l) => ({
-        line: l.line,
-        rft: Number(l.quality?.rftPercent ?? 0),
-        dhu: Number(l.quality?.dhuPercent ?? 0),
-        defectRate: Number(l.quality?.defectRatePercent ?? 0),
-      })),
-    [lines]
-  );
+  // 🔹 chart data এখন conditionally lines vs buildingsData ব্যবহার করবে
+  const effChartData = useMemo(() => {
+    const src = isAllBuildings ? buildingsData : lines;
+    return (src || []).map((item) => ({
+      label: isAllBuildings ? item.building : item.line,
+      hourlyEff: Number(item.production?.currentHourEfficiency ?? 0),
+      avgEff: Number(item.production?.avgEffPercent ?? 0),
+    }));
+  }, [lines, buildingsData, isAllBuildings]);
 
-  const qtyChartData = useMemo(
-    () =>
-      (lines || []).map((l) => ({
-        line: l.line,
-        target: Number(l.production?.targetQty ?? 0),
-        achieved: Number(l.production?.achievedQty ?? 0),
-      })),
-    [lines]
-  );
+  const qualityChartData = useMemo(() => {
+    const src = isAllBuildings ? buildingsData : lines;
+    return (src || []).map((item) => ({
+      label: isAllBuildings ? item.building : item.line,
+      rft: Number(item.quality?.rftPercent ?? 0),
+      dhu: Number(item.quality?.dhuPercent ?? 0),
+      defectRate: Number(item.quality?.defectRatePercent ?? 0),
+    }));
+  }, [lines, buildingsData, isAllBuildings]);
+
+  const qtyChartData = useMemo(() => {
+    const src = isAllBuildings ? buildingsData : lines;
+    return (src || []).map((item) => ({
+      label: isAllBuildings ? item.building : item.line,
+      target: Number(item.production?.targetQty ?? 0),
+      achieved: Number(item.production?.achievedQty ?? 0),
+    }));
+  }, [lines, buildingsData, isAllBuildings]);
 
   const overallPlanPercent =
     Number(production.totalTargetQty) > 0
@@ -148,6 +152,10 @@ export default function FloorSummaryPage() {
             100
         )
       : 0;
+
+  const hasChartData = isAllBuildings
+    ? buildingsData.length > 0
+    : lines.length > 0;
 
   return (
     <div className="min-h-screen bg-slate-950 py-3 px-2 text-slate-100">
@@ -233,7 +241,10 @@ export default function FloorSummaryPage() {
                   Production Summary
                 </div>
                 <div className="text-[10px] text-slate-400">
-                  {factory} {building ? `• ${building}` : "• All buildings"}
+                  {factory}{" "}
+                  {building
+                    ? `• ${building}`
+                    : "• All buildings (factory view)"}
                 </div>
               </div>
               <div className="text-right text-[9px] text-slate-400">
@@ -273,11 +284,7 @@ export default function FloorSummaryPage() {
                 )} %`}
                 accent="border-indigo-500/60 text-indigo-300"
               />
-              {/* <MetricBox
-                label="Plan vs Achv%"
-                value={`${formatNumber(overallPlanPercent ?? 0, 1)} %`}
-                accent="border-cyan-500/60 text-cyan-300"
-              /> */}
+              {/* তুমি চাইলে এখান থেকে overall plan% আবার চালু করতে পারো */}
               <MetricBox
                 label="Current Hr Eff%"
                 value={
@@ -301,7 +308,10 @@ export default function FloorSummaryPage() {
                   Quality Summary
                 </div>
                 <div className="text-[10px] text-slate-400">
-                  {factory} {building ? `• ${building}` : "• All buildings"}
+                  {factory}{" "}
+                  {building
+                    ? `• ${building}`
+                    : "• All buildings (factory view)"}
                 </div>
               </div>
               <div className="text-right text-[9px] text-slate-400">
@@ -359,13 +369,15 @@ export default function FloorSummaryPage() {
         </div>
 
         {/* Charts */}
-        {lines.length > 0 ? (
+        {hasChartData ? (
           <div className="grid gap-3 lg:grid-cols-2">
             {/* Efficiency bar chart */}
             <div className="rounded-2xl border border-slate-800 bg-slate-900/80 p-3">
               <div className="flex items-center justify-between mb-2">
                 <div className="text-[11px] uppercase tracking-wide text-sky-300">
-                  Line Efficiency (Hr vs Avg)
+                  {isAllBuildings
+                    ? "Floor Efficiency (Hr vs Avg)"
+                    : "Line Efficiency (Hr vs Avg)"}
                 </div>
                 <div className="text-[9px] text-slate-400">
                   Bars capped at 0–150%
@@ -379,7 +391,7 @@ export default function FloorSummaryPage() {
                   >
                     <CartesianGrid strokeDasharray="3 3" stroke="#1f2937" />
                     <XAxis
-                      dataKey="line"
+                      dataKey="label"
                       tick={{ fill: "#e5e7eb", fontSize: 10 }}
                     />
                     <YAxis
@@ -402,7 +414,6 @@ export default function FloorSummaryPage() {
                         color: "#e5e7eb",
                       }}
                     />
-                    {/* 🎨 colorful bars */}
                     <Bar
                       dataKey="hourlyEff"
                       name="Hr Eff%"
@@ -424,10 +435,14 @@ export default function FloorSummaryPage() {
             <div className="rounded-2xl border border-slate-800 bg-slate-900/80 p-3">
               <div className="flex items-center justify-between mb-2">
                 <div className="text-[11px] uppercase tracking-wide text-emerald-300">
-                  Line Quality (RFT / DHU / Defect Rate)
+                  {isAllBuildings
+                    ? "Floor Quality (RFT / DHU / Defect Rate)"
+                    : "Line Quality (RFT / DHU / Defect Rate)"}
                 </div>
                 <div className="text-[9px] text-slate-400">
-                  Per-line quality percentages
+                  {isAllBuildings
+                    ? "Per-building quality percentages"
+                    : "Per-line quality percentages"}
                 </div>
               </div>
               <div className="h-60 w-full">
@@ -438,7 +453,7 @@ export default function FloorSummaryPage() {
                   >
                     <CartesianGrid strokeDasharray="3 3" stroke="#1f2937" />
                     <XAxis
-                      dataKey="line"
+                      dataKey="label"
                       tick={{ fill: "#e5e7eb", fontSize: 10 }}
                     />
                     <YAxis
@@ -461,7 +476,6 @@ export default function FloorSummaryPage() {
                         color: "#e5e7eb",
                       }}
                     />
-                    {/* 🎨 colorful bars */}
                     <Bar
                       dataKey="rft"
                       name="RFT%"
@@ -489,7 +503,9 @@ export default function FloorSummaryPage() {
             <div className="rounded-2xl border border-slate-800 bg-slate-900/80 p-3 lg:col-span-2">
               <div className="flex items-center justify-between mb-2">
                 <div className="text-[11px] uppercase tracking-wide text-cyan-300">
-                  Line Target vs Achieved (Qty)
+                  {isAllBuildings
+                    ? "Floor Target vs Achieved (Qty)"
+                    : "Line Target vs Achieved (Qty)"}
                 </div>
                 <div className="text-[9px] text-slate-400">
                   Comparing planned vs production output
@@ -503,7 +519,7 @@ export default function FloorSummaryPage() {
                   >
                     <CartesianGrid strokeDasharray="3 3" stroke="#1f2937" />
                     <XAxis
-                      dataKey="line"
+                      dataKey="label"
                       tick={{ fill: "#e5e7eb", fontSize: 10 }}
                     />
                     <YAxis
@@ -525,16 +541,21 @@ export default function FloorSummaryPage() {
                         color: "#e5e7eb",
                       }}
                     />
-                    {/* 🎨 colorful bars */}
                     <Bar
                       dataKey="target"
-                      name="Target Qty"
+                      name={
+                        isAllBuildings ? "Target Qty (Floor)" : "Target Qty"
+                      }
                       fill="#38bdf8"
                       radius={[4, 4, 0, 0]}
                     />
                     <Bar
                       dataKey="achieved"
-                      name="Achieved Qty"
+                      name={
+                        isAllBuildings
+                          ? "Achieved Qty (Floor)"
+                          : "Achieved Qty"
+                      }
                       fill="#a855f7"
                       radius={[4, 4, 0, 0]}
                     />

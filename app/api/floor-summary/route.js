@@ -74,7 +74,7 @@ export async function GET(req) {
 
     const { searchParams } = new URL(req.url);
     const factory = searchParams.get("factory");
-    const building = searchParams.get("building"); // "" হলে সব বিল্ডিং
+    const building = searchParams.get("building"); // "" => all buildings
     const date = searchParams.get("date");
 
     if (!factory || !date) {
@@ -104,6 +104,9 @@ export async function GET(req) {
     const headerIdToLine = {};
     const productionLineAgg = {};
 
+    // 🔹 NEW: building-wise production aggregation
+    const productionBuildingAgg = {};
+
     function ensureLineAgg(lineName) {
       if (!productionLineAgg[lineName]) {
         productionLineAgg[lineName] = {
@@ -119,6 +122,27 @@ export async function GET(req) {
         };
       }
       return productionLineAgg[lineName];
+    }
+
+    function ensureBuildingProdAgg(buildingName) {
+      const key = buildingName || "UNKNOWN";
+      if (!productionBuildingAgg[key]) {
+        productionBuildingAgg[key] = {
+          building: key,
+          targetQty: 0,
+          achievedQty: 0,
+          varianceQty: 0,
+          currentHour: null,
+          currentHourEfficiency: 0,
+          avgEffPercent: 0,
+          // minute-based eff calc
+          produceMinutesTotal: 0,
+          availableMinutesTotal: 0,
+          hourProduce: {},
+          hourAvailable: {},
+        };
+      }
+      return productionBuildingAgg[key];
     }
 
     const factoryProductionAgg = {
@@ -139,7 +163,10 @@ export async function GET(req) {
     // 1.a) Base target from headers
     for (const h of headers) {
       const lineName = h.line;
+      const buildingName = h.assigned_building || "UNKNOWN";
+
       const agg = ensureLineAgg(lineName);
+      const bAgg = ensureBuildingProdAgg(buildingName);
 
       const baseTargetPerHourRaw = computeBaseTargetPerHourFromHeader(h);
       const baseTargetPerHourRounded = Math.round(baseTargetPerHourRaw);
@@ -152,6 +179,7 @@ export async function GET(req) {
         (Number.isFinite(workingHours) ? workingHours : 0);
 
       agg.targetQty += headerBaseTarget;
+      bAgg.targetQty += headerBaseTarget;
       factoryProductionAgg.totalTargetQty += headerBaseTarget;
 
       const idStr = h._id.toString();
@@ -178,7 +206,10 @@ export async function GET(req) {
       if (!header) continue;
 
       const lineName = header.line;
+      const buildingName = header.assigned_building || "UNKNOWN";
+
       const agg = ensureLineAgg(lineName);
+      const bAgg = ensureBuildingProdAgg(buildingName);
 
       const achieved = toNumberOrZero(rec.achievedQty);
       const hour = toNumberOrZero(rec.hour);
@@ -197,19 +228,34 @@ export async function GET(req) {
         agg.currentHourEfficiency = toNumberOrZero(rec.hourlyEfficiency);
       }
 
+      // -------- building-wise aggregation (minutes-based) ----------
+      bAgg.achievedQty += achieved;
+
+      if (mp > 0 && smv > 0) {
+        const produceMinutes = achieved * smv;
+        const availableMinutes = mp * 60;
+
+        bAgg.produceMinutesTotal += produceMinutes;
+        bAgg.availableMinutesTotal += availableMinutes;
+
+        if (!bAgg.hourProduce[hour]) {
+          bAgg.hourProduce[hour] = 0;
+          bAgg.hourAvailable[hour] = 0;
+        }
+        bAgg.hourProduce[hour] += produceMinutes;
+        bAgg.hourAvailable[hour] += availableMinutes;
+      }
+
       // -------- factory-level qty ----------
       factoryProductionAgg.totalAchievedQty += achieved;
 
       if (mp > 0 && smv > 0) {
-        // উৎপাদন মিনিট = output × SMV
         const produceMinutes = achieved * smv;
-        // available মিনিট = MP × 60
         const availableMinutes = mp * 60;
 
         factoryProductionAgg.produceMinutesTotal += produceMinutes;
         factoryProductionAgg.availableMinutesTotal += availableMinutes;
 
-        // hour-wise যোগ করা হচ্ছে (current hour eff এর জন্য)
         if (!factoryProductionAgg.hourProduce[hour]) {
           factoryProductionAgg.hourProduce[hour] = 0;
           factoryProductionAgg.hourAvailable[hour] = 0;
@@ -233,6 +279,37 @@ export async function GET(req) {
       delete agg._effCount;
     });
 
+    // 🔹 finalize building-wise variance + eff
+    Object.values(productionBuildingAgg).forEach((agg) => {
+      agg.varianceQty = agg.achievedQty - agg.targetQty;
+
+      if (agg.availableMinutesTotal > 0) {
+        agg.avgEffPercent =
+          (agg.produceMinutesTotal / agg.availableMinutesTotal) * 100;
+      } else {
+        agg.avgEffPercent = 0;
+      }
+
+      const hourKeys = Object.keys(agg.hourProduce).map((h) => Number(h));
+      if (hourKeys.length > 0) {
+        const maxHour = Math.max(...hourKeys);
+        const prodMin = agg.hourProduce[maxHour] || 0;
+        const availMin = agg.hourAvailable[maxHour] || 0;
+
+        agg.currentHour = maxHour;
+        agg.currentHourEfficiency =
+          availMin > 0 ? (prodMin / availMin) * 100 : 0;
+      } else {
+        agg.currentHour = null;
+        agg.currentHourEfficiency = 0;
+      }
+
+      delete agg.produceMinutesTotal;
+      delete agg.availableMinutesTotal;
+      delete agg.hourProduce;
+      delete agg.hourAvailable;
+    });
+
     // finalize factory-level variance + avgEff + currentHourEff
     factoryProductionAgg.totalVarianceQty =
       factoryProductionAgg.totalAchievedQty -
@@ -247,7 +324,6 @@ export async function GET(req) {
       factoryProductionAgg.avgEffPercent = 0;
     }
 
-    // current hour (সর্বোচ্চ hour যার জন্য data আছে)
     const hourKeys = Object.keys(factoryProductionAgg.hourProduce).map(
       (h) => Number(h)
     );
@@ -361,6 +437,54 @@ export async function GET(req) {
         100;
     }
 
+    // 🔹 NEW: Building-wise quality aggregation
+    const qualityBuildingAgg = {};
+    const qualityAggByBuildingDocs = await HourlyInspectionModel.aggregate([
+      { $match: qualityMatch },
+      {
+        $group: {
+          _id: "$building",
+          totalInspected: { $sum: "$inspectedQty" },
+          totalPassed: { $sum: "$passedQty" },
+          totalDefectivePcs: { $sum: "$defectivePcs" },
+          totalDefects: { $sum: "$totalDefects" },
+          maxHourIndex: { $max: "$hourIndex" },
+        },
+      },
+    ]);
+
+    for (const doc of qualityAggByBuildingDocs) {
+      const buildingName = doc._id || "UNKNOWN";
+      const totalInspected = toNumberOrZero(doc.totalInspected);
+      const totalPassed = toNumberOrZero(doc.totalPassed);
+      const totalDefectivePcs = toNumberOrZero(doc.totalDefectivePcs);
+      const totalDefects = toNumberOrZero(doc.totalDefects);
+
+      const rftPercent =
+        totalInspected > 0 ? (totalPassed / totalInspected) * 100 : 0;
+      const defectRatePercent =
+        totalInspected > 0
+          ? (totalDefectivePcs / totalInspected) * 100
+          : 0;
+      const dhuPercent =
+        totalInspected > 0 ? (totalDefects / totalInspected) * 100 : 0;
+
+      const currentHour =
+        Number(doc.maxHourIndex ?? 0) > 0 ? Number(doc.maxHourIndex) : null;
+
+      qualityBuildingAgg[buildingName] = {
+        building: buildingName,
+        totalInspected,
+        totalPassed,
+        totalDefectivePcs,
+        totalDefects,
+        rftPercent,
+        defectRatePercent,
+        dhuPercent,
+        currentHour,
+      };
+    }
+
     // ============================
     // 4) MERGED line list
     // ============================
@@ -401,6 +525,45 @@ export async function GET(req) {
         };
       });
 
+    // 🔹 NEW: MERGED building list
+    const buildingNames = new Set([
+      ...Object.keys(productionBuildingAgg),
+      ...Object.keys(qualityBuildingAgg),
+    ]);
+
+    const buildingsArr = Array.from(buildingNames)
+      .filter((b) => b && b !== "UNKNOWN")
+      .sort()
+      .map((b) => {
+        const prod = productionBuildingAgg[b] || {
+          building: b,
+          targetQty: 0,
+          achievedQty: 0,
+          varianceQty: 0,
+          currentHour: null,
+          currentHourEfficiency: 0,
+          avgEffPercent: 0,
+        };
+
+        const qual = qualityBuildingAgg[b] || {
+          building: b,
+          totalInspected: 0,
+          totalPassed: 0,
+          totalDefectivePcs: 0,
+          totalDefects: 0,
+          rftPercent: 0,
+          defectRatePercent: 0,
+          dhuPercent: 0,
+          currentHour: null,
+        };
+
+        return {
+          building: b,
+          production: prod,
+          quality: qual,
+        };
+      });
+
     // ============================
     // 5) RESPONSE
     // ============================
@@ -434,6 +597,7 @@ export async function GET(req) {
         },
       },
       lines,
+      buildings: buildingsArr, // 🔹 NEW: floor-wise aggregated data
     });
   } catch (err) {
     console.error("GET /api/floor-summary error:", err);

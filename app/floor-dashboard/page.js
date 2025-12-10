@@ -270,19 +270,19 @@ export default function FloorDashboardPage() {
   // RENDER
   // ============================================================
   return (
-    <div className="min-h-screen bg-slate-950 py-3 px-2">
+    <div className="min-h-screen bg-slate-950 py-1 px-1 mb-0">
       <div className="space-y-4">
         {/* Filter Panel */}
         <div className="card bg-slate-950/80 border border-slate-800 shadow-[0_10px_30px_rgba(0,0,0,0.8)]">
-          <div className="card-body p-3 text-xs space-y-2">
-            <div className="flex flex-wrap items-end gap-3">
+          <div className="card-body p-2 text-xs space-y-2">
+            <div className="flex flex-wrap items-end gap-4">
               {/* Factory */}
               <div className="space-y-1">
                 <label className="block text-[11px] font-semibold uppercase text-amber-100">
                   Factory
                 </label>
                 <select
-                  className="select select-xs bg-amber-300 select-bordered min-w-[120px]"
+                  className="select select-xs bg-amber-300 select-bordered min-w-[140px]"
                   value={factory}
                   onChange={(e) => setFactory(e.target.value)}
                 >
@@ -301,7 +301,7 @@ export default function FloorDashboardPage() {
                   Building
                 </label>
                 <select
-                  className="select select-xs bg-amber-300 select-bordered min-w-[120px]"
+                  className="select select-xs bg-amber-300 select-bordered min-w-[140px]"
                   value={building}
                   onChange={(e) => setBuilding(e.target.value)}
                 >
@@ -415,15 +415,29 @@ function LineCard({ lineData, lineInfo, wipData }) {
   const qualityHourLabel = quality?.currentHour ?? "-";
   const prodHourLabel = production?.currentHour ?? "-";
 
+  // 🔹 from API + style-wip
+  const manpowerPresent = production?.manpowerPresent ?? 0;
+  const totalInput = wipData?.capacity ?? 0; // তুমি capacity ফিল্ডকে Total Input হিসেবে ব্যবহার করছ
+  const wip = wipData?.wip ?? 0;
+
+  const isBehind = varianceQty < 0;
+
   return (
-    <div className="card rounded-2xl border border-slate-800 bg-slate-950/95 shadow-[0_12px_36px_rgba(0,0,0,0.7)] overflow-hidden">
-      <div className="card-body p-3 space-y-2 text-[11px] text-slate-100">
+    <div
+      className={`card rounded-2xl border bg-slate-950/95 shadow-[0_12px_36px_rgba(0,0,0,0.7)] overflow-hidden 
+      ${
+        isBehind
+          ? "border-rose-500/40"
+          : "border-emerald-500/35"
+      }`}
+    >
+      <div className="card-body p-2 space-y-0 text-[11px] text-slate-100 bg-gradient-to-b from-slate-950 via-slate-950/95 to-slate-950">
         {/* TOP: meta + main donut */}
-        <div className="flex items-start justify-between gap-3 border-b border-slate-800 pb-2">
+        <div className="flex items-start justify-between gap-2 border-b border-slate-800/80 pb-1">
           {/* left chips */}
           <div className="space-y-1">
             <div className="flex flex-wrap gap-1">
-              <span className="px-2 py-0.5 rounded-full bg-slate-900 border border-slate-700 text-[9px] uppercase tracking-wide text-slate-300">
+              <span className="px-1 py-0.5 rounded-full bg-slate-900 border border-slate-700 text-[9px] uppercase tracking-wide text-slate-300">
                 Line&nbsp;
                 <span className="font-semibold text-cyan-300">{line}</span>
               </span>
@@ -445,8 +459,8 @@ function LineCard({ lineData, lineInfo, wipData }) {
             </div>
           </div>
 
-          {/* right: main pie + bordered plan summary */}
-          <div className="flex items-center gap-2 ">
+          {/* right: main pie + compact plan summary */}
+          <div className="flex items-center gap-2">
             <KpiPie
               value={planPercent}
               label="PLAN"
@@ -454,36 +468,68 @@ function LineCard({ lineData, lineInfo, wipData }) {
               size={46}
             />
 
-            <div className="text-[9px] leading-tight text-right rounded-xl border border-sky-500/60 bg-slate-950/80 px-2 py-1.5 shadow-[0_0_0_1px_rgba(15,23,42,0.9)]">
-              <div className="text-[8px] uppercase tracking-wide text-slate-400 mb-0.5">
-                Plan Summary
-              </div>
+            <div className="text-[9px] leading-tight text-right rounded-lg border border-sky-500/60 bg-slate-950/85 px-2 py-1.5">
+  <div className="text-[8px] uppercase tracking-wide text-slate-400 mb-0.5">
+    Plan Summary
+  </div>
 
-              <div className="text-slate-300">
-                Target:{" "}
-                <span className="font-semibold">
-                  {formatNumber(targetQty, 0)}
-                </span>
-              </div>
+  <div className="text-slate-200 font-semibold">
+    Target:{" "}
+    <span className="font-semibold">
+      {formatNumber(targetQty, 0)}
+    </span>
+  </div>
 
-              <div className="text-slate-300">
-                Achv:{" "}
-                <span className="font-semibold">
-                  {formatNumber(achievedQty, 0)}
-                </span>
-              </div>
+  <div className="text-slate-200">
+    Achv:{" "}
+    <span className="font-semibold">
+      {formatNumber(achievedQty, 0)}
+    </span>
+  </div>
 
-              <div
-                className={`${
-                  varianceQty >= 0 ? "text-emerald-400" : "text-rose-400"
-                }`}
-              >
-                Var:{" "}
-                <span className="font-semibold">
-                  {formatNumber(varianceQty, 0)}
-                </span>
-              </div>
-            </div>
+  <div
+    className={`${
+      varianceQty >= 0 ? "text-emerald-400" : "text-rose-400"
+    }`}
+  >
+    Var:{" "}
+    <span className="font-semibold">
+      {formatNumber(varianceQty, 0)}
+    </span>
+  </div>
+
+  {/* 🔹 Compact MP + WIP chips (no extra height explosion) */}
+  <div className="mt-1 flex items-center justify-end gap-1 text-[8px]">
+    {/* MP chip */}
+    <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-full bg-slate-900/80 border border-slate-600/70">
+      <span className="uppercase tracking-wide text-[7px] text-slate-400">
+        MP
+      </span>
+      <span className="text-[9px] font-semibold text-emerald-300">
+        {manpowerPresent ? formatNumber(manpowerPresent, 0) : "-"}
+      </span>
+    </span>
+
+    {/* WIP chip – optional, uses same wipData you already have */}
+    {/* {wipData && (
+      <span
+        className={`inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-full border ${
+          wip > 0
+            ? "bg-amber-500/15 border-amber-400/70 text-amber-200"
+            : "bg-emerald-500/15 border-emerald-400/70 text-emerald-200"
+        }`}
+      >
+        <span className="uppercase tracking-wide text-[7px] opacity-80">
+          WIP
+        </span>
+        <span className="text-[9px] font-semibold">
+          {formatNumber(wip, 0)}
+        </span>
+      </span>
+    )} */}
+  </div>
+</div>
+
           </div>
         </div>
 
@@ -522,7 +568,7 @@ function LineCard({ lineData, lineInfo, wipData }) {
         </div>
 
         {/* BOTTOM: media strip (image + auto-play video) */}
-        {(imageSrc || videoSrc) && (
+        {/* {(imageSrc || videoSrc) && (
           <div className="grid grid-cols-2 gap-1.5 border-t border-slate-800 pt-1.5">
             {imageSrc && (
               <div className="rounded-xl border border-cyan-500/60 bg-slate-950/90 overflow-hidden">
@@ -559,7 +605,7 @@ function LineCard({ lineData, lineInfo, wipData }) {
               </div>
             )}
           </div>
-        )}
+        )} */}
       </div>
     </div>
   );

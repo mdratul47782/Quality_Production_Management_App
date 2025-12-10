@@ -1,3 +1,4 @@
+// app/api/floor-dashboard/route.js
 import { NextResponse } from "next/server";
 import { dbConnect } from "@/services/mongo";
 
@@ -5,7 +6,6 @@ import TargetSetterHeader from "@/models/TargetSetterHeader";
 import { HourlyProductionModel } from "@/models/HourlyProduction-model";
 import { HourlyInspectionModel } from "@/models/hourly-inspections";
 
-// এই লাইন মানে: এই API কখনোই cache হবে না, সবসময় fresh data
 export const dynamic = "force-dynamic";
 
 // ---------- helpers ----------
@@ -15,8 +15,6 @@ function toNumberOrZero(value) {
   return Number.isFinite(n) ? n : 0;
 }
 
-// baseTargetPerHourRaw = (MP × 60 × PlanEff% / SMV)
-// Day base target per header = round(baseTargetPerHourRaw) × working_hour
 function computeBaseTargetPerHourFromHeader(header) {
   const manpowerPresent = toNumberOrZero(header.manpower_present);
   const smv = toNumberOrZero(header.smv);
@@ -115,6 +113,7 @@ export async function GET(req) {
           currentHour: null,
           currentHourEfficiency: 0,
           avgEffPercent: 0,
+          manpowerPresent: 0, // 🔹 NEW: for floor summary
           // internal for weighted avg eff
           _produceMinSum: 0,
           _availMinSum: 0,
@@ -130,11 +129,19 @@ export async function GET(req) {
       const headerIdStr = h._id.toString();
       const agg = ensureLineAgg(lineName);
 
+      const mpPresent = toNumberOrZero(h.manpower_present);
+      const smv = toNumberOrZero(h.smv);
+
       headerIdToLine[headerIdStr] = lineName;
       headerIdToContext[headerIdStr] = {
-        manpower_present: toNumberOrZero(h.manpower_present),
-        smv: toNumberOrZero(h.smv),
+        manpower_present: mpPresent,
+        smv,
       };
+
+      // 🔹 keep latest/any non-zero manpower for this line
+      if (mpPresent > 0) {
+        agg.manpowerPresent = mpPresent;
+      }
 
       const baseTargetPerHourRaw = computeBaseTargetPerHourFromHeader(h);
       const baseTargetPerHourRounded = Math.round(baseTargetPerHourRaw);
@@ -153,9 +160,7 @@ export async function GET(req) {
 
     let hourlyRecs = [];
 
-    // ✅ এখানে আর factory দিয়ে filter করিনি
-    // কারণ অনেক সময় HourlyProduction document-এ factory ফিল্ড না থাকলে
-    // ডেটা ধরা পড়ছিল না, আপডেট হয় না মনে হচ্ছিল।
+    // factory দিয়ে আর filter না – তুমি যেমন আগেই করেছিলে
     if (allHeaderIds.length > 0) {
       hourlyRecs = await HourlyProductionModel.find({
         headerId: { $in: allHeaderIds },
@@ -177,9 +182,6 @@ export async function GET(req) {
 
       agg.achievedQty += achieved;
 
-      // weighted avg efficiency জন্য total produce minute / total available minute
-      // produce min = achieved × smv
-      // available min = manpower × 60
       if (mp > 0 && smv > 0) {
         const produceMin = achieved * smv;
         const availMin = mp * 60;
@@ -188,7 +190,6 @@ export async function GET(req) {
         agg._availMinSum += availMin;
       }
 
-      // current hour + hourly efficiency + last totalEfficiency track করা
       const hourNum = toNumberOrZero(rec.hour);
       if (agg.currentHour === null || hourNum > agg.currentHour) {
         agg.currentHour = hourNum;
@@ -201,7 +202,6 @@ export async function GET(req) {
     Object.values(productionLineAgg).forEach((agg) => {
       agg.varianceQty = agg.achievedQty - agg.targetQty;
 
-      // weighted avg eff = (total produce min / total available min) × 100
       if (agg._availMinSum > 0) {
         agg.avgEffPercent =
           (agg._produceMinSum / agg._availMinSum) * 100;
@@ -209,7 +209,6 @@ export async function GET(req) {
         typeof agg._lastTotalEfficiency === "number" &&
         !Number.isNaN(agg._lastTotalEfficiency)
       ) {
-        // fallback: last record-এর totalEfficiency ব্যবহার করা
         agg.avgEffPercent = agg._lastTotalEfficiency;
       } else {
         agg.avgEffPercent = 0;
@@ -221,7 +220,7 @@ export async function GET(req) {
     });
 
     // ============================
-    // QUALITY PART (RFT, DHU, Defect Rate, current hour)
+    // QUALITY PART
     // ============================
     const { start, end } = getDayRange(date);
 
@@ -284,7 +283,7 @@ export async function GET(req) {
     }
 
     // ============================
-    // MERGE LINES (union of prod + quality)
+    // MERGE LINES
     // ============================
     const lineNames = new Set([
       ...Object.keys(productionLineAgg),
@@ -302,6 +301,7 @@ export async function GET(req) {
           currentHour: null,
           currentHourEfficiency: 0,
           avgEffPercent: 0,
+          manpowerPresent: 0,
         };
 
         const qual = qualityLineAgg[ln] || {

@@ -3,6 +3,7 @@ import { dbConnect } from "@/services/mongo";
 import TargetSetterHeader from "@/models/TargetSetterHeader";
 import { HourlyProductionModel } from "@/models/HourlyProduction-model";
 import { StyleCapacityModel } from "@/models/StyleCapacity-model";
+export const dynamic = "force-dynamic";
 
 function toNumberOrZero(value) {
   const n = Number(value);
@@ -59,31 +60,33 @@ export async function GET(request) {
     let totalAchieved = 0;
 
     if (headers.length > 0) {
-      const headerIds = headers.map((h) => h._id);
+  const headerIds = headers.map((h) => h._id);
 
-      // সব hourly records থেকে মোট achievedQty sum
-      const match = {
-        headerId: { $in: headerIds },
-        productionDate: { $lte: date },
-      };
+  // সব hourly records থেকে মোট achievedQty sum
+  // 👉 headerId দিয়েই scope করি (exactly যেটা আপনি floor-dashboard এ করেন)
+  const match = {
+    headerId: { $in: headerIds },
+  };
 
-      // HourlyProductionModel এও factory ফিল্ড থাকলে, scope করি
-      match.factory = factory;
+  // যদি HourlyProductionModel-এ সব document-এ factory সেভ থাকে,
+  // এবং আপনি আলাদা factory scope নিশ্চিত রাখতে চান, এই লাইন আনকমেন্ট করতে পারেন:
+  // match.factory = factory;
 
-      const agg = await HourlyProductionModel.aggregate([
-        { $match: match },
-        {
-          $group: {
-            _id: null,
-            totalAchieved: { $sum: "$achievedQty" },
-          },
-        },
-      ]);
+  const agg = await HourlyProductionModel.aggregate([
+    { $match: match },
+    {
+      $group: {
+        _id: null,
+        totalAchieved: { $sum: "$achievedQty" },
+      },
+    },
+  ]);
 
-      if (agg.length > 0) {
-        totalAchieved = toNumberOrZero(agg[0].totalAchieved);
-      }
-    }
+  if (agg.length > 0) {
+    totalAchieved = toNumberOrZero(agg[0].totalAchieved);
+  }
+}
+
 
     const rawWip = capacity - totalAchieved;
     const wip = Math.max(rawWip, 0);

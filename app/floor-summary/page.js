@@ -401,7 +401,8 @@ export default function FloorSummaryPage() {
                     ? `${formatNumber(
                       production.currentHourEfficiency ?? 0,
                       1
-                    )} % (Hr ${production.currentHour})`
+                    )} %     
+                     (Hr ${production.currentHour})`
                     : "-"
                 }
                 accent="border-amber-500/60 text-amber-300"

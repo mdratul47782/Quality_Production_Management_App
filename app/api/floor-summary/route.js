@@ -20,6 +20,7 @@ function computeBaseTargetPerHourFromHeader(header) {
   const planEffPercent = toNumberOrZero(header.plan_efficiency_percent);
   const planEffDecimal = planEffPercent / 100;
 
+  // Capacity-based hourly target
   const targetFromCapacity =
     manpowerPresent > 0 && smv > 0
       ? (manpowerPresent * 60 * planEffDecimal) / smv
@@ -30,6 +31,7 @@ function computeBaseTargetPerHourFromHeader(header) {
   const targetFromFullDay =
     workingHour > 0 ? targetFullDay / workingHour : 0;
 
+  // Priority: capacity-based, then full-day-based, else 0
   return targetFromCapacity || targetFromFullDay || 0;
 }
 
@@ -102,6 +104,7 @@ export async function GET(req) {
 
     const headerMap = {};
     const headerIdToLine = {};
+
     const productionLineAgg = {};
 
     // 🔹 NEW: building-wise production aggregation
@@ -117,8 +120,11 @@ export async function GET(req) {
           currentHour: null,
           currentHourEfficiency: 0,
           avgEffPercent: 0,
-          _effSum: 0,
-          _effCount: 0,
+          // minute-based eff calc for line
+          produceMinutesTotal: 0, // Σ(SMV × output)
+          availableMinutesTotal: 0, // Σ(MP × 60)
+          hourProduce: {}, // { hour: Σ produceMinutes }
+          hourAvailable: {}, // { hour: Σ availableMinutes }
         };
       }
       return productionLineAgg[lineName];
@@ -168,15 +174,14 @@ export async function GET(req) {
       const agg = ensureLineAgg(lineName);
       const bAgg = ensureBuildingProdAgg(buildingName);
 
-      const baseTargetPerHourRaw = computeBaseTargetPerHourFromHeader(h);
-      const baseTargetPerHourRounded = Math.round(baseTargetPerHourRaw);
+      const baseTargetPerHour = computeBaseTargetPerHourFromHeader(h);
       const workingHours = toNumberOrZero(h.working_hour);
 
+      // 🔹 মোট টার্গেট এখন শেষে round করা হচ্ছে
       const headerBaseTarget =
-        (Number.isFinite(baseTargetPerHourRounded)
-          ? baseTargetPerHourRounded
-          : 0) *
-        (Number.isFinite(workingHours) ? workingHours : 0);
+        Number.isFinite(baseTargetPerHour) && Number.isFinite(workingHours)
+          ? Math.round(baseTargetPerHour * workingHours)
+          : 0;
 
       agg.targetQty += headerBaseTarget;
       bAgg.targetQty += headerBaseTarget;
@@ -218,14 +223,24 @@ export async function GET(req) {
       const smv = toNumberOrZero(header.smv);
 
       // -------- line-wise aggregation ----------
+
+      // Qty
       agg.achievedQty += achieved;
 
-      agg._effSum += toNumberOrZero(rec.hourlyEfficiency);
-      agg._effCount += 1;
+      // minute-based efficiency for line
+      if (mp > 0 && smv > 0) {
+        const produceMinutes = achieved * smv;
+        const availableMinutes = mp * 60;
 
-      if (agg.currentHour === null || hour > agg.currentHour) {
-        agg.currentHour = hour;
-        agg.currentHourEfficiency = toNumberOrZero(rec.hourlyEfficiency);
+        agg.produceMinutesTotal += produceMinutes;
+        agg.availableMinutesTotal += availableMinutes;
+
+        if (!agg.hourProduce[hour]) {
+          agg.hourProduce[hour] = 0;
+          agg.hourAvailable[hour] = 0;
+        }
+        agg.hourProduce[hour] += produceMinutes;
+        agg.hourAvailable[hour] += availableMinutes;
       }
 
       // -------- building-wise aggregation (minutes-based) ----------
@@ -246,7 +261,7 @@ export async function GET(req) {
         bAgg.hourAvailable[hour] += availableMinutes;
       }
 
-      // -------- factory-level qty ----------
+      // -------- factory-level qty & efficiency ----------
       factoryProductionAgg.totalAchievedQty += achieved;
 
       if (mp > 0 && smv > 0) {
@@ -265,21 +280,39 @@ export async function GET(req) {
       }
     }
 
-    // finalize per-line variance + avgEff
+    // finalize per-line variance + avgEff (minutes-based)
     Object.values(productionLineAgg).forEach((agg) => {
       agg.varianceQty = agg.achievedQty - agg.targetQty;
 
-      if (agg._effCount > 0) {
-        agg.avgEffPercent = agg._effSum / agg._effCount;
+      if (agg.availableMinutesTotal > 0) {
+        agg.avgEffPercent =
+          (agg.produceMinutesTotal / agg.availableMinutesTotal) * 100;
       } else {
         agg.avgEffPercent = 0;
       }
 
-      delete agg._effSum;
-      delete agg._effCount;
+      const hourKeys = Object.keys(agg.hourProduce).map((h) => Number(h));
+      if (hourKeys.length > 0) {
+        const maxHour = Math.max(...hourKeys);
+        const prodMin = agg.hourProduce[maxHour] || 0;
+        const availMin = agg.hourAvailable[maxHour] || 0;
+
+        agg.currentHour = maxHour;
+        agg.currentHourEfficiency =
+          availMin > 0 ? (prodMin / availMin) * 100 : 0;
+      } else {
+        agg.currentHour = null;
+        agg.currentHourEfficiency = 0;
+      }
+
+      // cleanup internal fields (not needed in response)
+      delete agg.produceMinutesTotal;
+      delete agg.availableMinutesTotal;
+      delete agg.hourProduce;
+      delete agg.hourAvailable;
     });
 
-    // 🔹 finalize building-wise variance + eff
+    // 🔹 finalize building-wise variance + eff (minutes-based)
     Object.values(productionBuildingAgg).forEach((agg) => {
       agg.varianceQty = agg.achievedQty - agg.targetQty;
 
@@ -310,7 +343,7 @@ export async function GET(req) {
       delete agg.hourAvailable;
     });
 
-    // finalize factory-level variance + avgEff + currentHourEff
+    // finalize factory-level variance + avgEff + currentHourEff (minutes-based)
     factoryProductionAgg.totalVarianceQty =
       factoryProductionAgg.totalAchievedQty -
       factoryProductionAgg.totalTargetQty;
@@ -324,11 +357,11 @@ export async function GET(req) {
       factoryProductionAgg.avgEffPercent = 0;
     }
 
-    const hourKeys = Object.keys(factoryProductionAgg.hourProduce).map(
-      (h) => Number(h)
-    );
-    if (hourKeys.length > 0) {
-      const maxHour = Math.max(...hourKeys);
+    const factoryHourKeys = Object.keys(
+      factoryProductionAgg.hourProduce
+    ).map((h) => Number(h));
+    if (factoryHourKeys.length > 0) {
+      const maxHour = Math.max(...factoryHourKeys);
       const prodMin = factoryProductionAgg.hourProduce[maxHour] || 0;
       const availMin = factoryProductionAgg.hourAvailable[maxHour] || 0;
 
@@ -597,7 +630,7 @@ export async function GET(req) {
         },
       },
       lines,
-      buildings: buildingsArr, // 🔹 NEW: floor-wise aggregated data
+      buildings: buildingsArr, // 🔹 floor-wise aggregated data
     });
   } catch (err) {
     console.error("GET /api/floor-summary error:", err);

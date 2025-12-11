@@ -1,9 +1,20 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect ,useMemo} from "react";
 import { PieChart } from "react-minimal-pie-chart";
+import {
+  BarChart,
+  Bar,
+  XAxis,
+  YAxis,
+  Tooltip,
+  ReferenceLine,
+  ResponsiveContainer,
+  Cell,
+} from "recharts";
+import { Gauge, TrendingUp, Activity, AlertTriangle } from "lucide-react";
 
-const factoryOptions = ["K-1", "K-2", "K-3"]; // adjust as needed
+const factoryOptions = ["K-1", "K-2", "K-3"];
 
 const buildingOptions = [
   "A-2",
@@ -51,6 +62,76 @@ function clampPercent(value) {
   return Math.max(0, Math.min(100, n));
 }
 
+/* ---------- KPI TILE DESIGN (compact, like your example) ---------- */
+
+const KPI_TONE_MAP = {
+  emerald: {
+    card:
+      "from-emerald-500/15 to-emerald-500/5 border-emerald-400/30 ring-emerald-400/40 text-emerald-100",
+    badge: "bg-emerald-500/90 text-emerald-950",
+  },
+  sky: {
+    card:
+      "from-sky-500/15 to-sky-500/5 border-sky-400/30 ring-sky-400/40 text-sky-100",
+    badge: "bg-sky-400/90 text-sky-950",
+  },
+  red: {
+    card:
+      "from-red-500/15 to-red-500/5 border-red-400/30 ring-red-400/40 text-red-100",
+    badge: "bg-red-500/90 text-red-50",
+  },
+  amber: {
+    card:
+      "from-amber-500/15 to-amber-500/5 border-amber-400/30 ring-amber-400/40 text-amber-100",
+    badge: "bg-amber-400/90 text-amber-950",
+  },
+  purple: {
+    card:
+      "from-purple-500/15 to-purple-500/5 border-purple-400/30 ring-purple-400/40 text-purple-100",
+    badge: "bg-purple-400/90 text-purple-950",
+  },
+};
+
+function KpiTile({ label, value, tone = "emerald", icon: Icon }) {
+  const toneMap = KPI_TONE_MAP[tone] || KPI_TONE_MAP.emerald;
+
+  return (
+    <div
+      className={`
+        group relative overflow-hidden rounded-xl border ${toneMap.card}
+        bg-gradient-to-br p-2 sm:p-2.5 ring-1
+        transition-transform duration-200 hover:translate-y-0.5
+        min-h-[40px]
+      `}
+    >
+      {/* subtle corner glow */}
+      <div className="pointer-events-none absolute -inset-px rounded-[0.9rem] bg-[radial-gradient(100px_50px_at_0%_0%,rgba(255,255,255,0.12),transparent)]" />
+
+      <div className="relative flex items-center justify-between gap-2">
+        {/* Left: label chip */}
+        <div
+          className={`
+            inline-flex items-center gap-1 rounded-md
+            px-1.5 py-[2px]
+            text-[9px] font-semibold uppercase tracking-wider
+            ${toneMap.badge}
+          `}
+        >
+          {Icon ? <Icon className="h-3 w-3" /> : null}
+          <span className="leading-none">{label}</span>
+        </div>
+
+        {/* Right: value */}
+        <div className="text-right text-xl sm:text-2xl font-extrabold tabular-nums tracking-tight text-white leading-none">
+          {value}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/* -------------------- MAIN PAGE -------------------- */
+
 export default function FloorDashboardPage() {
   const [factory, setFactory] = useState("K-2");
   const [building, setBuilding] = useState("A-2");
@@ -59,8 +140,22 @@ export default function FloorDashboardPage() {
   );
   const [line, setLine] = useState("ALL");
 
-  const [rows, setRows] = useState([]);
-  const [loading, setLoading] = useState(false);
+ const [rows, setRows] = useState([]);
+const [loading, setLoading] = useState(false);
+// 🔹 Always show lines serially: Line-1, Line-2, ... Line-15
+const sortedRows = useMemo(() => {
+  if (!rows || rows.length === 0) return [];
+
+  const getLineNumber = (lineName = "") => {
+    const match = lineName.match(/(\d+)/); // pick "1" from "Line-1"
+    return match ? parseInt(match[1], 10) : 0;
+  };
+
+  return [...rows].sort(
+    (a, b) => getLineNumber(a.line) - getLineNumber(b.line)
+  );
+}, [rows]);
+
   const [error, setError] = useState("");
 
   // line-info register data (buyer, style, runDay, smv, etc.)
@@ -265,31 +360,35 @@ export default function FloorDashboardPage() {
     setCurrentCardIndex(0);
   }, [rows.length, viewMode, factory, building, date, line]);
 
-  useEffect(() => {
-    if (viewMode !== "tv") return;
-    if (rows.length <= 1) return;
+ useEffect(() => {
+  if (viewMode !== "tv") return;
+  if (sortedRows.length <= 1) return;
 
-    const id = setInterval(() => {
-      setCurrentCardIndex((prev) =>
-        rows.length === 0 ? 0 : (prev + 1) % rows.length
-      );
-    }, 10000);
+  const id = setInterval(() => {
+    setCurrentCardIndex((prev) =>
+      sortedRows.length === 0 ? 0 : (prev + 1) % sortedRows.length
+    );
+  }, 10000);
 
-    return () => clearInterval(id);
-  }, [viewMode, rows.length]);
+  return () => clearInterval(id);
+}, [viewMode, sortedRows.length]);
 
   // ============================================================
   // RENDER
   // ============================================================
-  const hasData = rows.length > 0;
-  const safeIndex = rows.length > 0 ? currentCardIndex % rows.length : 0;
-  const currentRow = rows[safeIndex];
+ const hasData = sortedRows.length > 0;
+const safeIndex =
+  sortedRows.length > 0 ? currentCardIndex % sortedRows.length : 0;
+const currentRow = sortedRows[safeIndex];
+
+
+  const contentWrapperClass = `flex-1 min-h-0 ${viewMode === "grid" ? "overflow-y-auto pr-1" : ""
+    }`;
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-slate-950 via-slate-950 to-slate-900 text-slate-50 py-2 px-2 mb-0">
-      <div className="space-y-3 max-w-[1700px] mx-auto">
-        
-
+      {/* whole page constrained to viewport height */}
+      <div className="max-w-[1700px] mx-auto flex flex-col gap-3 h-[calc(100vh-16px)]">
         {/* Filter Panel */}
         <div className="card bg-base-300/10 border border-slate-800/80 shadow-[0_10px_35px_rgba(0,0,0,0.9)]">
           <div className="card-body p-2 md:p-3 text-xs space-y-2">
@@ -311,12 +410,12 @@ export default function FloorDashboardPage() {
                     </option>
                   ))}
                 </select>
-                
               </div>
 
               {/* Building */}
               <div className="space-y-1">
-                <label className="block text-[11px] font-semibold uppercase text-amber-100">Floor
+                <label className="block text-[11px] font-semibold uppercase text-amber-100">
+                  Floor
                   {/* unfortunetly i used in db as Building */}
                 </label>
                 <select
@@ -369,14 +468,14 @@ export default function FloorDashboardPage() {
                 <label className="block text-[11px] font-semibold uppercase text-amber-100">
                   View
                 </label>
-                
+
                 <select
                   className="select select-xs bg-amber-300/95 select-bordered min-w-[130px] text-slate-900"
                   value={viewMode}
                   onChange={(e) => setViewMode(e.target.value)}
                 >
-                  <option value="grid">Full View (All Cards)</option>
-                  <option value="tv">TV Auto Slide (1 Card)</option>
+                  <option value="grid">Full View (All Line's)</option>
+                  <option value="tv">TV Auto Slide (Single Line)</option>
                 </select>
               </div>
 
@@ -394,71 +493,78 @@ export default function FloorDashboardPage() {
               </div>
             )}
           </div>
-          
         </div>
 
-        {/* No data msg */}
-        {!hasData && !loading && !error && (
-          <p className="text-[11px] text-slate-500">
-            No data for this factory/building/date yet.
-          </p>
-        )}
+        {/* CONTENT AREA (grid or TV) */}
+        <div className={contentWrapperClass}>
+          {/* No data msg */}
+          {!hasData && !loading && !error && (
+            <p className="text-[11px] text-slate-500">
+              No data for this factory/building/date yet.
+            </p>
+          )}
 
-        {/* FULL VIEW (GRID) */}
-        {hasData && viewMode === "grid" && (
-          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-            {rows.map((row) => (
-              <LineCard
-                key={row.line}
-                lineData={row}
-                lineInfo={lineInfoMap[row.line]}
-                wipData={wipMap[row.line]}
-              />
-            ))}
-          </div>
-        )}
+          {/* FULL VIEW (GRID) */}
+         {hasData && viewMode === "grid" && (
+  <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 pb-1">
+    {sortedRows.map((row) => (
+      <LineCard
+        key={row.line}
+        lineData={row}
+        lineInfo={lineInfoMap[row.line]}
+        wipData={wipMap[row.line]}
+      />
+    ))}
+  </div>
+)}
 
-        {/* TV VIEW */}
-        {hasData && viewMode === "tv" && currentRow && (
-          <div className="space-y-3">
-            <div className="h-[calc(100vh-180px)]">
-              <TvLineCard
-                lineData={currentRow}
-                lineInfo={lineInfoMap[currentRow.line]}
-                wipData={wipMap[currentRow.line]}
-              />
-            </div>
 
-            {/* Slider dots + info */}
-            <div className="flex flex-col items-center gap-1 text-[9px] text-slate-400">
-              <div className="flex items-center gap-1">
-                {rows.map((row, idx) => (
-                  <button
-                    key={row.line + idx}
-                    type="button"
-                    onClick={() => setCurrentCardIndex(idx)}
-                    className={`h-2 rounded-full transition-all duration-300 ${
-                      idx === safeIndex
-                        ? "w-5 bg-sky-400"
-                        : "w-2 bg-slate-600 hover:bg-slate-400"
-                    }`}
-                  />
-                ))}
+          {/* TV VIEW */}
+          {hasData && viewMode === "tv" && currentRow && (
+            <div className="flex-1 min-h-0 flex flex-col space-y-3">
+              <div className="flex-1 min-h-0">
+                <TvLineCard
+                  lineData={currentRow}
+                  lineInfo={lineInfoMap[currentRow.line]}
+                  wipData={wipMap[currentRow.line]}
+                  factory={factory}
+                  building={building}
+                  date={date}
+                />
               </div>
-              <div>
-                Showing{" "}
-                <span className="mx-1 font-semibold text-sky-300">
-                  {safeIndex + 1}
-                </span>
-                of{" "}
-                <span className="mx-1 font-semibold text-slate-200">
-                  {rows.length}
-                </span>
-                lines • Auto slide every 10s
+
+              {/* Slider dots + info */}
+              <div className="flex flex-col items-center gap-1 text-[9px] text-slate-400 pb-1">
+                <div className="flex items-center gap-1">
+                 {sortedRows.map((row, idx) => (
+  <button
+    key={row.line + idx}
+    type="button"
+    onClick={() => setCurrentCardIndex(idx)}
+    className={`h-2 rounded-full transition-all duration-300 ${
+      idx === safeIndex
+        ? "w-5 bg-sky-400"
+        : "w-2 bg-slate-600 hover:bg-slate-400"
+    }`}
+  />
+))}
+
+                </div>
+                <div>
+                  Showing{" "}
+                  <span className="mx-1 font-semibold text-sky-300">
+                    {safeIndex + 1}
+                  </span>
+                  of{" "}
+                  <span className="mx-1 font-semibold text-slate-200">
+  {sortedRows.length}
+</span>
+                  lines • Auto slide every 10s
+                </div>
               </div>
             </div>
-          </div>
-        )}
+          )}
+        </div>
       </div>
     </div>
   );
@@ -555,9 +661,8 @@ function LineCard({ lineData, lineInfo, wipData }) {
               </div>
 
               <div
-                className={`${
-                  varianceQty >= 0 ? "text-emerald-400" : "text-rose-400"
-                }`}
+                className={`${varianceQty >= 0 ? "text-emerald-400" : "text-rose-400"
+                  }`}
               >
                 Var:{" "}
                 <span className="font-semibold">
@@ -574,6 +679,16 @@ function LineCard({ lineData, lineInfo, wipData }) {
                     {manpowerPresent ? formatNumber(manpowerPresent, 0) : "-"}
                   </span>
                 </span>
+                {wip ? (
+                  <span className="badge badge-outline border-cyan-600 bg-slate-900/80 px-1.5 py-0.5">
+                    <span className="uppercase tracking-wide text-[7px] text-slate-400">
+                      WIP
+                    </span>
+                    <span className="ml-1 text-[9px] font-semibold text-cyan-300">
+                      {formatNumber(wip, 0)}
+                    </span>
+                  </span>
+                ) : null}
               </div>
             </div>
           </div>
@@ -591,10 +706,10 @@ function LineCard({ lineData, lineInfo, wipData }) {
               </span>
             </div>
             <div className="flex flex-wrap gap-1.5 overflow-hidden">
-  <MiniKpi label="RFT%" value={rft} color="#22c55e" />
-  <MiniKpi label="DHU%" value={dhu} color="#f97316" />
-  <MiniKpi label="Defect RATE" value={defectRate} color="#e11d48" />
-</div>
+              <MiniKpi label="RFT%" value={rft} color="#22c55e" />
+              <MiniKpi label="DHU%" value={dhu} color="#f97316" />
+              <MiniKpi label="Defect RATE" value={defectRate} color="#e11d48" />
+            </div>
           </div>
 
           {/* PRODUCTION KPIs */}
@@ -659,9 +774,9 @@ function LineCard({ lineData, lineInfo, wipData }) {
   );
 }
 
-/* ------------ TV CARD (full-screen) ------------ */
+/* ------------ TV CARD (full-screen / full viewport area) ------------ */
 
-function TvLineCard({ lineData, lineInfo, wipData }) {
+function TvLineCard({ lineData, lineInfo, wipData, factory, building, date }) {
   const { line, quality, production } = lineData || {};
 
   const buyer = lineInfo?.buyer || "-";
@@ -694,19 +809,80 @@ function TvLineCard({ lineData, lineInfo, wipData }) {
   const manpowerPresent = production?.manpowerPresent ?? 0;
   const totalInput = wipData?.capacity ?? 0;
   const wip = wipData?.wip ?? 0;
-
+  const totalAchieved = wipData?.totalAchieved ?? 0;
+  console.log("WIP DATA IN TV CARD:wipData:", wipData);
   const isBehind = varianceQty < 0;
+
+  // 🔹 Hourly variance data for bar chart
+  const [hourlyRecords, setHourlyRecords] = useState([]);
+  const [varianceLoading, setVarianceLoading] = useState(false);
+
+  useEffect(() => {
+    if (!factory || !building || !line || !date) {
+      setHourlyRecords([]);
+      return;
+    }
+
+    const controller = new AbortController();
+
+    const fetchVariance = async () => {
+      try {
+        setVarianceLoading(true);
+        const params = new URLSearchParams({
+          assigned_building: building,
+          line,
+          date,
+        });
+        if (factory) params.append("factory", factory);
+
+        const res = await fetch(
+          `/api/hourly-productions?${params.toString()}`,
+          {
+            cache: "no-store",
+            signal: controller.signal,
+          }
+        );
+        const json = await res.json();
+
+        if (!res.ok || !json.success) {
+          setHourlyRecords([]);
+          return;
+        }
+
+        setHourlyRecords(json.data || []);
+      } catch (err) {
+        if (err.name === "AbortError") return;
+        console.error("Error loading hourly variance:", err);
+        setHourlyRecords([]);
+      } finally {
+        setVarianceLoading(false);
+      }
+    };
+
+    fetchVariance();
+
+    return () => controller.abort();
+  }, [factory, building, line, date]);
+
+  const varianceChartData = (hourlyRecords || []).map((rec) => ({
+    hour: rec.hour,
+    hourLabel: `H${rec.hour}`,
+    varianceQty: rec.varianceQty ?? 0,
+  }));
 
   return (
     <div
-      className={`h-full w-full rounded-3xl border-2 shadow-[0_0_80px_rgba(0,0,0,0.9)] overflow-hidden
+      className={`relative h-full w-full rounded-3xl border-2 shadow-[0_0_80px_rgba(0,0,0,0.9)] overflow-hidden
       bg-gradient-to-br from-slate-950 via-slate-950 to-slate-900
       ${isBehind ? "border-rose-500/70" : "border-emerald-500/70"}`}
     >
-      {/* whole card is fixed-height flex column */}
-      <div className="h-full flex flex-col gap-4 p-3 md:p-4 lg:p-5 text-xs md:text-sm overflow-hidden">
+      {/* ambient glow */}
+      <div className="pointer-events-none absolute inset-0 -z-10 bg-[radial-gradient(1200px_600px_at_0%_0%,rgba(45,212,191,0.25),transparent),radial-gradient(1000px_500px_at_100%_0%,rgba(56,189,248,0.25),transparent)]" />
+
+      {/* content column fills the card height */}
+      <div className="relative flex h-full flex-col gap-4 p-3 md:p-4 lg:p-5 text-xs md:text-sm min-h-0">
         {/* TOP meta row */}
-        <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3">
+        <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3 border-b border-slate-800/70 pb-2">
           <div className="flex flex-wrap gap-2">
             <span className="badge badge-lg border-slate-600 bg-slate-900/80 text-amber-100">
               Buyer:&nbsp;
@@ -716,29 +892,27 @@ function TvLineCard({ lineData, lineInfo, wipData }) {
               Style:&nbsp;
               <span className="font-semibold text-fuchsia-300">{style}</span>
             </span>
-            {/* <span className="badge badge-lg border-cyan-500/70 bg-cyan-500/10 text-cyan-100">
+            <span className="badge badge-lg border-cyan-500/70 bg-cyan-500/10 text-cyan-100">
               Item:&nbsp;
               <span className="font-semibold text-cyan-300">{item}</span>
-            </span> */}
+            </span>
             <span className="badge badge-lg border-emerald-500/70 bg-emerald-500/10 text-emerald-100">
-              Rundey:&nbsp;
+              Run Day:&nbsp;
               <span className="font-semibold text-emerald-300">
                 {runDay}
               </span>
             </span>
-             <span className="badge badge-lg border-emerald-500/70 bg-emerald-500/10 text-emerald-100">
+            <span className="badge badge-lg border-emerald-500/70 bg-emerald-500/10 text-emerald-100">
               SMV:&nbsp;
-              <span className="font-semibold text-emerald-300">
-                {smv}
-              </span>
+              <span className="font-semibold text-emerald-300">{smv}</span>
             </span>
-             <span className="badge badge-lg border-emerald-500/70 bg-emerald-500/10 text-emerald-100">
+            <span className="badge badge-lg border-emerald-500/70 bg-emerald-500/10 text-emerald-100">
               Man Power:&nbsp;
               <span className="font-semibold text-emerald-300">
                 {manpowerPresent}
               </span>
             </span>
-             <span className="badge badge-lg border-emerald-500/70 bg-emerald-500/10 text-emerald-100">
+            <span className="badge badge-lg border-emerald-500/70 bg-emerald-500/10 text-emerald-100">
               Color/Model:&nbsp;
               <span className="font-semibold text-emerald-300">
                 {colorModel}
@@ -753,21 +927,19 @@ function TvLineCard({ lineData, lineInfo, wipData }) {
             <div className="text-3xl md:text-4xl font-semibold text-cyan-300 drop-shadow-[0_0_24px_rgba(34,211,238,0.9)]">
               {line}
             </div>
-            
           </div>
         </div>
 
-        {/* MAIN AREA (takes the rest of height, no overflow) */}
-        <div className="flex-1 min-h-0 grid gap-3 md:grid-cols-2 lg:grid-cols-12 overflow-hidden">
-          {/* IMAGE column */}
-          <div className="md:col-span-1 lg:col-span-4 flex flex-col min-h-0">
+        {/* MAIN AREA – grid, fills remaining height */}
+        <div className="grid flex-1 min-h-0 gap-2 md:grid-cols-2 lg:grid-cols-12">
+          {/* IMAGE column – media fills column height */}
+          <div className="md:col-span-1 lg:col-span-3 flex flex-col min-h-0">
             <div className="flex-1 min-h-0 rounded-2xl border border-cyan-500/70 bg-slate-950/95 overflow-hidden flex flex-col">
               <div className="px-3 py-1.5 text-[10px] md:text-xs uppercase tracking-[0.14em] text-cyan-200 bg-gradient-to-r from-cyan-500/25 to-transparent border-b border-cyan-500/40 flex items-center justify-between">
                 <span>STYLE IMAGE</span>
                 <span className="text-[10px] text-cyan-200/70">View</span>
               </div>
-              {/* fixed area, content cannot resize parent */}
-              <div className="flex-1 min-h-0 w-full bg-black/90 relative">
+              <div className="relative flex-1 min-h-[140px] sm:min-h-[160px] md:min-h-[180px] bg-black/90">
                 {imageSrc ? (
                   <img
                     src={imageSrc}
@@ -785,8 +957,8 @@ function TvLineCard({ lineData, lineInfo, wipData }) {
             </div>
           </div>
 
-          {/* VIDEO column */}
-          <div className="md:col-span-1 lg:col-span-4 flex flex-col min-h-0">
+          {/* VIDEO column – media fills column height */}
+          <div className="md:col-span-1 lg:col-span-3 flex flex-col min-h-0">
             <div className="flex-1 min-h-0 rounded-2xl border border-emerald-500/70 bg-slate-950/95 overflow-hidden flex flex-col">
               <div className="px-3 py-1.5 text-[10px] md:text-xs uppercase tracking-[0.14em] text-emerald-200 bg-gradient-to-r from-emerald-500/25 to-transparent border-b border-emerald-500/40 flex items-center justify-between">
                 <span>LIVE VIDEO</span>
@@ -794,8 +966,7 @@ function TvLineCard({ lineData, lineInfo, wipData }) {
                   Auto Play
                 </span>
               </div>
-              {/* fixed area, content cannot resize parent */}
-              <div className="flex-1 min-h-0 w-full bg-black/90 relative">
+              <div className="relative flex-1 min-h-[140px] sm:min-h-[160px] md:min-h-[180px] bg-black/90">
                 {videoSrc ? (
                   <video
                     src={videoSrc}
@@ -816,18 +987,28 @@ function TvLineCard({ lineData, lineInfo, wipData }) {
             </div>
           </div>
 
-          {/* STATS column */}
-          <div className="md:col-span-2 lg:col-span-4 flex flex-col gap-3 min-h-0 overflow-hidden">
+          {/* STATS + VARIANCE column */}
+          <div className="md:col-span-2 lg:col-span-6 flex flex-col gap-3 min-h-0">
             {/* PLAN vs ACHV block */}
-            <div className="flex-1 min-h-0 rounded-2xl border border-sky-700 bg-gradient-to-br from-slate-950 via-slate-950/95 to-slate-900/90 p-3 md:p-4 flex flex-col gap-3 overflow-hidden">
-              <div className="flex flex-col sm:flex-row items-center gap-4">
+            <div className="rounded-2xl border border-sky-700 bg-gradient-to-br from-sky-900/50 via-slate-950 to-slate-900/95 p-3 md:p-4 flex flex-col gap-3">
+              <div className="flex items-center justify-between text-[11px]">
+                <span className="uppercase tracking-wide text-sky-200">
+                  Plan vs Achieved
+                </span>
+                <span className="badge badge-outline border-sky-500/60 bg-slate-950/80 text-[10px] text-sky-100">
+                  Plan: {formatNumber(planPercent, 1)}%
+                </span>
+              </div>
+
+              <div className="mt-1 flex flex-col lg:flex-row items-center gap-4">
                 <KpiPie
                   value={planPercent}
-                  label="PLAN VS ACHV"
+                  label=""
                   color="#22d3ee"
                   size={110}
                 />
-                <div className="grid grid-cols-2 gap-2 w-full text-[11px] md:text-xs">
+
+                <div className="grid grid-cols-2 md:grid-cols-3 gap-2 w-full text-[11px] md:text-xs">
                   <TvStatBox
                     label="Target"
                     value={formatNumber(targetQty, 0)}
@@ -847,99 +1028,106 @@ function TvLineCard({ lineData, lineInfo, wipData }) {
                         : "text-rose-200 border-rose-500/80"
                     }
                   />
-                  {/* <TvStatBox
+                  <TvStatBox
                     label="Total Input"
-                    value={formatNumber(totalInput, 0)}
+                    value={formatNumber(totalInput || 0, 0)}
                     accent="text-cyan-200 border-cyan-500/80"
                   />
                   <TvStatBox
                     label="WIP"
-                    value={formatNumber(wip, 0)}
+                    value={formatNumber(wip || 0, 0)}
                     accent="text-fuchsia-200 border-fuchsia-500/80"
-                  /> */}
-                </div>
-              </div>
-
-              {/* horizontal slider of plan% */}
-              <div className="mt-1">
-                <div className="w-full h-2 rounded-full bg-slate-900 overflow-hidden border border-slate-700/70">
-                  <div
-                    className="h-full bg-gradient-to-r from-emerald-400 via-sky-400 to-fuchsia-400 transition-all duration-700"
-                    style={{ width: `${planPercent}%` }}
                   />
-                </div>
-                <div className="flex justify-between text-[9px] text-slate-400 mt-0.5">
-                  <span>0%</span>
-                  <span className="font-semibold text-sky-200">
-                    Plan: {formatNumber(planPercent, 1)}%
-                  </span>
-                  <span>100%</span>
+                  <TvStatBox
+                    label="Upto Date Achieved"
+                    value={formatNumber(totalAchieved || 0, 0)}
+                    accent="text-fuchsia-200 border-fuchsia-500/80"
+                  />
                 </div>
               </div>
             </div>
 
-            {/* QUALITY + EFFICIENCY pies */}
-            <div className="grid grid-cols-2 gap-3 text-[11px] md:text-xs min-h-[140px]">
-              {/* Quality block */}
-              <div className="rounded-2xl border border-emerald-600 bg-slate-950/95 p-3 flex flex-col gap-2">
-                <div className="flex items-center justify-between">
-                  <span className="text-[11px] uppercase tracking-wide text-emerald-300">
-                    Quality
-                  </span>
-                  <span className="badge border-emerald-500/60 bg-emerald-500/10 text-[8px] text-emerald-100">
+            {/* QUALITY + EFF + VARIANCE block */}
+            <div className="rounded-2xl border border-amber-600 bg-gradient-to-br from-slate-950 via-slate-950 to-slate-900/95 p-3 flex flex-col gap-2 min-h-0">
+              <div className="flex items-center justify-between text-[11px]">
+                <span className="uppercase tracking-wide text-amber-200">
+                  Production &  Quality
+                </span>
+                <div className="flex flex-wrap gap-1">
+                  <span className="badge border-emerald-500/60 bg-emerald-500/10 text-[14px] text-emerald-100">
                     Q Hour:{" "}
                     <span className="font-semibold">{qualityHourLabel}</span>
                   </span>
-                </div>
-                <div className="flex gap-2">
-                  <TvPieStatBox label="RFT%" value={rft} color="#22c55e" />
-                  <TvPieStatBox
-                    label="DEFECT RATE%"
-                    value={defectRate}
-                    color="#ef4444"
-                  />
-                  <TvPieStatBox label="DHU%" value={dhu} color="#eab308" />
-                </div>
-              </div>
-
-              {/* Efficiency block */}
-              <div className="rounded-2xl border border-sky-600 bg-slate-950/95 p-3 flex flex-col gap-2">
-                <div className="flex items-center justify-between">
-                  <span className="text-[11px] uppercase tracking-wide text-sky-300">
-                    Efficiency
-                  </span>
-                  <span className="badge border-sky-500/60 bg-sky-500/10 text-[8px] text-sky-100">
+                  <span className="badge border-sky-500/60 bg-sky-500/10 text-[14px] text-sky-100">
                     P Hour:{" "}
                     <span className="font-semibold">{prodHourLabel}</span>
                   </span>
                 </div>
-                <div className="flex gap-2">
-                  <TvPieStatBox
-                    label="HR EFF%"
-                    value={hourlyEff}
-                    color="#0ea5e9"
-                  />
-                  <TvPieStatBox
-                    label="AVG EFF%"
-                    value={avgEff}
-                    color="#6366f1"
-                  />
-                  {/* <TvStatBox
-                    label="Q Hr / P Hr"
-                    value={`${qualityHourLabel} / ${prodHourLabel}`}
-                    accent="text-slate-200 border-slate-500/80"
-                    big
-                  /> */}
+              </div>
+
+              {/* KPI tiles (your design) */}
+              <div className="grid grid-cols-2 lg:grid-cols-3 gap-2.5">
+                <KpiTile
+                  label="RFT%"
+                  value={`${formatNumber(rft, 1)}%`}
+                  tone="emerald"
+                  icon={Gauge}
+                />
+                <KpiTile
+                  label="DEFECT RATE%"
+                  value={`${formatNumber(defectRate, 1)}%`}
+                  tone="red"
+                  icon={AlertTriangle}
+                />
+                <KpiTile
+                  label="DHU%"
+                  value={`${formatNumber(dhu, 1)}%`}
+                  tone="amber"
+                  icon={Activity}
+                />
+
+                <KpiTile
+                  label="HOURLY EFF%"
+                  value={`${formatNumber(hourlyEff, 1)}%`}
+                  tone="sky"
+                  icon={Gauge}
+                />
+                <KpiTile
+                  label="AVG EFF%"
+                  value={`${formatNumber(avgEff, 1)}%`}
+                  tone="purple"
+                  icon={TrendingUp}
+                />
+              </div>
+
+              {/* Variance chart */}
+              <div className="mt-1 space-y-1 min-h-0">
+                <div className="flex items-center justify-between text-[11px] text-slate-200">
+                  <span className="uppercase tracking-wide text-amber-200">
+                    Hourly Variance
+                  </span>
+                  {varianceLoading ? (
+                    <span className="flex items-center gap-1 text-[10px] text-slate-400">
+                      <span className="loading loading-spinner loading-xs" />
+                      Loading...
+                    </span>
+                  ) : (
+                    <span className="text-[10px] text-slate-400">
+                      Green = ahead, Red = behind
+                    </span>
+                  )}
+                </div>
+                <div className="h-24 sm:h-26 md:h-28 lg:h-32 w-full">
+                  <VarianceBarChart data={varianceChartData} />
                 </div>
               </div>
             </div>
           </div>
         </div>
-      </div>      
+      </div>
     </div>
   );
 }
-
 
 /* ------------ shared small components ------------ */
 
@@ -966,7 +1154,7 @@ function KpiPie({ value, label, color, size = 40 }) {
           animate
         />
         <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-          <span className="text-[10px] md:text-[11px] font-semibold text-slate-100">
+          <span className="text-[10px] md:text-[14px] font-semibold text-slate-100">
             {display}%
           </span>
         </div>
@@ -1001,35 +1189,81 @@ function MiniKpi({ label, value, color }) {
   );
 }
 
-
 function TvStatBox({ label, value, accent = "", big = false }) {
   return (
     <div
-      className={`rounded-xl border bg-slate-950/90 px-2 py-1.5 flex flex-col justify-center ${
-        accent || "border-slate-600 text-slate-100"
-      }`}
+      className={`rounded-xl border bg-slate-950/90 px-2 py-1.5 flex flex-col justify-center ${accent || "border-slate-600 text-slate-100"
+        }`}
     >
-      <span className="text-[9px] uppercase tracking-wide text-slate-400">
+      <span className="text-[14px] uppercase tracking-wide text-slate-400">
         {label}
       </span>
-      <span className={`font-semibold ${big ? "text-[15px]" : "text-[13px]"}`}>
+      <span className={`font-semibold ${big ? "text-[15px]" : "text-[14px]"}`}>
         {value}
       </span>
     </div>
   );
 }
 
-function TvPieStatBox({ label, value, color }) {
-  const pct = clampPercent(value);
+/* ------------ Variance bar chart (Recharts) ------------ */
+
+function VarianceBarChart({ data }) {
+  if (!data || data.length === 0) {
+    return (
+      <div className="flex h-full items-center justify-center text-[11px] text-slate-500">
+        No hourly records yet
+      </div>
+    );
+  }
+
+  const maxAbs =
+    data.reduce(
+      (max, d) => Math.max(max, Math.abs(d.varianceQty || 0)),
+      0
+    ) || 1;
+
+  const chartData = data.map((d) => ({
+    ...d,
+    varianceQty: d.varianceQty || 0,
+    fill: (d.varianceQty || 0) >= 0 ? "#22c55e" : "#ef4444",
+  }));
+
   return (
-    <div className="flex-1 flex flex-col items-center gap-1">
-      <KpiPie value={pct} label="" color={color} size={60} />
-      <span className="text-[9px] uppercase tracking-wide text-slate-400 text-center">
-        {label}
-      </span>
-      <span className="text-[11px] font-semibold text-slate-100">
-        {formatNumber(pct, 1)}%
-      </span>
-    </div>
+    <ResponsiveContainer width="100%" height="100%">
+      <BarChart
+        data={chartData}
+        margin={{ top: 8, right: 8, left: 0, bottom: 0 }}
+      >
+        <XAxis
+          dataKey="hourLabel"
+          tickLine={false}
+          axisLine={{ stroke: "#475569" }}
+          tick={{ fontSize: 10, fill: "#cbd5f5" }}
+        />
+        <YAxis
+          tickLine={false}
+          axisLine={{ stroke: "#475569" }}
+          tick={{ fontSize: 10, fill: "#cbd5f5" }}
+          domain={[-maxAbs, maxAbs]}
+        />
+        <ReferenceLine y={0} stroke="#64748b" strokeWidth={1} />
+        <Tooltip
+          cursor={{ fill: "rgba(15,23,42,0.4)" }}
+          contentStyle={{
+            backgroundColor: "#020617",
+            border: "1px solid #475569",
+            borderRadius: "0.5rem",
+            padding: "6px 8px",
+          }}
+          labelStyle={{ fontSize: 11, color: "#e2e8f0" }}
+          itemStyle={{ fontSize: 11, color: "#e2e8f0" }}
+        />
+        <Bar dataKey="varianceQty" radius={[3, 3, 0, 0]}>
+          {chartData.map((entry, idx) => (
+            <Cell key={idx} fill={entry.fill} />
+          ))}
+        </Bar>
+      </BarChart>
+    </ResponsiveContainer>
   );
 }

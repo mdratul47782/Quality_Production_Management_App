@@ -11,6 +11,7 @@ import {
   Legend,
   CartesianGrid,
   ResponsiveContainer,
+  LabelList,
 } from "recharts";
 
 const factoryOptions = ["K-1", "K-2", "K-3"];
@@ -26,6 +27,25 @@ const buildingOptions = [
   "B-5",
 ];
 
+// 🔹 Serial order for line labels
+const lineOrder = [
+  "Line-1",
+  "Line-2",
+  "Line-3",
+  "Line-4",
+  "Line-5",
+  "Line-6",
+  "Line-7",
+  "Line-8",
+  "Line-9",
+  "Line-10",
+  "Line-11",
+  "Line-12",
+  "Line-13",
+  "Line-14",
+  "Line-15",
+];
+
 function formatNumber(value, digits = 2) {
   const num = Number(value);
   if (!Number.isFinite(num)) return "-";
@@ -38,6 +58,76 @@ function clampPercent(value) {
   return Math.max(0, Math.min(100, n));
 }
 
+const labelColor = "#e5e7eb";
+const MIN_BAR_HEIGHT_FOR_LABEL = 14; // 🔹 below this, no label to avoid X-axis overlap
+
+// 🔹 Vertical % label (inside bar, centered by bar height)
+const renderPercentLabelVertical = (props) => {
+  const { x, y, width, height, value } = props;
+  const num = Number(value);
+  if (!Number.isFinite(num)) return null;
+
+  // very small bar → skip label to avoid overlapping axis
+  if (!height || height < MIN_BAR_HEIGHT_FOR_LABEL) return null;
+
+  const cx = x + width / 2;
+  const cy = y + height / 2; // center of bar
+
+  return (
+    <text
+      x={cx}
+      y={cy}
+      fill={labelColor}
+      textAnchor="middle"
+      fontSize={9}
+      transform={`rotate(-90, ${cx}, ${cy})`}
+    >
+      {formatNumber(num, 1)}%
+    </text>
+  );
+};
+
+// 🔹 Vertical qty label (inside bar, centered by bar height)
+const renderQtyLabelVertical = (props) => {
+  const { x, y, width, height, value } = props;
+  const num = Number(value);
+  if (!Number.isFinite(num)) return null;
+
+  if (!height || height < MIN_BAR_HEIGHT_FOR_LABEL) return null;
+
+  const cx = x + width / 2;
+  const cy = y + height / 2;
+
+  return (
+    <text
+      x={cx}
+      y={cy}
+      fill={labelColor}
+      textAnchor="middle"
+      fontSize={10}
+      transform={`rotate(-90, ${cx}, ${cy})`}
+    >
+      {formatNumber(num, 0)}
+    </text>
+  );
+};
+
+// 🔹 helper: get serial order index for label
+function getLabelOrderIndex(label, isAllBuildings) {
+  if (isAllBuildings) {
+    const idx = buildingOptions.indexOf(label);
+    return idx === -1 ? 999 : idx;
+  }
+
+  const idxLine = lineOrder.indexOf(label);
+  if (idxLine !== -1) return idxLine;
+
+  // fallback: try numeric part (e.g. "Line-7")
+  const num = parseInt(String(label).replace(/[^\d]/g, ""), 10);
+  if (Number.isFinite(num)) return num;
+  return 999;
+}
+
 export default function FloorSummaryPage() {
   const [factory, setFactory] = useState("K-2");
   const [building, setBuilding] = useState("A-2"); // "" => All
@@ -47,7 +137,7 @@ export default function FloorSummaryPage() {
 
   const [summary, setSummary] = useState(null);
   const [lines, setLines] = useState([]);
-  const [buildingsData, setBuildingsData] = useState([]); // 🔹 NEW
+  const [buildingsData, setBuildingsData] = useState([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
 
@@ -84,7 +174,7 @@ export default function FloorSummaryPage() {
         if (!cancelled) {
           setSummary(json.summary || null);
           setLines(json.lines || []);
-          setBuildingsData(json.buildings || []); // 🔹 NEW
+          setBuildingsData(json.buildings || []);
         }
       } catch (err) {
         if (!cancelled) {
@@ -115,42 +205,62 @@ export default function FloorSummaryPage() {
 
   const isAllBuildings = !building; // "" => All
 
-  // 🔹 chart data এখন conditionally lines vs buildingsData ব্যবহার করবে
+  // 🔹 Efficiency chart data (sorted serially)
   const effChartData = useMemo(() => {
     const src = isAllBuildings ? buildingsData : lines;
-    return (src || []).map((item) => ({
+    const mapped = (src || []).map((item) => ({
       label: isAllBuildings ? item.building : item.line,
       hourlyEff: Number(item.production?.currentHourEfficiency ?? 0),
       avgEff: Number(item.production?.avgEffPercent ?? 0),
     }));
+
+    return mapped.sort(
+      (a, b) =>
+        getLabelOrderIndex(a.label, isAllBuildings) -
+        getLabelOrderIndex(b.label, isAllBuildings)
+    );
   }, [lines, buildingsData, isAllBuildings]);
 
+  // 🔹 Quality chart data (sorted same order)
   const qualityChartData = useMemo(() => {
     const src = isAllBuildings ? buildingsData : lines;
-    return (src || []).map((item) => ({
+    const mapped = (src || []).map((item) => ({
       label: isAllBuildings ? item.building : item.line,
       rft: Number(item.quality?.rftPercent ?? 0),
       dhu: Number(item.quality?.dhuPercent ?? 0),
       defectRate: Number(item.quality?.defectRatePercent ?? 0),
     }));
+
+    return mapped.sort(
+      (a, b) =>
+        getLabelOrderIndex(a.label, isAllBuildings) -
+        getLabelOrderIndex(b.label, isAllBuildings)
+    );
   }, [lines, buildingsData, isAllBuildings]);
 
+  // 🔹 Qty chart data (sorted same order)
   const qtyChartData = useMemo(() => {
     const src = isAllBuildings ? buildingsData : lines;
-    return (src || []).map((item) => ({
+    const mapped = (src || []).map((item) => ({
       label: isAllBuildings ? item.building : item.line,
       target: Number(item.production?.targetQty ?? 0),
       achieved: Number(item.production?.achievedQty ?? 0),
     }));
+
+    return mapped.sort(
+      (a, b) =>
+        getLabelOrderIndex(a.label, isAllBuildings) -
+        getLabelOrderIndex(b.label, isAllBuildings)
+    );
   }, [lines, buildingsData, isAllBuildings]);
 
   const overallPlanPercent =
     Number(production.totalTargetQty) > 0
       ? clampPercent(
-          (Number(production.totalAchievedQty) /
-            Number(production.totalTargetQty)) *
-            100
-        )
+        (Number(production.totalAchievedQty) /
+          Number(production.totalTargetQty)) *
+        100
+      )
       : 0;
 
   const hasChartData = isAllBuildings
@@ -186,7 +296,7 @@ export default function FloorSummaryPage() {
               {/* Building */}
               <div className="space-y-1">
                 <label className="block text-[11px] font-semibold uppercase text-amber-100">
-                  Building
+                  Floor{/* Building,  i used Building everywhere insted of floor so i did not change it*/}
                 </label>
                 <select
                   className="select select-xs bg-amber-300 text-gray-950 select-bordered min-w-[120px]"
@@ -284,15 +394,14 @@ export default function FloorSummaryPage() {
                 )} %`}
                 accent="border-indigo-500/60 text-indigo-300"
               />
-              {/* তুমি চাইলে এখান থেকে overall plan% আবার চালু করতে পারো */}
               <MetricBox
                 label="Current Hr Eff%"
                 value={
                   production.currentHour != null
                     ? `${formatNumber(
-                        production.currentHourEfficiency ?? 0,
-                        1
-                      )} % (Hr ${production.currentHour})`
+                      production.currentHourEfficiency ?? 0,
+                      1
+                    )} % (Hr ${production.currentHour})`
                     : "-"
                 }
                 accent="border-amber-500/60 text-amber-300"
@@ -387,12 +496,14 @@ export default function FloorSummaryPage() {
                 <ResponsiveContainer width="100%" height="100%">
                   <BarChart
                     data={effChartData}
-                    margin={{ top: 10, right: 10, left: 0, bottom: 20 }}
+                    margin={{ top: 10, right: 10, left: 0, bottom: 30 }}
                   >
                     <CartesianGrid strokeDasharray="3 3" stroke="#1f2937" />
                     <XAxis
                       dataKey="label"
                       tick={{ fill: "#e5e7eb", fontSize: 10 }}
+                      interval={0}
+                      height={50}
                     />
                     <YAxis
                       tick={{ fill: "#e5e7eb", fontSize: 10 }}
@@ -426,6 +537,7 @@ export default function FloorSummaryPage() {
                       fill="#3b82f6"
                       radius={[4, 4, 0, 0]}
                     />
+
                   </BarChart>
                 </ResponsiveContainer>
               </div>
@@ -449,12 +561,15 @@ export default function FloorSummaryPage() {
                 <ResponsiveContainer width="100%" height="100%">
                   <BarChart
                     data={qualityChartData}
-                    margin={{ top: 10, right: 10, left: 0, bottom: 20 }}
+                    margin={{ top: 10, right: 10, left: 0, bottom: 30 }}
                   >
                     <CartesianGrid strokeDasharray="3 3" stroke="#1f2937" />
                     <XAxis
                       dataKey="label"
                       tick={{ fill: "#e5e7eb", fontSize: 10 }}
+                      interval={0}
+
+                      height={50}
                     />
                     <YAxis
                       tick={{ fill: "#e5e7eb", fontSize: 10 }}
@@ -477,23 +592,24 @@ export default function FloorSummaryPage() {
                       }}
                     />
                     <Bar
-                      dataKey="rft"
-                      name="RFT%"
-                      fill="#22c55e"
-                      radius={[4, 4, 0, 0]}
-                    />
-                    <Bar
-                      dataKey="dhu"
-                      name="DHU%"
-                      fill="#eab308"
-                      radius={[4, 4, 0, 0]}
-                    />
-                    <Bar
-                      dataKey="defectRate"
-                      name="Defect Rate%"
-                      fill="#ef4444"
-                      radius={[4, 4, 0, 0]}
-                    />
+  dataKey="rft"
+  name="RFT%"
+  fill="#22c55e"
+  radius={[4, 4, 0, 0]}
+/>
+<Bar
+  dataKey="dhu"
+  name="DHU%"
+  fill="#eab308"
+  radius={[4, 4, 0, 0]}
+/>
+<Bar
+  dataKey="defectRate"
+  name="Defect Rate%"
+  fill="#ef4444"
+  radius={[4, 4, 0, 0]}
+/>
+
                   </BarChart>
                 </ResponsiveContainer>
               </div>
@@ -515,12 +631,15 @@ export default function FloorSummaryPage() {
                 <ResponsiveContainer width="100%" height="100%">
                   <BarChart
                     data={qtyChartData}
-                    margin={{ top: 10, right: 10, left: 0, bottom: 30 }}
+                    margin={{ top: 10, right: 10, left: 0, bottom: 40 }}
                   >
                     <CartesianGrid strokeDasharray="3 3" stroke="#1f2937" />
                     <XAxis
                       dataKey="label"
                       tick={{ fill: "#e5e7eb", fontSize: 10 }}
+                      interval={0}
+
+                      height={60}
                     />
                     <YAxis
                       tick={{ fill: "#e5e7eb", fontSize: 10 }}
@@ -548,7 +667,12 @@ export default function FloorSummaryPage() {
                       }
                       fill="#38bdf8"
                       radius={[4, 4, 0, 0]}
-                    />
+                    >
+                      <LabelList
+                        dataKey="target"
+                        content={renderQtyLabelVertical}
+                      />
+                    </Bar>
                     <Bar
                       dataKey="achieved"
                       name={
@@ -558,7 +682,12 @@ export default function FloorSummaryPage() {
                       }
                       fill="#a855f7"
                       radius={[4, 4, 0, 0]}
-                    />
+                    >
+                      <LabelList
+                        dataKey="achieved"
+                        content={renderQtyLabelVertical}
+                      />
+                    </Bar>
                   </BarChart>
                 </ResponsiveContainer>
               </div>

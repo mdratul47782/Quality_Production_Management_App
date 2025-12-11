@@ -3,7 +3,7 @@ import { useAuth } from "@/app/hooks/useAuth";
 import React, { useEffect, useMemo, useState } from "react";
 
 // -------- helpers --------
-const hourOptions = ["1st Hour", "2nd Hour", "3rd Hour", "4th Hour", "5th Hour", "6th Hour", "7th Hour", "8th Hour","9th Hour", "10th Hour", "11th Hour", "12th Hour"];
+const hourOptions = ["1st Hour", "2nd Hour", "3rd Hour", "4th Hour", "5th Hour", "6th Hour", "7th Hour", "8th Hour", "9th Hour", "10th Hour", "11th Hour", "12th Hour"];
 
 const defectOptions = [
   "301 - OPEN SEAM",
@@ -176,11 +176,10 @@ function SearchableDefectPicker({
                 key={opt}
                 onMouseDown={(e) => e.preventDefault()}
                 onClick={() => selectValue(opt)}
-                className={`block w-full text-left px-2 py-1.5 text-sm ${
-                  idx === hi
-                    ? "bg-emerald-50 text-emerald-700"
-                    : "hover:bg-gray-50"
-                }`}
+                className={`block w-full text-left px-2 py-1.5 text-sm ${idx === hi
+                  ? "bg-emerald-50 text-emerald-700"
+                  : "hover:bg-gray-50"
+                  }`}
               >
                 {opt}
               </button>
@@ -300,9 +299,9 @@ export default function EndlineDashboard() {
       line: row.line || "",
       selectedDefects: Array.isArray(row.selectedDefects)
         ? row.selectedDefects.map((d) => ({
-            name: d.name || "",
-            quantity: String(d.quantity || ""),
-          }))
+          name: d.name || "",
+          quantity: String(d.quantity || ""),
+        }))
         : [],
       inspectedQty: String(row.inspectedQty || ""),
       passedQty: String(row.passedQty || ""),
@@ -317,9 +316,8 @@ export default function EndlineDashboard() {
     try {
       setDeleting(id);
       const factory = getFactory();
-      const url = `/api/hourly-inspections?id=${id}${
-        factory ? `&factory=${encodeURIComponent(factory)}` : ""
-      }`;
+      const url = `/api/hourly-inspections?id=${id}${factory ? `&factory=${encodeURIComponent(factory)}` : ""
+        }`;
 
       const res = await fetch(url, {
         method: "DELETE",
@@ -411,9 +409,8 @@ export default function EndlineDashboard() {
       let json;
 
       if (editingId) {
-        const url = `/api/hourly-inspections?id=${editingId}${
-          factory ? `&factory=${encodeURIComponent(factory)}` : ""
-        }`;
+        const url = `/api/hourly-inspections?id=${editingId}${factory ? `&factory=${encodeURIComponent(factory)}` : ""
+          }`;
 
         res = await fetch(url, {
           method: "PATCH",
@@ -474,8 +471,8 @@ export default function EndlineDashboard() {
             json?.message ||
             json?.error ||
             (responseText &&
-            responseText.length > 0 &&
-            !responseText.startsWith("{")
+              responseText.length > 0 &&
+              !responseText.startsWith("{")
               ? responseText
               : null) ||
             `Failed to save (Status: ${res.status})`;
@@ -517,20 +514,19 @@ export default function EndlineDashboard() {
       {toast && (
         <div className="fixed right-4 top-4 z-50">
           <div
-            className={`flex items-start gap-2 rounded-lg border px-4 py-3 shadow-lg ${
-              toast.type === "success"
-                ? "border-emerald-200 bg-emerald-50 text-emerald-800"
-                : toast.type === "error"
+            className={`flex items-start gap-2 rounded-lg border px-4 py-3 shadow-lg ${toast.type === "success"
+              ? "border-emerald-200 bg-emerald-50 text-emerald-800"
+              : toast.type === "error"
                 ? "border-red-200 bg-red-50 text-red-800"
                 : "border-blue-200 bg-blue-50 text-blue-800"
-            }`}
+              }`}
           >
             <span className="text-lg">
               {toast.type === "success"
                 ? "✅"
                 : toast.type === "error"
-                ? "⚠️"
-                : "ℹ️"}
+                  ? "⚠️"
+                  : "ℹ️"}
             </span>
             <div className="text-sm">
               <p className="font-medium">{toast.message}</p>
@@ -548,17 +544,50 @@ export default function EndlineDashboard() {
 
       <div className="mx-auto max-w-7xl p-4 md:p-6">
         <div className="mb-4 flex items-center justify-between gap-3">
-          <div>
-            <h1 className="text-xl font-bold text-black">
-              Endline Hourly Dashboard —{" "}
-              <span className="text-indigo-600">
-                {auth?.user_name || "User"}{" "}
-                {auth?.factory && `| Factory: ${auth.factory}`}{" "}
-                {auth?.assigned_building && `(${auth.assigned_building})`}
-              </span>
-            </h1>
-            <p className="text-sm text-gray-600">Today: {todayLabel}</p>
+          <div className="card bg-base-200/80 shadow-md border border-base-300 mb-3">
+            <div className="card-body py-3 px-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+              {/* LEFT: title + user/factory */}
+              <div>
+                <h1 className="card-title text-lg sm:text-xl text-base-content">
+                  Endline Hourly Dashboard
+                </h1>
+                <p className="text-xs sm:text-sm text-base-content/70 mt-1">
+                  <span className="font-semibold text-primary">
+                    {auth?.user_name || "User"}
+                  </span>
+                  {auth?.factory && (
+                    <>
+                      {" "}
+                      • Factory:{" "}
+                      <span className="font-medium text-secondary">
+                        {auth.factory}
+                      </span>
+                    </>
+                  )}
+                  {auth?.assigned_building && (
+                    <>
+                      {" "}
+                      • Floor:{" "}
+                      <span className="font-medium text-accent">
+                        {auth.assigned_building}
+                      </span>
+                    </>
+                  )}
+                </p>
+              </div>
+
+              {/* RIGHT: today chip */}
+              <div className="flex items-center gap-2">
+                <span className="text-xs text-base-content/60 hidden sm:inline">
+                  Today
+                </span>
+                <div className="badge badge-lg badge-outline border-primary/60 text-primary font-medium px-3">
+                  {todayLabel}
+                </div>
+              </div>
+            </div>
           </div>
+
           <div className="flex items-center gap-2">
             <button
               onClick={fetchToday}

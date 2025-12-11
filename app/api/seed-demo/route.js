@@ -25,8 +25,8 @@ export async function GET() {
   hourlyProductions,
   hourlyInspections,
 } = generateAllDummyData({
-  days: 3,
-  hoursPerDay: 8,
+  days: 30,
+  hoursPerDay: 12,
 });
 
     // ⚠️ পুরোনো data মুছে ফেলে নতুন demo data ঢোকাচ্ছে

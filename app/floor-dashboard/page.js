@@ -105,7 +105,7 @@ function KpiTile({ label, value, tone = "emerald", icon: Icon }) {
         group relative overflow-hidden rounded-xl border ${toneMap.card}
         bg-gradient-to-br p-2 sm:p-2.5 ring-1
         transition-transform duration-200 hover:translate-y-0.5
-        min-h-[40px]
+        min-h-[36px]
       `}
     >
       <div className="pointer-events-none absolute -inset-px rounded-[0.9rem] bg-[radial-gradient(100px_50px_at_0%_0%,rgba(255,255,255,0.12),transparent)]" />
@@ -121,7 +121,7 @@ function KpiTile({ label, value, tone = "emerald", icon: Icon }) {
           {Icon ? <Icon className="h-3 w-3" /> : null}
           <span className="leading-none">{label}</span>
         </div>
-        <div className="text-right text-xl sm:text-2xl font-extrabold tabular-nums tracking-tight text-white leading-none">
+        <div className="text-right text-lg sm:text-xl font-extrabold tabular-nums tracking-tight text-white leading-none">
           {value}
         </div>
       </div>
@@ -153,12 +153,9 @@ export default function FloorDashboardPage() {
     };
 
     return [...rows].sort((a, b) => {
-      const lnDiff =
-        getLineNumber(a.line) - getLineNumber(b.line);
+      const lnDiff = getLineNumber(a.line) - getLineNumber(b.line);
       if (lnDiff !== 0) return lnDiff;
-      return String(a.style || "").localeCompare(
-        String(b.style || "")
-      );
+      return String(a.style || "").localeCompare(String(b.style || ""));
     });
   }, [rows]);
 
@@ -267,11 +264,7 @@ export default function FloorDashboardPage() {
         const map = {};
 
         for (const doc of list) {
-          const segKey = makeSegmentKey(
-            doc.line,
-            doc.buyer,
-            doc.style
-          );
+          const segKey = makeSegmentKey(doc.line, doc.buyer, doc.style);
           map[segKey] = doc;
         }
 
@@ -368,24 +361,23 @@ export default function FloorDashboardPage() {
     sortedRows.length > 0 ? currentCardIndex % sortedRows.length : 0;
   const currentRow = sortedRows[safeIndex];
 
-  const contentWrapperClass = `flex-1 min-h-0 ${
-    viewMode === "grid" ? "overflow-y-auto pr-1" : ""
-  }`;
+  // ✅ always allow vertical scroll inside content
+  const contentWrapperClass = "flex-1 min-h-0 overflow-y-auto pr-1";
 
   return (
-    <div className="min-h-screen bg-gradient-to-b from-slate-950 via-slate-950 to-slate-900 text-slate-50 py-2 px-2 mb-0">
-      <div className="max-w-[1700px] mx-auto flex flex-col gap-3 h-[calc(100vh-16px)]">
+    <div className="h-screen bg-gradient-to-b from-slate-950 via-slate-950 to-slate-900 text-slate-50 py-1.5 px-2">
+      <div className="max-w-[1700px] mx-auto flex flex-col gap-2 h-full">
         {/* Filter Panel */}
-        <div className="card bg-base-300/10 border border-slate-800/80 shadow-[0_10px_35px_rgba(0,0,0,0.9)]">
-          <div className="card-body p-2 md:p-3 text-xs space-y-2">
-            <div className="flex flex-wrap items-end gap-4">
+        <div className="card bg-base-300/10 border border-slate-800/80 shadow-[0_8px_28px_rgba(0,0,0,0.9)]">
+          <div className="card-body p-2 md:p-2.5 text-xs space-y-2">
+            <div className="flex flex-wrap items-end gap-3">
               {/* Factory */}
               <div className="space-y-1">
                 <label className="block text-[11px] font-semibold uppercase text-amber-100">
                   Factory
                 </label>
                 <select
-                  className="select select-xs bg-amber-300/95 select-bordered min-w-[140px] text-slate-900"
+                  className="select select-xs bg-amber-300/95 select-bordered min-w-[120px] text-slate-900"
                   value={factory}
                   onChange={(e) => setFactory(e.target.value)}
                 >
@@ -404,7 +396,7 @@ export default function FloorDashboardPage() {
                   Floor
                 </label>
                 <select
-                  className="select select-xs bg-amber-300/95 select-bordered min-w-[140px] text-slate-900"
+                  className="select select-xs bg-amber-300/95 select-bordered min-w-[120px] text-slate-900"
                   value={building}
                   onChange={(e) => setBuilding(e.target.value)}
                 >
@@ -432,11 +424,11 @@ export default function FloorDashboardPage() {
 
               {/* Line */}
               <div className="space-y-1">
-                <label className="block text-[12px] font-semibold uppercase text-amber-100 ">
+                <label className="block text-[11px] font-semibold uppercase text-amber-100 ">
                   Line
                 </label>
                 <select
-                  className="select select-xs bg-amber-300/95 select-bordered min-w-[120px] text-slate-900"
+                  className="select select-xs bg-amber-300/95 select-bordered min-w-[110px] text-slate-900"
                   value={line}
                   onChange={(e) => setLine(e.target.value)}
                 >
@@ -455,7 +447,7 @@ export default function FloorDashboardPage() {
                 </label>
 
                 <select
-                  className="select select-xs bg-amber-300/95 select-bordered min-w-[130px] text-slate-900"
+                  className="select select-xs bg-amber-300/95 select-bordered min-w-[140px] text-slate-900"
                   value={viewMode}
                   onChange={(e) => setViewMode(e.target.value)}
                 >
@@ -490,7 +482,7 @@ export default function FloorDashboardPage() {
 
           {/* GRID VIEW – one card per segment (line+buyer+style) */}
           {hasData && viewMode === "grid" && (
-            <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 pb-1">
+            <div className="grid gap-2.5 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 pb-1">
               {sortedRows.map((row) => {
                 const segKey = makeSegmentKey(
                   row.line,
@@ -511,7 +503,7 @@ export default function FloorDashboardPage() {
 
           {/* TV VIEW – auto slide per segment */}
           {hasData && viewMode === "tv" && currentRow && (
-            <div className="flex-1 min-h-0 flex flex-col space-y-3">
+            <div className="flex-1 min-h-0 flex flex-col space-y-2">
               <div className="flex-1 min-h-0">
                 {(() => {
                   const segKey = makeSegmentKey(
@@ -533,7 +525,7 @@ export default function FloorDashboardPage() {
               </div>
 
               <div className="flex flex-col items-center gap-1 text-[9px] text-slate-400 pb-1">
-                <div className="flex items-center gap-1">
+                <div className="flex items-center gap-1 flex-wrap justify-center">
                   {sortedRows.map((row, idx) => {
                     const segKey = makeSegmentKey(
                       row.line,
@@ -554,7 +546,7 @@ export default function FloorDashboardPage() {
                     );
                   })}
                 </div>
-                <div>
+                <div className="text-center">
                   Showing{" "}
                   <span className="mx-1 font-semibold text-sky-300">
                     {safeIndex + 1}
@@ -579,6 +571,8 @@ export default function FloorDashboardPage() {
 function LineCard({ lineData, lineInfo, wipData }) {
   const { line, quality, production, buyer: dataBuyer, style: dataStyle } =
     lineData || {};
+
+  console.log("Production", production);
 
   const buyer = lineInfo?.buyer || dataBuyer || "-";
   const style = lineInfo?.style || dataStyle || "-";
@@ -611,10 +605,10 @@ function LineCard({ lineData, lineInfo, wipData }) {
 
   return (
     <div
-      className={`card h-full rounded-2xl border bg-slate-950/95 shadow-[0_12px_36px_rgba(0,0,0,0.7)] overflow-hidden 
+      className={`card h-full rounded-2xl border bg-slate-950/95 shadow-[0_10px_28px_rgba(0,0,0,0.7)] overflow-hidden 
       ${isBehind ? "border-rose-500/40" : "border-emerald-500/35"}`}
     >
-      <div className="card-body p-2 space-y-0 text-[11px] text-slate-100 bg-gradient-to-b from-slate-950 via-slate-950/95 to-slate-950">
+      <div className="card-body p-2 space-y-1 text-[11px] text-slate-100 bg-gradient-to-b from-slate-950 via-slate-950/95 to-slate-950">
         {/* TOP: meta + main donut */}
         <div className="flex items-start justify-between gap-2 border-b border-slate-800/80 pb-1">
           {/* left chips */}
@@ -644,7 +638,7 @@ function LineCard({ lineData, lineInfo, wipData }) {
 
           {/* right: main pie + compact plan summary */}
           <div className="flex items-center gap-2">
-            <KpiPie value={planPercent} label="PLAN" color="#22d3ee" size={46} />
+            <KpiPie value={planPercent} label="PLAN" color="#22d3ee" size={42} />
 
             <div className="text-[9px] leading-tight text-right rounded-lg border border-sky-500/60 bg-slate-950/85 px-2 py-1.5">
               <div className="text-[8px] uppercase tracking-wide text-slate-400 mb-0.5">
@@ -732,11 +726,7 @@ function LineCard({ lineData, lineInfo, wipData }) {
               </span>
             </div>
             <div className="flex gap-1.5">
-              <MiniKpi
-                label="Hourly EFF"
-                value={hourlyEff}
-                color="#0ea5e9"
-              />
+              <MiniKpi label="Hourly EFF" value={hourlyEff} color="#0ea5e9" />
               <MiniKpi label="AVG EFF" value={avgEff} color="#6366f1" />
             </div>
           </div>
@@ -890,17 +880,17 @@ function TvLineCard({ lineData, lineInfo, wipData, factory, building, date }) {
 
   return (
     <div
-      className={`relative h-full w-full rounded-3xl border-2 shadow-[0_0_80px_rgba(0,0,0,0.9)] overflow-hidden
+      className={`relative w-full rounded-3xl border-2 shadow-[0_0_80px_rgba(0,0,0,0.9)] overflow-hidden
       bg-gradient-to-br from-slate-950 via-slate-950 to-slate-900
       ${isBehind ? "border-rose-500/70" : "border-emerald-500/70"}`}
     >
       {/* ambient glow */}
       <div className="pointer-events-none absolute inset-0 -z-10 bg-[radial-gradient(1200px_600px_at_0%_0%,rgba(45,212,191,0.25),transparent),radial-gradient(1000px_500px_at_100%_0%,rgba(56,189,248,0.25),transparent)]" />
 
-      <div className="relative flex h-full flex-col gap-4 p-3 md:p-4 lg:p-5 text-xs md:text-sm min-h-0">
+      <div className="relative flex flex-col gap-3 p-3 md:p-4 lg:p-4 text-xs md:text-sm min-h-[380px] sm:min-h-[420px] lg:min-h-[460px]">
         {/* TOP meta row */}
-        <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3 border-b border-slate-800/70 pb-2">
-          <div className="flex flex-wrap gap-2">
+        <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-2 border-b border-slate-800/70 pb-2">
+          <div className="flex flex-wrap gap-1.5">
             <span className="badge badge-lg border-slate-600 bg-slate-900/80 text-amber-100">
               Buyer:&nbsp;
               <span className="font-semibold text-amber-300">{buyer}</span>
@@ -915,9 +905,7 @@ function TvLineCard({ lineData, lineInfo, wipData, factory, building, date }) {
             </span>
             <span className="badge badge-lg border-emerald-500/70 bg-emerald-500/10 text-emerald-100">
               Run Day:&nbsp;
-              <span className="font-semibold text-emerald-300">
-                {runDay}
-              </span>
+              <span className="font-semibold text-emerald-300">{runDay}</span>
             </span>
             <span className="badge badge-lg border-emerald-500/70 bg-emerald-500/10 text-emerald-100">
               SMV:&nbsp;
@@ -951,12 +939,12 @@ function TvLineCard({ lineData, lineInfo, wipData, factory, building, date }) {
         <div className="grid flex-1 min-h-0 gap-2 md:grid-cols-2 lg:grid-cols-12">
           {/* IMAGE */}
           <div className="md:col-span-1 lg:col-span-3 flex flex-col min-h-0">
-            <div className="flex-1 min-h-0 rounded-2xl border border-cyan-500/70 bg-slate-950/95 overflow-hidden flex flex-col">
+            <div className="flex-1 min-h-[150px] sm:min-h-[170px] lg:min-h-0 rounded-2xl border border-cyan-500/70 bg-slate-950/95 overflow-hidden flex flex-col">
               <div className="px-3 py-1.5 text-[10px] md:text-xs uppercase tracking-[0.14em] text-cyan-200 bg-gradient-to-r from-cyan-500/25 to-transparent border-b border-cyan-500/40 flex items-center justify-between">
                 <span>STYLE IMAGE</span>
                 <span className="text-[10px] text-cyan-200/70">View</span>
               </div>
-              <div className="relative flex-1 min-h-[140px] sm:min-h-[160px] md:min-h-[180px] bg-black/90">
+              <div className="relative flex-1 bg-black/90">
                 {imageSrc ? (
                   <img
                     src={imageSrc}
@@ -976,14 +964,14 @@ function TvLineCard({ lineData, lineInfo, wipData, factory, building, date }) {
 
           {/* VIDEO */}
           <div className="md:col-span-1 lg:col-span-3 flex flex-col min-h-0">
-            <div className="flex-1 min-h-0 rounded-2xl border border-emerald-500/70 bg-slate-950/95 overflow-hidden flex flex-col">
+            <div className="flex-1 min-h-[150px] sm:min-h-[170px] lg:min-h-0 rounded-2xl border border-emerald-500/70 bg-slate-950/95 overflow-hidden flex flex-col">
               <div className="px-3 py-1.5 text-[10px] md:text-xs uppercase tracking-[0.14em] text-emerald-200 bg-gradient-to-r from-emerald-500/25 to-transparent border-b border-emerald-500/40 flex items-center justify-between">
                 <span>LIVE VIDEO</span>
                 <span className="text-[10px] text-emerald-200/70">
                   Auto Play
                 </span>
               </div>
-              <div className="relative flex-1 min-h-[140px] sm:min-h-[160px] md:min-h-[180px] bg-black/90">
+              <div className="relative flex-1 bg-black/90">
                 {videoSrc ? (
                   <video
                     src={videoSrc}
@@ -1005,9 +993,9 @@ function TvLineCard({ lineData, lineInfo, wipData, factory, building, date }) {
           </div>
 
           {/* STATS + VARIANCE */}
-          <div className="md:col-span-2 lg:col-span-6 flex flex-col gap-3 min-h-0">
+          <div className="md:col-span-2 lg:col-span-6 flex flex-col gap-2.5 min-h-0">
             {/* PLAN vs ACHV */}
-            <div className="rounded-2xl border border-sky-700 bg-gradient-to-br from-sky-900/50 via-slate-950 to-slate-900/95 p-3 md:p-4 flex flex-col gap-3">
+            <div className="rounded-2xl border border-sky-700 bg-gradient-to-br from-sky-900/50 via-slate-950 to-slate-900/95 p-3 md:p-3.5 flex flex-col gap-2.5">
               <div className="flex items-center justify-between text-[11px]">
                 <span className="uppercase tracking-wide text-sky-200">
                   Plan vs Achieved
@@ -1017,12 +1005,12 @@ function TvLineCard({ lineData, lineInfo, wipData, factory, building, date }) {
                 </span>
               </div>
 
-              <div className="mt-1 flex flex-col lg:flex-row items-center gap-4">
+              <div className="mt-1 flex flex-col lg:flex-row items-center gap-3">
                 <KpiPie
                   value={planPercent}
                   label=""
                   color="#22d3ee"
-                  size={110}
+                  size={96}
                 />
 
                 <div className="grid grid-cols-2 md:grid-cols-3 gap-2 w-full text-[11px] md:text-xs">
@@ -1071,18 +1059,18 @@ function TvLineCard({ lineData, lineInfo, wipData, factory, building, date }) {
                   Production & Quality
                 </span>
                 <div className="flex flex-wrap gap-1">
-                  <span className="badge border-emerald-500/60 bg-emerald-500/10 text-[14px] text-emerald-100">
+                  <span className="badge border-emerald-500/60 bg-emerald-500/10 text-[11px] text-emerald-100">
                     Q Hour:{" "}
                     <span className="font-semibold">{qualityHourLabel}</span>
                   </span>
-                  <span className="badge border-sky-500/60 bg-sky-500/10 text-[14px] text-sky-100">
+                  <span className="badge border-sky-500/60 bg-sky-500/10 text-[11px] text-sky-100">
                     P Hour:{" "}
                     <span className="font-semibold">{prodHourLabel}</span>
                   </span>
                 </div>
               </div>
 
-              <div className="grid grid-cols-2 lg:grid-cols-3 gap-2.5">
+              <div className="grid grid-cols-2 lg:grid-cols-3 gap-2">
                 <KpiTile
                   label="RFT%"
                   value={`${formatNumber(rft, 1)}%`}
@@ -1132,7 +1120,7 @@ function TvLineCard({ lineData, lineInfo, wipData, factory, building, date }) {
                     </span>
                   )}
                 </div>
-                <div className="h-24 sm:h-26 md:h-28 lg:h-32 w-full">
+                <div className="h-24 sm:h-28 md:h-32 lg:h-36 w-full">
                   <VarianceBarChart data={varianceChartData} />
                 </div>
               </div>
@@ -1169,7 +1157,7 @@ function KpiPie({ value, label, color, size = 40 }) {
           animate
         />
         <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-          <span className="text-[10px] md:text-[14px] font-semibold text-slate-100">
+          <span className="text-[10px] md:text-[13px] font-semibold text-slate-100">
             {display}%
           </span>
         </div>
@@ -1190,7 +1178,7 @@ function MiniKpi({ label, value, color }) {
   return (
     <div className="flex-1 min-w-[0] flex items-center gap-1 rounded-lg border border-slate-800 bg-slate-950/90 px-1.5 py-1">
       <div className="flex-shrink-0">
-        <KpiPie value={pct} label="" color={color} size={28} />
+        <KpiPie value={pct} label="" color={color} size={26} />
       </div>
       <div className="flex flex-col leading-tight min-w-0">
         <span className="text-[8px] uppercase tracking-wide text-slate-400 truncate">
@@ -1211,7 +1199,7 @@ function TvStatBox({ label, value, accent = "", big = false }) {
         accent || "border-slate-600 text-slate-100"
       }`}
     >
-      <span className="text-[14px] uppercase tracking-wide text-slate-400">
+      <span className="text-[11px] uppercase tracking-wide text-slate-400">
         {label}
       </span>
       <span className={`font-semibold ${big ? "text-[15px]" : "text-[14px]"}`}>
@@ -1246,7 +1234,7 @@ function VarianceBarChart({ data }) {
     <ResponsiveContainer width="100%" height="100%">
       <BarChart
         data={chartData}
-        margin={{ top: 8, right: 8, left: 0, bottom: 0 }}
+        margin={{ top: 6, right: 8, left: 0, bottom: 0 }}
       >
         <XAxis
           dataKey="hourLabel"

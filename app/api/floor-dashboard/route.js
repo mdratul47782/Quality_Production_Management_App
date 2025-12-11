@@ -15,6 +15,7 @@ function toNumberOrZero(value) {
   return Number.isFinite(n) ? n : 0;
 }
 
+// same formula you already use elsewhere
 function computeBaseTargetPerHourFromHeader(header) {
   const manpowerPresent = toNumberOrZero(header.manpower_present);
   const smv = toNumberOrZero(header.smv);
@@ -62,8 +63,13 @@ function getDayRange(dateStr) {
   return { start, end };
 }
 
+// common key for segments (line + buyer + style)
+function makeSegmentKey(line, buyer, style) {
+  return `${line || ""}__${buyer || ""}__${style || ""}`;
+}
+
 // ==================================================================
-// GET /api/floor-dashboard?factory=K-2&building=A-2&date=2025-12-08&line=Line-1|ALL
+// GET /api/floor-dashboard?factory=K-2&building=A-2&date=2025-12-11&line=Line-1|ALL
 // ==================================================================
 export async function GET(req) {
   try {
@@ -85,9 +91,10 @@ export async function GET(req) {
       );
     }
 
-    // ============================
-    // PRODUCTION PART (target, eff%)
-    // ============================
+    // ============================================================
+    // PRODUCTION PART (segment = line + buyer + style)
+    // ============================================================
+
     const headerFilter = {
       factory,
       assigned_building: building,
@@ -99,68 +106,96 @@ export async function GET(req) {
 
     const headers = await TargetSetterHeader.find(headerFilter).lean();
 
-    const headerIdToLine = {};
-    const headerIdToContext = {};
-    const productionLineAgg = {};
+    // segAgg: key -> {
+    //   line, buyer, style,
+    //   production: {
+    //     targetQty,
+    //     achievedQty,
+    //     varianceQty,
+    //     currentHour,
+    //     currentHourEfficiency,
+    //     avgEffPercent,
+    //     manpowerPresent,
+    //     _produceMinSum,
+    //     _availMinSum,
+    //     _lastTotalEfficiency,
+    //   }
+    // }
+    const segAgg = {};
 
-    function ensureLineAgg(lineName) {
-      if (!productionLineAgg[lineName]) {
-        productionLineAgg[lineName] = {
+    const headerIdToSegKey = {};
+    const headerIdToContext = {};
+
+    function ensureSeg(segKey, lineName, buyer, style) {
+      if (!segAgg[segKey]) {
+        segAgg[segKey] = {
           line: lineName,
-          targetQty: 0,
-          achievedQty: 0,
-          varianceQty: 0,
-          currentHour: null,
-          currentHourEfficiency: 0,
-          avgEffPercent: 0,
-          manpowerPresent: 0, // 🔹 NEW: for floor summary
-          // internal for weighted avg eff
-          _produceMinSum: 0,
-          _availMinSum: 0,
-          _lastTotalEfficiency: null,
+          buyer,
+          style,
+          production: {
+            targetQty: 0,
+            achievedQty: 0,
+            varianceQty: 0,
+            currentHour: null,
+            currentHourEfficiency: 0,
+            avgEffPercent: 0,
+            manpowerPresent: 0,
+            _produceMinSum: 0,
+            _availMinSum: 0,
+            _lastTotalEfficiency: null,
+          },
         };
       }
-      return productionLineAgg[lineName];
+      return segAgg[segKey];
     }
 
-    // 1) From headers -> base target per line
+    // 1) From headers -> base target per segment
     for (const h of headers) {
       const lineName = h.line;
+      const buyer = h.buyer;
+      const style = h.style;
+
+      const segKey = makeSegmentKey(lineName, buyer, style);
+      const seg = ensureSeg(segKey, lineName, buyer, style);
+
       const headerIdStr = h._id.toString();
-      const agg = ensureLineAgg(lineName);
 
       const mpPresent = toNumberOrZero(h.manpower_present);
       const smv = toNumberOrZero(h.smv);
 
-      headerIdToLine[headerIdStr] = lineName;
+      headerIdToSegKey[headerIdStr] = segKey;
       headerIdToContext[headerIdStr] = {
         manpower_present: mpPresent,
         smv,
       };
 
-      // 🔹 keep latest/any non-zero manpower for this line
       if (mpPresent > 0) {
-        agg.manpowerPresent = mpPresent;
+        // keep latest/any non-zero manpower for this segment
+        seg.production.manpowerPresent = mpPresent;
       }
 
-      const baseTargetPerHourRaw = computeBaseTargetPerHourFromHeader(h);
-      const baseTargetPerHourRounded = Math.round(baseTargetPerHourRaw);
-      const workingHours = toNumberOrZero(h.working_hour);
+      // ✅ DO NOT REDUCE TARGET: use target_full_day as truth
+      let targetFullDay = toNumberOrZero(h.target_full_day);
 
-      const headerBaseTarget =
-        (Number.isFinite(baseTargetPerHourRounded)
-          ? baseTargetPerHourRounded
-          : 0) *
-        (Number.isFinite(workingHours) ? workingHours : 0);
+      // fallback only if not set
+      if (!targetFullDay) {
+        const baseTargetPerHourRaw = computeBaseTargetPerHourFromHeader(h);
+        const workingHours = toNumberOrZero(h.working_hour);
+        targetFullDay = Math.round(
+          (Number.isFinite(baseTargetPerHourRaw)
+            ? baseTargetPerHourRaw
+            : 0) *
+            (Number.isFinite(workingHours) ? workingHours : 0)
+        );
+      }
 
-      agg.targetQty += headerBaseTarget;
+      seg.production.targetQty += targetFullDay;
     }
 
     const allHeaderIds = headers.map((h) => h._id);
 
     let hourlyRecs = [];
 
-    // factory দিয়ে আর filter না – তুমি যেমন আগেই করেছিলে
     if (allHeaderIds.length > 0) {
       hourlyRecs = await HourlyProductionModel.find({
         headerId: { $in: allHeaderIds },
@@ -170,58 +205,70 @@ export async function GET(req) {
     // 2) Hourly records -> achievedQty + current hr eff + weighted avg eff
     for (const rec of hourlyRecs) {
       const headerIdStr = rec.headerId.toString();
-      const lineName = headerIdToLine[headerIdStr];
-      if (!lineName) continue;
+      const segKey = headerIdToSegKey[headerIdStr];
+      if (!segKey) continue;
 
-      const agg = ensureLineAgg(lineName);
+      const seg = segAgg[segKey];
+      if (!seg) continue;
+
       const ctx = headerIdToContext[headerIdStr] || {};
 
       const mp = toNumberOrZero(ctx.manpower_present);
       const smv = toNumberOrZero(ctx.smv);
       const achieved = toNumberOrZero(rec.achievedQty);
 
-      agg.achievedQty += achieved;
+      seg.production.achievedQty += achieved;
 
       if (mp > 0 && smv > 0) {
         const produceMin = achieved * smv;
         const availMin = mp * 60;
 
-        agg._produceMinSum += produceMin;
-        agg._availMinSum += availMin;
+        seg.production._produceMinSum += produceMin;
+        seg.production._availMinSum += availMin;
       }
 
       const hourNum = toNumberOrZero(rec.hour);
-      if (agg.currentHour === null || hourNum > agg.currentHour) {
-        agg.currentHour = hourNum;
-        agg.currentHourEfficiency = toNumberOrZero(rec.hourlyEfficiency);
-        agg._lastTotalEfficiency = toNumberOrZero(rec.totalEfficiency);
+      if (
+        seg.production.currentHour === null ||
+        hourNum > seg.production.currentHour
+      ) {
+        seg.production.currentHour = hourNum;
+        seg.production.currentHourEfficiency = toNumberOrZero(
+          rec.hourlyEfficiency
+        );
+        seg.production._lastTotalEfficiency = toNumberOrZero(
+          rec.totalEfficiency
+        );
       }
     }
 
-    // 3) Finalize variance + avg eff
-    Object.values(productionLineAgg).forEach((agg) => {
-      agg.varianceQty = agg.achievedQty - agg.targetQty;
+    // 3) Finalize variance + avg eff per segment
+    Object.values(segAgg).forEach((seg) => {
+      const p = seg.production;
 
-      if (agg._availMinSum > 0) {
-        agg.avgEffPercent =
-          (agg._produceMinSum / agg._availMinSum) * 100;
+      // ✅ plain difference, no reduction
+      p.varianceQty = p.achievedQty - p.targetQty;
+
+      if (p._availMinSum > 0) {
+        p.avgEffPercent =
+          (p._produceMinSum / p._availMinSum) * 100;
       } else if (
-        typeof agg._lastTotalEfficiency === "number" &&
-        !Number.isNaN(agg._lastTotalEfficiency)
+        typeof p._lastTotalEfficiency === "number" &&
+        !Number.isNaN(p._lastTotalEfficiency)
       ) {
-        agg.avgEffPercent = agg._lastTotalEfficiency;
+        p.avgEffPercent = p._lastTotalEfficiency;
       } else {
-        agg.avgEffPercent = 0;
+        p.avgEffPercent = 0;
       }
 
-      delete agg._produceMinSum;
-      delete agg._availMinSum;
-      delete agg._lastTotalEfficiency;
+      delete p._produceMinSum;
+      delete p._availMinSum;
+      delete p._lastTotalEfficiency;
     });
 
-    // ============================
-    // QUALITY PART
-    // ============================
+    // ============================================================
+    // QUALITY PART (per line, shared across segments of that line)
+    // ============================================================
     const { start, end } = getDayRange(date);
 
     const qualityMatch = {
@@ -282,30 +329,16 @@ export async function GET(req) {
       };
     }
 
-    // ============================
-    // MERGE LINES
-    // ============================
-    const lineNames = new Set([
-      ...Object.keys(productionLineAgg),
-      ...Object.keys(qualityLineAgg),
-    ]);
+    // ============================================================
+    // MERGE: build segments array for frontend
+    // ============================================================
 
-    const lines = Array.from(lineNames)
-      .sort()
-      .map((ln) => {
-        const prod = productionLineAgg[ln] || {
-          line: ln,
-          targetQty: 0,
-          achievedQty: 0,
-          varianceQty: 0,
-          currentHour: null,
-          currentHourEfficiency: 0,
-          avgEffPercent: 0,
-          manpowerPresent: 0,
-        };
+    const segments = Object.values(segAgg).map((seg) => {
+      const lineName = seg.line;
 
-        const qual = qualityLineAgg[ln] || {
-          line: ln,
+      const qual =
+        qualityLineAgg[lineName] || {
+          line: lineName,
           totalInspected: 0,
           totalPassed: 0,
           totalDefectivePcs: 0,
@@ -316,12 +349,14 @@ export async function GET(req) {
           currentHour: null,
         };
 
-        return {
-          line: ln,
-          quality: qual,
-          production: prod,
-        };
-      });
+      return {
+        line: seg.line,
+        buyer: seg.buyer,
+        style: seg.style,
+        quality: qual,
+        production: seg.production,
+      };
+    });
 
     return NextResponse.json({
       success: true,
@@ -329,7 +364,7 @@ export async function GET(req) {
       building,
       date,
       lineFilter: line || "ALL",
-      lines,
+      lines: segments, // <-- your FloorDashboardPage uses json.lines
     });
   } catch (err) {
     console.error(err);

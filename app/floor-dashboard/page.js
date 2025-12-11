@@ -1,6 +1,7 @@
+// app/floor-dashboard/page.jsx
 "use client";
 
-import { useState, useEffect ,useMemo} from "react";
+import { useState, useEffect, useMemo } from "react";
 import { PieChart } from "react-minimal-pie-chart";
 import {
   BarChart,
@@ -46,7 +47,6 @@ const lineOptions = [
   "Line-15",
 ];
 
-// refresh every X ms
 const REFRESH_INTERVAL_MS = 10000;
 
 function formatNumber(value, digits = 2) {
@@ -55,14 +55,18 @@ function formatNumber(value, digits = 2) {
   return num.toFixed(digits);
 }
 
-// clamp percent between 0–100
 function clampPercent(value) {
   const n = Number(value);
   if (!Number.isFinite(n)) return 0;
   return Math.max(0, Math.min(100, n));
 }
 
-/* ---------- KPI TILE DESIGN (compact, like your example) ---------- */
+// 🔹 common segment key: line+buyer+style
+function makeSegmentKey(line, buyer, style) {
+  return `${line || ""}__${buyer || ""}__${style || ""}`;
+}
+
+/* ---------- KPI TILE DESIGN ---------- */
 
 const KPI_TONE_MAP = {
   emerald: {
@@ -104,11 +108,8 @@ function KpiTile({ label, value, tone = "emerald", icon: Icon }) {
         min-h-[40px]
       `}
     >
-      {/* subtle corner glow */}
       <div className="pointer-events-none absolute -inset-px rounded-[0.9rem] bg-[radial-gradient(100px_50px_at_0%_0%,rgba(255,255,255,0.12),transparent)]" />
-
       <div className="relative flex items-center justify-between gap-2">
-        {/* Left: label chip */}
         <div
           className={`
             inline-flex items-center gap-1 rounded-md
@@ -120,8 +121,6 @@ function KpiTile({ label, value, tone = "emerald", icon: Icon }) {
           {Icon ? <Icon className="h-3 w-3" /> : null}
           <span className="leading-none">{label}</span>
         </div>
-
-        {/* Right: value */}
         <div className="text-right text-xl sm:text-2xl font-extrabold tabular-nums tracking-tight text-white leading-none">
           {value}
         </div>
@@ -140,40 +139,39 @@ export default function FloorDashboardPage() {
   );
   const [line, setLine] = useState("ALL");
 
- const [rows, setRows] = useState([]);
-const [loading, setLoading] = useState(false);
-// 🔹 Always show lines serially: Line-1, Line-2, ... Line-15
-const sortedRows = useMemo(() => {
-  if (!rows || rows.length === 0) return [];
-
-  const getLineNumber = (lineName = "") => {
-    const match = lineName.match(/(\d+)/); // pick "1" from "Line-1"
-    return match ? parseInt(match[1], 10) : 0;
-  };
-
-  return [...rows].sort(
-    (a, b) => getLineNumber(a.line) - getLineNumber(b.line)
-  );
-}, [rows]);
-
+  const [rows, setRows] = useState([]); // rows = segments: line+buyer+style
+  const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
 
-  // line-info register data (buyer, style, runDay, smv, etc.)
+  // multi-style support: sort by line no + style
+  const sortedRows = useMemo(() => {
+    if (!rows || rows.length === 0) return [];
+
+    const getLineNumber = (lineName = "") => {
+      const match = lineName.match(/(\d+)/);
+      return match ? parseInt(match[1], 10) : 0;
+    };
+
+    return [...rows].sort((a, b) => {
+      const lnDiff =
+        getLineNumber(a.line) - getLineNumber(b.line);
+      if (lnDiff !== 0) return lnDiff;
+      return String(a.style || "").localeCompare(
+        String(b.style || "")
+      );
+    });
+  }, [rows]);
+
+  // line-info register (per line+buyer+style)
   const [lineInfoMap, setLineInfoMap] = useState({});
-  // WIP data per line
+  // WIP per segment (line+buyer+style)
   const [wipMap, setWipMap] = useState({});
 
-  // শুধু এই tick change হলেই সব data re-fetch হবে
   const [refreshTick, setRefreshTick] = useState(0);
-
-  // View mode -> "grid" (full view) | "tv" (single card auto slide)
   const [viewMode, setViewMode] = useState("grid");
-  // এখন কোন card দেখাচ্ছে (tv mode)
   const [currentCardIndex, setCurrentCardIndex] = useState(0);
 
-  // ================================
-  // Global polling timer (10 sec)
-  // ================================
+  // global polling
   useEffect(() => {
     const id = setInterval(() => {
       setRefreshTick((prev) => prev + 1);
@@ -190,9 +188,7 @@ const sortedRows = useMemo(() => {
     };
   }, []);
 
-  // ============================================================
-  // 1) Main dashboard data (production + quality)
-  // ============================================================
+  // 1) Main dashboard data (segments)
   useEffect(() => {
     if (!factory || !building || !date) {
       setRows([]);
@@ -236,13 +232,10 @@ const sortedRows = useMemo(() => {
     };
 
     fetchDashboard();
-
     return () => controller.abort();
   }, [factory, building, date, line, refreshTick]);
 
-  // ============================================================
-  // 2) Load Line Info (buyer, style, runDay, smv) by factory+building
-  // ============================================================
+  // 2) Load Line Info (per line+buyer+style)
   useEffect(() => {
     if (!factory || !building) {
       setLineInfoMap({});
@@ -271,12 +264,15 @@ const sortedRows = useMemo(() => {
         }
 
         const list = json.data || [];
-
         const map = {};
+
         for (const doc of list) {
-          if (!map[doc.line]) {
-            map[doc.line] = doc; // first occurrence is latest because of sort
-          }
+          const segKey = makeSegmentKey(
+            doc.line,
+            doc.buyer,
+            doc.style
+          );
+          map[segKey] = doc;
         }
 
         if (!cancelled) setLineInfoMap(map);
@@ -287,15 +283,12 @@ const sortedRows = useMemo(() => {
     };
 
     fetchLineInfo();
-
     return () => {
       cancelled = true;
     };
   }, [factory, building]);
 
-  // ============================================================
-  // 3) Load WIP per line using /api/style-wip
-  // ============================================================
+  // 3) Load WIP per segment using /api/style-wip
   useEffect(() => {
     if (!factory || !building || !date || rows.length === 0) {
       setWipMap({});
@@ -309,19 +302,19 @@ const sortedRows = useMemo(() => {
 
     let cancelled = false;
 
-    const fetchWipForAllLines = async () => {
+    const fetchWipForAllSegments = async () => {
       const newMap = {};
 
       for (const row of rows) {
-        const lineName = row.line;
-        const info = lineInfoMap[lineName];
+        const segKey = makeSegmentKey(row.line, row.buyer, row.style);
+        const info = lineInfoMap[segKey];
 
         if (!info || !info.buyer || !info.style) continue;
 
         const params = new URLSearchParams({
           factory,
           assigned_building: building,
-          line: lineName,
+          line: row.line,
           buyer: info.buyer,
           style: info.style,
           date,
@@ -334,10 +327,10 @@ const sortedRows = useMemo(() => {
           const json = await res.json();
 
           if (res.ok && json.success && !cancelled) {
-            newMap[lineName] = json.data;
+            newMap[segKey] = json.data;
           }
         } catch (err) {
-          console.error("Error fetching WIP for", lineName, err);
+          console.error("Error fetching WIP for", segKey, err);
         }
       }
 
@@ -346,48 +339,41 @@ const sortedRows = useMemo(() => {
       }
     };
 
-    fetchWipForAllLines();
-
+    fetchWipForAllSegments();
     return () => {
       cancelled = true;
     };
   }, [factory, building, date, rows, lineInfoMap]);
 
-  // ============================================================
-  // 4) TV MODE: auto-slide single card every 10s
-  // ============================================================
+  // 4) TV MODE: auto-slide
   useEffect(() => {
     setCurrentCardIndex(0);
   }, [rows.length, viewMode, factory, building, date, line]);
 
- useEffect(() => {
-  if (viewMode !== "tv") return;
-  if (sortedRows.length <= 1) return;
+  useEffect(() => {
+    if (viewMode !== "tv") return;
+    if (sortedRows.length <= 1) return;
 
-  const id = setInterval(() => {
-    setCurrentCardIndex((prev) =>
-      sortedRows.length === 0 ? 0 : (prev + 1) % sortedRows.length
-    );
-  }, 10000);
+    const id = setInterval(() => {
+      setCurrentCardIndex((prev) =>
+        sortedRows.length === 0 ? 0 : (prev + 1) % sortedRows.length
+      );
+    }, 10000);
 
-  return () => clearInterval(id);
-}, [viewMode, sortedRows.length]);
+    return () => clearInterval(id);
+  }, [viewMode, sortedRows.length]);
 
-  // ============================================================
-  // RENDER
-  // ============================================================
- const hasData = sortedRows.length > 0;
-const safeIndex =
-  sortedRows.length > 0 ? currentCardIndex % sortedRows.length : 0;
-const currentRow = sortedRows[safeIndex];
+  const hasData = sortedRows.length > 0;
+  const safeIndex =
+    sortedRows.length > 0 ? currentCardIndex % sortedRows.length : 0;
+  const currentRow = sortedRows[safeIndex];
 
-
-  const contentWrapperClass = `flex-1 min-h-0 ${viewMode === "grid" ? "overflow-y-auto pr-1" : ""
-    }`;
+  const contentWrapperClass = `flex-1 min-h-0 ${
+    viewMode === "grid" ? "overflow-y-auto pr-1" : ""
+  }`;
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-slate-950 via-slate-950 to-slate-900 text-slate-50 py-2 px-2 mb-0">
-      {/* whole page constrained to viewport height */}
       <div className="max-w-[1700px] mx-auto flex flex-col gap-3 h-[calc(100vh-16px)]">
         {/* Filter Panel */}
         <div className="card bg-base-300/10 border border-slate-800/80 shadow-[0_10px_35px_rgba(0,0,0,0.9)]">
@@ -416,7 +402,6 @@ const currentRow = sortedRows[safeIndex];
               <div className="space-y-1">
                 <label className="block text-[11px] font-semibold uppercase text-amber-100">
                   Floor
-                  {/* unfortunetly i used in db as Building */}
                 </label>
                 <select
                   className="select select-xs bg-amber-300/95 select-bordered min-w-[140px] text-slate-900"
@@ -474,7 +459,7 @@ const currentRow = sortedRows[safeIndex];
                   value={viewMode}
                   onChange={(e) => setViewMode(e.target.value)}
                 >
-                  <option value="grid">Full View (All Line's)</option>
+                  <option value="grid">Full View (All Line&apos;s)</option>
                   <option value="tv">TV Auto Slide (Single Line)</option>
                 </select>
               </div>
@@ -495,60 +480,79 @@ const currentRow = sortedRows[safeIndex];
           </div>
         </div>
 
-        {/* CONTENT AREA (grid or TV) */}
+        {/* CONTENT AREA */}
         <div className={contentWrapperClass}>
-          {/* No data msg */}
           {!hasData && !loading && !error && (
             <p className="text-[11px] text-slate-500">
               No data for this factory/building/date yet.
             </p>
           )}
 
-          {/* FULL VIEW (GRID) */}
-         {hasData && viewMode === "grid" && (
-  <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 pb-1">
-    {sortedRows.map((row) => (
-      <LineCard
-        key={row.line}
-        lineData={row}
-        lineInfo={lineInfoMap[row.line]}
-        wipData={wipMap[row.line]}
-      />
-    ))}
-  </div>
-)}
+          {/* GRID VIEW – one card per segment (line+buyer+style) */}
+          {hasData && viewMode === "grid" && (
+            <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 pb-1">
+              {sortedRows.map((row) => {
+                const segKey = makeSegmentKey(
+                  row.line,
+                  row.buyer,
+                  row.style
+                );
+                return (
+                  <LineCard
+                    key={segKey}
+                    lineData={row}
+                    lineInfo={lineInfoMap[segKey]}
+                    wipData={wipMap[segKey]}
+                  />
+                );
+              })}
+            </div>
+          )}
 
-
-          {/* TV VIEW */}
+          {/* TV VIEW – auto slide per segment */}
           {hasData && viewMode === "tv" && currentRow && (
             <div className="flex-1 min-h-0 flex flex-col space-y-3">
               <div className="flex-1 min-h-0">
-                <TvLineCard
-                  lineData={currentRow}
-                  lineInfo={lineInfoMap[currentRow.line]}
-                  wipData={wipMap[currentRow.line]}
-                  factory={factory}
-                  building={building}
-                  date={date}
-                />
+                {(() => {
+                  const segKey = makeSegmentKey(
+                    currentRow.line,
+                    currentRow.buyer,
+                    currentRow.style
+                  );
+                  return (
+                    <TvLineCard
+                      lineData={currentRow}
+                      lineInfo={lineInfoMap[segKey]}
+                      wipData={wipMap[segKey]}
+                      factory={factory}
+                      building={building}
+                      date={date}
+                    />
+                  );
+                })()}
               </div>
 
-              {/* Slider dots + info */}
               <div className="flex flex-col items-center gap-1 text-[9px] text-slate-400 pb-1">
                 <div className="flex items-center gap-1">
-                 {sortedRows.map((row, idx) => (
-  <button
-    key={row.line + idx}
-    type="button"
-    onClick={() => setCurrentCardIndex(idx)}
-    className={`h-2 rounded-full transition-all duration-300 ${
-      idx === safeIndex
-        ? "w-5 bg-sky-400"
-        : "w-2 bg-slate-600 hover:bg-slate-400"
-    }`}
-  />
-))}
-
+                  {sortedRows.map((row, idx) => {
+                    const segKey = makeSegmentKey(
+                      row.line,
+                      row.buyer,
+                      row.style
+                    );
+                    return (
+                      <button
+                        key={segKey}
+                        type="button"
+                        onClick={() => setCurrentCardIndex(idx)}
+                        className={`h-2 rounded-full transition-all duration-300 ${
+                          idx === safeIndex
+                            ? "w-5 bg-sky-400"
+                            : "w-2 bg-slate-600 hover:bg-slate-400"
+                        }`}
+                      />
+                    );
+                  })}
                 </div>
                 <div>
                   Showing{" "}
@@ -557,9 +561,9 @@ const currentRow = sortedRows[safeIndex];
                   </span>
                   of{" "}
                   <span className="mx-1 font-semibold text-slate-200">
-  {sortedRows.length}
-</span>
-                  lines • Auto slide every 10s
+                    {sortedRows.length}
+                  </span>
+                  segments • Auto slide every 10s
                 </div>
               </div>
             </div>
@@ -573,10 +577,11 @@ const currentRow = sortedRows[safeIndex];
 /* ------------ NORMAL GRID CARD ------------ */
 
 function LineCard({ lineData, lineInfo, wipData }) {
-  const { line, quality, production } = lineData || {};
+  const { line, quality, production, buyer: dataBuyer, style: dataStyle } =
+    lineData || {};
 
-  const buyer = lineInfo?.buyer || "-";
-  const style = lineInfo?.style || "-";
+  const buyer = lineInfo?.buyer || dataBuyer || "-";
+  const style = lineInfo?.style || dataStyle || "-";
   const runDay = lineInfo?.runDay || "-";
   const smv = lineInfo?.smv || "-";
 
@@ -661,8 +666,9 @@ function LineCard({ lineData, lineInfo, wipData }) {
               </div>
 
               <div
-                className={`${varianceQty >= 0 ? "text-emerald-400" : "text-rose-400"
-                  }`}
+                className={
+                  varianceQty >= 0 ? "text-emerald-400" : "text-rose-400"
+                }
               >
                 Var:{" "}
                 <span className="font-semibold">
@@ -708,7 +714,11 @@ function LineCard({ lineData, lineInfo, wipData }) {
             <div className="flex flex-wrap gap-1.5 overflow-hidden">
               <MiniKpi label="RFT%" value={rft} color="#22c55e" />
               <MiniKpi label="DHU%" value={dhu} color="#f97316" />
-              <MiniKpi label="Defect RATE" value={defectRate} color="#e11d48" />
+              <MiniKpi
+                label="Defect RATE"
+                value={defectRate}
+                color="#e11d48"
+              />
             </div>
           </div>
 
@@ -722,13 +732,17 @@ function LineCard({ lineData, lineInfo, wipData }) {
               </span>
             </div>
             <div className="flex gap-1.5">
-              <MiniKpi label="Hourly EFF" value={hourlyEff} color="#0ea5e9" />
+              <MiniKpi
+                label="Hourly EFF"
+                value={hourlyEff}
+                color="#0ea5e9"
+              />
               <MiniKpi label="AVG EFF" value={avgEff} color="#6366f1" />
             </div>
           </div>
         </div>
 
-        {/* BOTTOM: media strip (image + auto-play video) */}
+        {/* BOTTOM: media strip */}
         {(imageSrc || videoSrc) && (
           <div className="grid grid-cols-2 gap-1.5 border-t border-slate-800 pt-1.5">
             {imageSrc && (
@@ -774,15 +788,21 @@ function LineCard({ lineData, lineInfo, wipData }) {
   );
 }
 
-/* ------------ TV CARD (full-screen / full viewport area) ------------ */
+/* ------------ TV CARD ------------ */
 
 function TvLineCard({ lineData, lineInfo, wipData, factory, building, date }) {
-  const { line, quality, production } = lineData || {};
+  const {
+    line,
+    quality,
+    production,
+    buyer: dataBuyer,
+    style: dataStyle,
+  } = lineData || {};
 
-  const buyer = lineInfo?.buyer || "-";
-  const style = lineInfo?.style || "-";
+  const buyer = lineInfo?.buyer || dataBuyer || "-";
+  const style = lineInfo?.style || dataStyle || "-";
   const item = lineInfo?.styleItem || lineInfo?.garmentType || "Item";
-  const colorModel = lineInfo?.colorModel || lineInfo?.color || "-";
+  const colorModel = lineInfo?.color_model || lineInfo?.color || "-";
 
   const runDay = lineInfo?.runDay || "-";
   const smv = lineInfo?.smv || "-";
@@ -810,10 +830,9 @@ function TvLineCard({ lineData, lineInfo, wipData, factory, building, date }) {
   const totalInput = wipData?.capacity ?? 0;
   const wip = wipData?.wip ?? 0;
   const totalAchieved = wipData?.totalAchieved ?? 0;
-  console.log("WIP DATA IN TV CARD:wipData:", wipData);
+
   const isBehind = varianceQty < 0;
 
-  // 🔹 Hourly variance data for bar chart
   const [hourlyRecords, setHourlyRecords] = useState([]);
   const [varianceLoading, setVarianceLoading] = useState(false);
 
@@ -860,7 +879,6 @@ function TvLineCard({ lineData, lineInfo, wipData, factory, building, date }) {
     };
 
     fetchVariance();
-
     return () => controller.abort();
   }, [factory, building, line, date]);
 
@@ -879,7 +897,6 @@ function TvLineCard({ lineData, lineInfo, wipData, factory, building, date }) {
       {/* ambient glow */}
       <div className="pointer-events-none absolute inset-0 -z-10 bg-[radial-gradient(1200px_600px_at_0%_0%,rgba(45,212,191,0.25),transparent),radial-gradient(1000px_500px_at_100%_0%,rgba(56,189,248,0.25),transparent)]" />
 
-      {/* content column fills the card height */}
       <div className="relative flex h-full flex-col gap-4 p-3 md:p-4 lg:p-5 text-xs md:text-sm min-h-0">
         {/* TOP meta row */}
         <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3 border-b border-slate-800/70 pb-2">
@@ -930,9 +947,9 @@ function TvLineCard({ lineData, lineInfo, wipData, factory, building, date }) {
           </div>
         </div>
 
-        {/* MAIN AREA – grid, fills remaining height */}
+        {/* MAIN AREA */}
         <div className="grid flex-1 min-h-0 gap-2 md:grid-cols-2 lg:grid-cols-12">
-          {/* IMAGE column – media fills column height */}
+          {/* IMAGE */}
           <div className="md:col-span-1 lg:col-span-3 flex flex-col min-h-0">
             <div className="flex-1 min-h-0 rounded-2xl border border-cyan-500/70 bg-slate-950/95 overflow-hidden flex flex-col">
               <div className="px-3 py-1.5 text-[10px] md:text-xs uppercase tracking-[0.14em] text-cyan-200 bg-gradient-to-r from-cyan-500/25 to-transparent border-b border-cyan-500/40 flex items-center justify-between">
@@ -957,7 +974,7 @@ function TvLineCard({ lineData, lineInfo, wipData, factory, building, date }) {
             </div>
           </div>
 
-          {/* VIDEO column – media fills column height */}
+          {/* VIDEO */}
           <div className="md:col-span-1 lg:col-span-3 flex flex-col min-h-0">
             <div className="flex-1 min-h-0 rounded-2xl border border-emerald-500/70 bg-slate-950/95 overflow-hidden flex flex-col">
               <div className="px-3 py-1.5 text-[10px] md:text-xs uppercase tracking-[0.14em] text-emerald-200 bg-gradient-to-r from-emerald-500/25 to-transparent border-b border-emerald-500/40 flex items-center justify-between">
@@ -987,9 +1004,9 @@ function TvLineCard({ lineData, lineInfo, wipData, factory, building, date }) {
             </div>
           </div>
 
-          {/* STATS + VARIANCE column */}
+          {/* STATS + VARIANCE */}
           <div className="md:col-span-2 lg:col-span-6 flex flex-col gap-3 min-h-0">
-            {/* PLAN vs ACHV block */}
+            {/* PLAN vs ACHV */}
             <div className="rounded-2xl border border-sky-700 bg-gradient-to-br from-sky-900/50 via-slate-950 to-slate-900/95 p-3 md:p-4 flex flex-col gap-3">
               <div className="flex items-center justify-between text-[11px]">
                 <span className="uppercase tracking-wide text-sky-200">
@@ -1047,11 +1064,11 @@ function TvLineCard({ lineData, lineInfo, wipData, factory, building, date }) {
               </div>
             </div>
 
-            {/* QUALITY + EFF + VARIANCE block */}
+            {/* QUALITY + EFF + VARIANCE */}
             <div className="rounded-2xl border border-amber-600 bg-gradient-to-br from-slate-950 via-slate-950 to-slate-900/95 p-3 flex flex-col gap-2 min-h-0">
               <div className="flex items-center justify-between text-[11px]">
                 <span className="uppercase tracking-wide text-amber-200">
-                  Production &  Quality
+                  Production & Quality
                 </span>
                 <div className="flex flex-wrap gap-1">
                   <span className="badge border-emerald-500/60 bg-emerald-500/10 text-[14px] text-emerald-100">
@@ -1065,7 +1082,6 @@ function TvLineCard({ lineData, lineInfo, wipData, factory, building, date }) {
                 </div>
               </div>
 
-              {/* KPI tiles (your design) */}
               <div className="grid grid-cols-2 lg:grid-cols-3 gap-2.5">
                 <KpiTile
                   label="RFT%"
@@ -1100,7 +1116,6 @@ function TvLineCard({ lineData, lineInfo, wipData, factory, building, date }) {
                 />
               </div>
 
-              {/* Variance chart */}
               <div className="mt-1 space-y-1 min-h-0">
                 <div className="flex items-center justify-between text-[11px] text-slate-200">
                   <span className="uppercase tracking-wide text-amber-200">
@@ -1192,8 +1207,9 @@ function MiniKpi({ label, value, color }) {
 function TvStatBox({ label, value, accent = "", big = false }) {
   return (
     <div
-      className={`rounded-xl border bg-slate-950/90 px-2 py-1.5 flex flex-col justify-center ${accent || "border-slate-600 text-slate-100"
-        }`}
+      className={`rounded-xl border bg-slate-950/90 px-2 py-1.5 flex flex-col justify-center ${
+        accent || "border-slate-600 text-slate-100"
+      }`}
     >
       <span className="text-[14px] uppercase tracking-wide text-slate-400">
         {label}
@@ -1204,8 +1220,6 @@ function TvStatBox({ label, value, accent = "", big = false }) {
     </div>
   );
 }
-
-/* ------------ Variance bar chart (Recharts) ------------ */
 
 function VarianceBarChart({ data }) {
   if (!data || data.length === 0) {

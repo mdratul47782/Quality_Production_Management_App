@@ -58,7 +58,7 @@ function clampPercent(value) {
   return Math.max(0, Math.min(100, n));
 }
 
-const labelColor = "#e5e7eb";
+const labelColor = "#000000";
 const MIN_BAR_HEIGHT_FOR_LABEL = 14; // 🔹 below this, no label to avoid X-axis overlap
 
 // 🔹 Vertical % label (inside bar, centered by bar height)
@@ -79,7 +79,7 @@ const renderPercentLabelVertical = (props) => {
       y={cy}
       fill={labelColor}
       textAnchor="middle"
-      fontSize={9}
+      fontSize={30}
       transform={`rotate(-90, ${cx}, ${cy})`}
     >
       {formatNumber(num, 1)}%
@@ -592,23 +592,23 @@ export default function FloorSummaryPage() {
                       }}
                     />
                     <Bar
-  dataKey="rft"
-  name="RFT%"
-  fill="#22c55e"
-  radius={[4, 4, 0, 0]}
-/>
-<Bar
-  dataKey="dhu"
-  name="DHU%"
-  fill="#eab308"
-  radius={[4, 4, 0, 0]}
-/>
-<Bar
-  dataKey="defectRate"
-  name="Defect Rate%"
-  fill="#ef4444"
-  radius={[4, 4, 0, 0]}
-/>
+                      dataKey="rft"
+                      name="RFT%"
+                      fill="#22c55e"
+                      radius={[4, 4, 0, 0]}
+                    />
+                    <Bar
+                      dataKey="dhu"
+                      name="DHU%"
+                      fill="#eab308"
+                      radius={[4, 4, 0, 0]}
+                    />
+                    <Bar
+                      dataKey="defectRate"
+                      name="Defect Rate%"
+                      fill="#ef4444"
+                      radius={[4, 4, 0, 0]}
+                    />
 
                   </BarChart>
                 </ResponsiveContainer>
@@ -680,7 +680,7 @@ export default function FloorSummaryPage() {
                           ? "Achieved Qty (Floor)"
                           : "Achieved Qty"
                       }
-                      fill="#a855f7"
+                      fill="oklch(60.3% 0.11 240.79)"
                       radius={[4, 4, 0, 0]}
                     >
                       <LabelList

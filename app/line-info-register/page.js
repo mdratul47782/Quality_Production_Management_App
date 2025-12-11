@@ -164,62 +164,80 @@ export default function LineInfoRegisterPage() {
     return true;
   };
 
-  const handleSave = async () => {
-    if (!auth) return alert("Please login before submitting this form.");
-    if (!validate()) return alert("Please fill in all fields.");
+ const handleSave = async () => {
+  if (!auth) return alert("Please login before submitting this form.");
+  if (!validate()) return alert("Please fill in all fields.");
 
-    setSaving(true);
-    try {
-      const userId = auth._id || auth.id || "";
+  // 🔹 1) Prevent duplicate for same factory + building + line
+  const isDuplicate = records.some((r) => {
+    return (
+      r.factory === auth.factory &&
+      r.assigned_building === auth.assigned_building &&
+      r.line === formValues.line &&
+      r._id !== editingId // allow editing the same record
+    );
+  });
 
-      const method = editingId ? "PUT" : "POST";
+  if (isDuplicate) {
+    alert(
+      `This line (${formValues.line}) already has info for ${auth.factory} – ${auth.assigned_building}. Please select it from the left list and update instead of creating a new one.`
+    );
+    return;
+  }
 
-      // 🔹 Use FormData so we can send files + text together
-      const formData = new FormData();
-      formData.append("factory", auth.factory);
-      formData.append("buyer", formValues.buyer);
-      formData.append("assigned_building", auth.assigned_building);
-      formData.append("line", formValues.line);
-      formData.append("style", formValues.style);
-      formData.append("item", formValues.item);
-      formData.append("color", formValues.color);
-      formData.append("smv", formValues.smv);
-      formData.append("runDay", formValues.runDay);
-      formData.append("date", formValues.date);
-      formData.append("imageSrc", formValues.imageSrc || "");
-      formData.append("videoSrc", formValues.videoSrc || "");
-      formData.append("userId", userId);
-      formData.append("userName", auth.user_name);
+  setSaving(true);
+  try {
+    const userId = auth._id || auth.id || "";
 
-      if (editingId) {
-        formData.append("id", editingId);
-      }
+    const method = editingId ? "PUT" : "POST";
 
-      if (imageFile) {
-        formData.append("imageFile", imageFile);
-      }
-      if (videoFile) {
-        formData.append("videoFile", videoFile);
-      }
+    // 🔹 Use FormData so we can send files + text together
+    const formData = new FormData();
+    formData.append("factory", auth.factory);
+    formData.append("buyer", formValues.buyer);
+    formData.append("assigned_building", auth.assigned_building);
+    formData.append("line", formValues.line);
+    formData.append("style", formValues.style);
+    formData.append("item", formValues.item);
+    formData.append("color", formValues.color);
+    formData.append("smv", formValues.smv);
+    formData.append("runDay", formValues.runDay);
+    formData.append("date", formValues.date);
+    formData.append("imageSrc", formValues.imageSrc || "");
+    formData.append("videoSrc", formValues.videoSrc || "");
+    formData.append("userId", userId);
+    formData.append("userName", auth.user_name);
 
-      const res = await fetch("/api/line-info-register", {
-        method,
-        body: formData,
-      });
-
-      const result = await res.json();
-      alert(result.message || "Saved!");
-
-      if (result.success) {
-        await fetchRecords(auth.factory, auth.assigned_building);
-        if (!editingId) resetForm();
-      }
-    } catch (err) {
-      console.error(err);
-      alert("Save failed. Check console for details.");
+    if (editingId) {
+      formData.append("id", editingId);
     }
-    setSaving(false);
-  };
+
+    if (imageFile) {
+      formData.append("imageFile", imageFile);
+    }
+    if (videoFile) {
+      formData.append("videoFile", videoFile);
+    }
+
+    const res = await fetch("/api/line-info-register", {
+      method,
+      body: formData,
+    });
+
+    const result = await res.json();
+    alert(result.message || "Saved!");
+
+    if (result.success) {
+      await fetchRecords(auth.factory, auth.assigned_building);
+      if (!editingId) resetForm();
+    }
+  } catch (err) {
+    console.error(err);
+    alert("Save failed. Check console for details.");
+  }
+  setSaving(false);
+};
+
 
   const handleDelete = async () => {
     if (!editingId) return;

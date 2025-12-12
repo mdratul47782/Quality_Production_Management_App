@@ -16,26 +16,12 @@ import {
 import { Gauge, TrendingUp, Activity, AlertTriangle } from "lucide-react";
 
 const factoryOptions = ["K-1", "K-2", "K-3"];
-
 const buildingOptions = ["A-2", "B-2", "A-3", "B-3", "A-4", "B-4", "A-5", "B-5"];
-
 const lineOptions = [
   "ALL",
-  "Line-1",
-  "Line-2",
-  "Line-3",
-  "Line-4",
-  "Line-5",
-  "Line-6",
-  "Line-7",
-  "Line-8",
-  "Line-9",
-  "Line-10",
-  "Line-11",
-  "Line-12",
-  "Line-13",
-  "Line-14",
-  "Line-15",
+  "Line-1","Line-2","Line-3","Line-4","Line-5",
+  "Line-6","Line-7","Line-8","Line-9","Line-10",
+  "Line-11","Line-12","Line-13","Line-14","Line-15",
 ];
 
 const REFRESH_INTERVAL_MS = 10000;
@@ -45,11 +31,14 @@ function formatNumber(value, digits = 2) {
   if (!Number.isFinite(num)) return "-";
   return num.toFixed(digits);
 }
-
 function clampPercent(value) {
   const n = Number(value);
   if (!Number.isFinite(n)) return 0;
   return Math.max(0, Math.min(100, n));
+}
+function toNumber(v, fallback = 0) {
+  const n = Number(v);
+  return Number.isFinite(n) ? n : fallback;
 }
 
 // 🔹 segment key = line+buyer+style (dashboard segments)
@@ -174,7 +163,10 @@ export default function FloorDashboardPage() {
 
   // global polling
   useEffect(() => {
-    const id = setInterval(() => setRefreshTick((p) => p + 1), REFRESH_INTERVAL_MS);
+    const id = setInterval(
+      () => setRefreshTick((p) => p + 1),
+      REFRESH_INTERVAL_MS
+    );
     const handleFocus = () => setRefreshTick((p) => p + 1);
     window.addEventListener("focus", handleFocus);
     return () => {
@@ -206,7 +198,9 @@ export default function FloorDashboardPage() {
         });
         const json = await res.json();
 
-        if (!res.ok || !json.success) throw new Error(json.message || "Failed to load dashboard.");
+        if (!res.ok || !json.success) {
+          throw new Error(json.message || "Failed to load dashboard.");
+        }
 
         setRows(json.lines || []);
       } catch (err) {
@@ -241,9 +235,10 @@ export default function FloorDashboardPage() {
         });
         if (line && line !== "ALL") params.append("line", line);
 
-        const res = await fetch(`/api/target-setter-header?${params.toString()}`, {
-          cache: "no-store",
-        });
+        const res = await fetch(
+          `/api/target-setter-header?${params.toString()}`,
+          { cache: "no-store" }
+        );
 
         const json = await res.json();
         if (!res.ok || !json.success) {
@@ -288,9 +283,10 @@ export default function FloorDashboardPage() {
           assigned_building: building,
         });
 
-        const res = await fetch(`/api/line-info-register?${params.toString()}`, {
-          cache: "no-store",
-        });
+        const res = await fetch(
+          `/api/line-info-register?${params.toString()}`,
+          { cache: "no-store" }
+        );
         const json = await res.json();
 
         if (!res.ok || !json.success) {
@@ -351,7 +347,9 @@ export default function FloorDashboardPage() {
         });
 
         try {
-          const res = await fetch(`/api/style-wip?${params.toString()}`, { cache: "no-store" });
+          const res = await fetch(`/api/style-wip?${params.toString()}`, {
+            cache: "no-store",
+          });
           const json = await res.json();
           if (res.ok && json.success && !cancelled) newMap[segKey] = json.data;
         } catch (err) {
@@ -378,14 +376,17 @@ export default function FloorDashboardPage() {
     if (sortedRows.length <= 1) return;
 
     const id = setInterval(() => {
-      setCurrentCardIndex((prev) => (sortedRows.length === 0 ? 0 : (prev + 1) % sortedRows.length));
+      setCurrentCardIndex((prev) =>
+        sortedRows.length === 0 ? 0 : (prev + 1) % sortedRows.length
+      );
     }, 10000);
 
     return () => clearInterval(id);
   }, [viewMode, sortedRows.length]);
 
   const hasData = sortedRows.length > 0;
-  const safeIndex = sortedRows.length > 0 ? currentCardIndex % sortedRows.length : 0;
+  const safeIndex =
+    sortedRows.length > 0 ? currentCardIndex % sortedRows.length : 0;
   const currentRow = sortedRows[safeIndex];
 
   // ✅ allow vertical scroll inside content
@@ -502,7 +503,9 @@ export default function FloorDashboardPage() {
         {/* CONTENT AREA */}
         <div className={contentWrapperClass}>
           {!hasData && !loading && !error && (
-            <p className="text-[11px] text-slate-500">No data for this factory/building/date yet.</p>
+            <p className="text-[11px] text-slate-500">
+              No data for this factory/building/date yet.
+            </p>
           )}
 
           {/* GRID VIEW */}
@@ -530,7 +533,11 @@ export default function FloorDashboardPage() {
             <div className="flex-1 min-h-0 flex flex-col space-y-2">
               <div className="flex-1 min-h-0">
                 {(() => {
-                  const segKey = makeSegmentKey(currentRow.line, currentRow.buyer, currentRow.style);
+                  const segKey = makeSegmentKey(
+                    currentRow.line,
+                    currentRow.buyer,
+                    currentRow.style
+                  );
                   const lineKey = makeLineKey(factory, building, currentRow.line);
 
                   return (
@@ -542,6 +549,7 @@ export default function FloorDashboardPage() {
                       factory={factory}
                       building={building}
                       date={date}
+                      refreshTick={refreshTick} // ✅ FIX: realtime variance refresh
                     />
                   );
                 })()}
@@ -557,15 +565,23 @@ export default function FloorDashboardPage() {
                         type="button"
                         onClick={() => setCurrentCardIndex(idx)}
                         className={`h-2 rounded-full transition-all duration-300 ${
-                          idx === safeIndex ? "w-5 bg-sky-400" : "w-2 bg-slate-600 hover:bg-slate-400"
+                          idx === safeIndex
+                            ? "w-5 bg-sky-400"
+                            : "w-2 bg-slate-600 hover:bg-slate-400"
                         }`}
                       />
                     );
                   })}
                 </div>
                 <div className="text-center">
-                  Showing <span className="mx-1 font-semibold text-sky-300">{safeIndex + 1}</span>
-                  of <span className="mx-1 font-semibold text-slate-200">{sortedRows.length}</span>
+                  Showing{" "}
+                  <span className="mx-1 font-semibold text-sky-300">
+                    {safeIndex + 1}
+                  </span>
+                  of{" "}
+                  <span className="mx-1 font-semibold text-slate-200">
+                    {sortedRows.length}
+                  </span>
                   segments • Auto slide every 10s
                 </div>
               </div>
@@ -609,10 +625,12 @@ function LineCard({ lineData, header, lineInfo, wipData }) {
   const prodHourLabel = production?.currentHour ?? "-";
 
   const manpowerPresent =
-    production?.manpowerPresent ?? header?.manpower_present ?? header?.manpowerPresent ?? 0;
+    production?.manpowerPresent ??
+    header?.manpower_present ??
+    header?.manpowerPresent ??
+    0;
 
   const wip = wipData?.wip ?? 0;
-
   const isBehind = varianceQty < 0;
 
   return (
@@ -626,7 +644,8 @@ function LineCard({ lineData, header, lineInfo, wipData }) {
           <div className="space-y-1">
             <div className="flex flex-wrap gap-1">
               <span className="badge badge-outline border-slate-600 bg-slate-900 text-[9px]">
-                Line&nbsp;<span className="font-semibold text-cyan-300">{line}</span>
+                Line&nbsp;
+                <span className="font-semibold text-cyan-300">{line}</span>
               </span>
               <span className="badge border-amber-500/60 bg-amber-500/10 text-[9px] text-amber-100">
                 Buyer: <span className="font-semibold">{buyer}</span>
@@ -655,20 +674,25 @@ function LineCard({ lineData, header, lineInfo, wipData }) {
               </div>
 
               <div className="text-slate-200 font-semibold">
-                Target: <span className="font-semibold">{formatNumber(targetQty, 0)}</span>
+                Target:{" "}
+                <span className="font-semibold">{formatNumber(targetQty, 0)}</span>
               </div>
 
               <div className="text-slate-200">
-                Achv: <span className="font-semibold">{formatNumber(achievedQty, 0)}</span>
+                Achv:{" "}
+                <span className="font-semibold">{formatNumber(achievedQty, 0)}</span>
               </div>
 
               <div className={varianceQty >= 0 ? "text-emerald-400" : "text-rose-400"}>
-                Var: <span className="font-semibold">{formatNumber(varianceQty, 0)}</span>
+                Var:{" "}
+                <span className="font-semibold">{formatNumber(varianceQty, 0)}</span>
               </div>
 
               <div className="mt-1 flex items-center justify-end gap-1 text-[8px]">
                 <span className="badge badge-outline border-slate-600 bg-slate-900/80 px-1.5 py-0.5">
-                  <span className="uppercase tracking-wide text-[7px] text-slate-400">MP</span>
+                  <span className="uppercase tracking-wide text-[7px] text-slate-400">
+                    MP
+                  </span>
                   <span className="ml-1 text-[9px] font-semibold text-emerald-300">
                     {manpowerPresent ? formatNumber(manpowerPresent, 0) : "-"}
                   </span>
@@ -676,7 +700,9 @@ function LineCard({ lineData, header, lineInfo, wipData }) {
 
                 {wip ? (
                   <span className="badge badge-outline border-cyan-600 bg-slate-900/80 px-1.5 py-0.5">
-                    <span className="uppercase tracking-wide text-[7px] text-slate-400">WIP</span>
+                    <span className="uppercase tracking-wide text-[7px] text-slate-400">
+                      WIP
+                    </span>
                     <span className="ml-1 text-[9px] font-semibold text-cyan-300">
                       {formatNumber(wip, 0)}
                     </span>
@@ -765,7 +791,16 @@ function LineCard({ lineData, header, lineInfo, wipData }) {
 
 /* ------------ TV CARD ------------ */
 
-function TvLineCard({ lineData, header, lineInfo, wipData, factory, building, date }) {
+function TvLineCard({
+  lineData,
+  header,
+  lineInfo,
+  wipData,
+  factory,
+  building,
+  date,
+  refreshTick, // ✅
+}) {
   const { line, quality, production } = lineData || {};
 
   // ✅ from header (not line-info)
@@ -773,7 +808,11 @@ function TvLineCard({ lineData, header, lineInfo, wipData, factory, building, da
   const style = header?.style || lineData?.style || "-";
   const item = header?.item || header?.style_item || header?.styleItem || "Item";
   const colorModel =
-    header?.color_model || header?.colorModel || header?.color || header?.color_model_name || "-";
+    header?.color_model ||
+    header?.colorModel ||
+    header?.color ||
+    header?.color_model_name ||
+    "-";
   const runDay = header?.run_day ?? header?.runDay ?? "-";
   const smv = header?.smv ?? "-";
 
@@ -798,7 +837,10 @@ function TvLineCard({ lineData, header, lineInfo, wipData, factory, building, da
   const prodHourLabel = production?.currentHour ?? "-";
 
   const manpowerPresent =
-    production?.manpowerPresent ?? header?.manpower_present ?? header?.manpowerPresent ?? 0;
+    production?.manpowerPresent ??
+    header?.manpower_present ??
+    header?.manpowerPresent ??
+    0;
 
   const totalInput = wipData?.capacity ?? 0;
   const wip = wipData?.wip ?? 0;
@@ -808,13 +850,52 @@ function TvLineCard({ lineData, header, lineInfo, wipData, factory, building, da
 
   const headerId = header?._id || header?.id || "";
 
-  const [hourlyRecords, setHourlyRecords] = useState([]);
   const [varianceLoading, setVarianceLoading] = useState(false);
+  const [varianceChartData, setVarianceChartData] = useState([]);
 
-  // ✅ variance chart should follow CURRENT HEADER (style), not whole line mixed
+  // ✅ FIX 1: make variance field robust (your API might not be "varianceQty")
+  const getHourNum = (rec) => {
+    const h =
+      rec?.hour ??
+      rec?.hourIndex ??
+      rec?.hour_no ??
+      rec?.hourNo ??
+      rec?.hourNumber ??
+      rec?.index ??
+      null;
+    const hn = toNumber(h, null);
+    return Number.isFinite(hn) ? hn : null;
+  };
+
+  const getVarianceNum = (rec) => {
+    const v =
+      rec?.varianceQty ??
+      rec?.variance ??
+      rec?.variance_qty ??
+      rec?.varianceQuantity ??
+      rec?.varianceThisHour ??
+      rec?.variance_this_hour ??
+      rec?.production?.varianceQty ??
+      rec?.production?.variance ??
+      0;
+    return toNumber(v, 0);
+  };
+
+  const ordinal = (n) => {
+    const x = Number(n);
+    if (!Number.isFinite(x)) return "";
+    const j = x % 10,
+      k = x % 100;
+    if (j === 1 && k !== 11) return `${x}st`;
+    if (j === 2 && k !== 12) return `${x}nd`;
+    if (j === 3 && k !== 13) return `${x}rd`;
+    return `${x}th`;
+  };
+
+  // ✅ FIX 2: realtime update (depends on refreshTick)
   useEffect(() => {
     if (!factory || !building || !line || !date) {
-      setHourlyRecords([]);
+      setVarianceChartData([]);
       return;
     }
 
@@ -841,15 +922,31 @@ function TvLineCard({ lineData, header, lineInfo, wipData, factory, building, da
         const json = await res.json();
 
         if (!res.ok || !json.success) {
-          setHourlyRecords([]);
+          setVarianceChartData([]);
           return;
         }
 
-        setHourlyRecords(json.data || []);
+        const list = json.data || [];
+
+        // ✅ normalize -> (hour, varianceQty) and ROUND to integer (no point value)
+        const normalized = list
+          .map((rec) => {
+            const hour = getHourNum(rec);
+            const variance = Math.round(getVarianceNum(rec)); // 🔥 integer only
+            return {
+              hour,
+              hourLabel: hour != null ? `${ordinal(hour)} Hour` : "-",
+              varianceQty: variance,
+            };
+          })
+          .filter((d) => d.hour != null)
+          .sort((a, b) => a.hour - b.hour);
+
+        setVarianceChartData(normalized);
       } catch (err) {
         if (err?.name === "AbortError") return;
         console.error("Error loading hourly variance:", err);
-        setHourlyRecords([]);
+        setVarianceChartData([]);
       } finally {
         setVarianceLoading(false);
       }
@@ -857,13 +954,7 @@ function TvLineCard({ lineData, header, lineInfo, wipData, factory, building, da
 
     fetchVariance();
     return () => controller.abort();
-  }, [factory, building, line, date, headerId]);
-
-  const varianceChartData = (hourlyRecords || []).map((rec) => ({
-    hour: rec.hour,
-    hourLabel: `H${rec.hour}`,
-    varianceQty: rec.varianceQty ?? 0,
-  }));
+  }, [factory, building, line, date, headerId, refreshTick]);
 
   return (
     <div
@@ -893,7 +984,8 @@ function TvLineCard({ lineData, header, lineInfo, wipData, factory, building, da
               SMV:&nbsp;<span className="font-semibold text-emerald-300">{smv}</span>
             </span>
             <span className="badge badge-lg border-emerald-500/70 bg-emerald-500/10 text-emerald-100">
-              Man Power:&nbsp;<span className="font-semibold text-emerald-300">{manpowerPresent}</span>
+              Man Power:&nbsp;
+              <span className="font-semibold text-emerald-300">{manpowerPresent}</span>
             </span>
             <span className="badge badge-lg border-emerald-500/70 bg-emerald-500/10 text-emerald-100">
               Color/Model:&nbsp;<span className="font-semibold text-emerald-300">{colorModel}</span>
@@ -975,31 +1067,15 @@ function TvLineCard({ lineData, header, lineInfo, wipData, factory, building, da
 
                 <div className="grid grid-cols-2 md:grid-cols-3 gap-2 w-full text-[11px] md:text-xs">
                   <TvStatBox label="Target" value={formatNumber(targetQty, 0)} accent="text-sky-200 border-sky-500/80" />
-                  <TvStatBox
-                    label="Achieved"
-                    value={formatNumber(achievedQty, 0)}
-                    accent="text-emerald-200 border-emerald-500/80"
-                  />
+                  <TvStatBox label="Achieved" value={formatNumber(achievedQty, 0)} accent="text-emerald-200 border-emerald-500/80" />
                   <TvStatBox
                     label="Variance"
                     value={formatNumber(varianceQty, 0)}
-                    accent={
-                      varianceQty >= 0
-                        ? "text-emerald-200 border-emerald-500/80"
-                        : "text-rose-200 border-rose-500/80"
-                    }
+                    accent={varianceQty >= 0 ? "text-emerald-200 border-emerald-500/80" : "text-rose-200 border-rose-500/80"}
                   />
-                  <TvStatBox
-                    label="Total Input"
-                    value={formatNumber(totalInput || 0, 0)}
-                    accent="text-cyan-200 border-cyan-500/80"
-                  />
+                  <TvStatBox label="Total Input" value={formatNumber(totalInput || 0, 0)} accent="text-cyan-200 border-cyan-500/80" />
                   <TvStatBox label="WIP" value={formatNumber(wip || 0, 0)} accent="text-fuchsia-200 border-fuchsia-500/80" />
-                  <TvStatBox
-                    label="Upto Date Achieved"
-                    value={formatNumber(totalAchieved || 0, 0)}
-                    accent="text-fuchsia-200 border-fuchsia-500/80"
-                  />
+                  <TvStatBox label="Upto Date Achieved" value={formatNumber(totalAchieved || 0, 0)} accent="text-fuchsia-200 border-fuchsia-500/80" />
                 </div>
               </div>
             </div>
@@ -1071,11 +1147,15 @@ function KpiPie({ value, label, color, size = 40 }) {
           animate
         />
         <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-          <span className="text-[10px] md:text-[13px] font-semibold text-slate-100">{display}%</span>
+          <span className="text-[10px] md:text-[13px] font-semibold text-slate-100">
+            {display}%
+          </span>
         </div>
       </div>
       {label ? (
-        <span className="text-[8px] uppercase tracking-wide text-slate-400 text-center">{label}</span>
+        <span className="text-[8px] uppercase tracking-wide text-slate-400 text-center">
+          {label}
+        </span>
       ) : null}
     </div>
   );
@@ -1091,8 +1171,12 @@ function MiniKpi({ label, value, color }) {
         <KpiPie value={pct} label="" color={color} size={26} />
       </div>
       <div className="flex flex-col leading-tight min-w-0">
-        <span className="text-[8px] uppercase tracking-wide text-slate-400 truncate">{label}</span>
-        <span className="text-[11px] font-semibold text-slate-50">{display}%</span>
+        <span className="text-[8px] uppercase tracking-wide text-slate-400 truncate">
+          {label}
+        </span>
+        <span className="text-[11px] font-semibold text-slate-50">
+          {display}%
+        </span>
       </div>
     </div>
   );
@@ -1100,15 +1184,39 @@ function MiniKpi({ label, value, color }) {
 
 function TvStatBox({ label, value, accent = "", big = false }) {
   return (
-    <div className={`rounded-xl border bg-slate-950/90 px-2 py-1.5 flex flex-col justify-center ${accent || "border-slate-600 text-slate-100"}`}>
-      <span className="text-[11px] uppercase tracking-wide text-slate-400">{label}</span>
-      <span className={`font-semibold ${big ? "text-[15px]" : "text-[14px]"}`}>{value}</span>
+    <div
+      className={`rounded-xl border bg-slate-950/90 px-2 py-1.5 flex flex-col justify-center ${
+        accent || "border-slate-600 text-slate-100"
+      }`}
+    >
+      <span className="text-[11px] uppercase tracking-wide text-slate-400">
+        {label}
+      </span>
+      <span className={`font-semibold ${big ? "text-[15px]" : "text-[14px]"}`}>
+        {value}
+      </span>
     </div>
   );
 }
 
 function VarianceBarChart({ data }) {
-  if (!data || data.length === 0) {
+  // ✅ If your axis was showing 0.909090... it means your data was coming as 0/empty.
+  // This chart forces integer ticks + integer values.
+  const safe = (data || [])
+    .map((d) => {
+      const v = Math.round(toNumber(d.varianceQty, 0));
+      const hour = toNumber(d.hour, null);
+      return {
+        hour: Number.isFinite(hour) ? hour : null,
+        hourLabel: d.hourLabel || (Number.isFinite(hour) ? `H${hour}` : "-"),
+        varianceQty: v,
+        fill: v >= 0 ? "#22c55e" : "#ef4444",
+      };
+    })
+    .filter((d) => d.hour != null)
+    .sort((a, b) => a.hour - b.hour);
+
+  if (safe.length === 0) {
     return (
       <div className="flex h-full items-center justify-center text-[11px] text-slate-500">
         No hourly records yet
@@ -1116,18 +1224,15 @@ function VarianceBarChart({ data }) {
     );
   }
 
-  const maxAbs =
-    data.reduce((max, d) => Math.max(max, Math.abs(d.varianceQty || 0)), 0) || 1;
-
-  const chartData = data.map((d) => ({
-    ...d,
-    varianceQty: d.varianceQty || 0,
-    fill: (d.varianceQty || 0) >= 0 ? "#22c55e" : "#ef4444",
-  }));
+  const maxAbsRaw = safe.reduce(
+    (max, d) => Math.max(max, Math.abs(d.varianceQty || 0)),
+    0
+  );
+  const maxAbs = Math.max(5, maxAbsRaw || 0); // keep readable scale
 
   return (
     <ResponsiveContainer width="100%" height="100%">
-      <BarChart data={chartData} margin={{ top: 6, right: 8, left: 0, bottom: 0 }}>
+      <BarChart data={safe} margin={{ top: 6, right: 8, left: 0, bottom: 0 }}>
         <XAxis
           dataKey="hourLabel"
           tickLine={false}
@@ -1139,6 +1244,8 @@ function VarianceBarChart({ data }) {
           axisLine={{ stroke: "#475569" }}
           tick={{ fontSize: 10, fill: "#cbd5f5" }}
           domain={[-maxAbs, maxAbs]}
+          allowDecimals={false} // ✅ FIX
+          tickFormatter={(v) => String(Math.round(toNumber(v, 0)))} // ✅ FIX
         />
         <ReferenceLine y={0} stroke="#64748b" strokeWidth={1} />
         <Tooltip
@@ -1151,9 +1258,10 @@ function VarianceBarChart({ data }) {
           }}
           labelStyle={{ fontSize: 11, color: "#e2e8f0" }}
           itemStyle={{ fontSize: 11, color: "#e2e8f0" }}
+          formatter={(value) => [String(Math.round(toNumber(value, 0))), "Variance"]}
         />
         <Bar dataKey="varianceQty" radius={[3, 3, 0, 0]}>
-          {chartData.map((entry, idx) => (
+          {safe.map((entry, idx) => (
             <Cell key={idx} fill={entry.fill} />
           ))}
         </Bar>

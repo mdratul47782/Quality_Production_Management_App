@@ -17,16 +17,7 @@ import { Gauge, TrendingUp, Activity, AlertTriangle } from "lucide-react";
 
 const factoryOptions = ["K-1", "K-2", "K-3"];
 
-const buildingOptions = [
-  "A-2",
-  "B-2",
-  "A-3",
-  "B-3",
-  "A-4",
-  "B-4",
-  "A-5",
-  "B-5",
-];
+const buildingOptions = ["A-2", "B-2", "A-3", "B-3", "A-4", "B-4", "A-5", "B-5"];
 
 const lineOptions = [
   "ALL",
@@ -134,14 +125,25 @@ function KpiTile({ label, value, tone = "emerald", icon: Icon }) {
 export default function FloorDashboardPage() {
   const [factory, setFactory] = useState("K-2");
   const [building, setBuilding] = useState("A-2");
-  const [date, setDate] = useState(
-    () => new Date().toISOString().slice(0, 10)
-  );
+  const [date, setDate] = useState(() => new Date().toISOString().slice(0, 10));
   const [line, setLine] = useState("ALL");
 
   const [rows, setRows] = useState([]); // rows = segments: line+buyer+style
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+
+  // ✅ FIX: keep 2 maps:
+  // 1) exact match: line+buyer+style
+  // 2) fallback match: line only (because your register is 1 record per line)
+  const [lineInfoBySeg, setLineInfoBySeg] = useState({});
+  const [lineInfoByLine, setLineInfoByLine] = useState({});
+
+  // WIP per segment (line+buyer+style)
+  const [wipMap, setWipMap] = useState({});
+
+  const [refreshTick, setRefreshTick] = useState(0);
+  const [viewMode, setViewMode] = useState("grid");
+  const [currentCardIndex, setCurrentCardIndex] = useState(0);
 
   // multi-style support: sort by line no + style
   const sortedRows = useMemo(() => {
@@ -159,24 +161,13 @@ export default function FloorDashboardPage() {
     });
   }, [rows]);
 
-  // line-info register (per line+buyer+style)
-  const [lineInfoMap, setLineInfoMap] = useState({});
-  // WIP per segment (line+buyer+style)
-  const [wipMap, setWipMap] = useState({});
-
-  const [refreshTick, setRefreshTick] = useState(0);
-  const [viewMode, setViewMode] = useState("grid");
-  const [currentCardIndex, setCurrentCardIndex] = useState(0);
-
   // global polling
   useEffect(() => {
     const id = setInterval(() => {
       setRefreshTick((prev) => prev + 1);
     }, REFRESH_INTERVAL_MS);
 
-    const handleFocus = () => {
-      setRefreshTick((prev) => prev + 1);
-    };
+    const handleFocus = () => setRefreshTick((prev) => prev + 1);
     window.addEventListener("focus", handleFocus);
 
     return () => {
@@ -199,11 +190,7 @@ export default function FloorDashboardPage() {
         setLoading(true);
         setError("");
 
-        const params = new URLSearchParams({
-          factory,
-          building,
-          date,
-        });
+        const params = new URLSearchParams({ factory, building, date });
         if (line && line !== "ALL") params.append("line", line);
 
         const res = await fetch(`/api/floor-dashboard?${params.toString()}`, {
@@ -232,10 +219,11 @@ export default function FloorDashboardPage() {
     return () => controller.abort();
   }, [factory, building, date, line, refreshTick]);
 
-  // 2) Load Line Info (per line+buyer+style)
+  // 2) Load Line Info (✅ FIXED)
   useEffect(() => {
     if (!factory || !building) {
-      setLineInfoMap({});
+      setLineInfoBySeg({});
+      setLineInfoByLine({});
       return;
     }
 
@@ -246,32 +234,47 @@ export default function FloorDashboardPage() {
         const params = new URLSearchParams({
           factory,
           assigned_building: building,
+          latest: "1", // ✅ use latest per line from API below
         });
 
-        const res = await fetch(
-          `/api/line-info-register?${params.toString()}`,
-          { cache: "no-store" }
-        );
+        const res = await fetch(`/api/line-info-register?${params.toString()}`, {
+          cache: "no-store",
+        });
         const json = await res.json();
 
         if (!res.ok || !json.success) {
           console.error(json.message || "Failed to load line info.");
-          if (!cancelled) setLineInfoMap({});
+          if (!cancelled) {
+            setLineInfoBySeg({});
+            setLineInfoByLine({});
+          }
           return;
         }
 
         const list = json.data || [];
-        const map = {};
 
+        const bySeg = {};
+        const byLine = {};
+
+        // ✅ Important: DO NOT overwrite newer with older
         for (const doc of list) {
+          const lineKey = String(doc.line || "").trim();
+          if (lineKey && !byLine[lineKey]) byLine[lineKey] = doc;
+
           const segKey = makeSegmentKey(doc.line, doc.buyer, doc.style);
-          map[segKey] = doc;
+          if (segKey && !bySeg[segKey]) bySeg[segKey] = doc;
         }
 
-        if (!cancelled) setLineInfoMap(map);
+        if (!cancelled) {
+          setLineInfoBySeg(bySeg);
+          setLineInfoByLine(byLine);
+        }
       } catch (err) {
         console.error("Error fetching line info:", err);
-        if (!cancelled) setLineInfoMap({});
+        if (!cancelled) {
+          setLineInfoBySeg({});
+          setLineInfoByLine({});
+        }
       }
     };
 
@@ -281,14 +284,9 @@ export default function FloorDashboardPage() {
     };
   }, [factory, building]);
 
-  // 3) Load WIP per segment using /api/style-wip
+  // 3) Load WIP per segment using /api/style-wip (✅ FIXED: don’t depend on seg-only info)
   useEffect(() => {
     if (!factory || !building || !date || rows.length === 0) {
-      setWipMap({});
-      return;
-    }
-
-    if (!lineInfoMap || Object.keys(lineInfoMap).length === 0) {
       setWipMap({});
       return;
     }
@@ -300,16 +298,23 @@ export default function FloorDashboardPage() {
 
       for (const row of rows) {
         const segKey = makeSegmentKey(row.line, row.buyer, row.style);
-        const info = lineInfoMap[segKey];
 
-        if (!info || !info.buyer || !info.style) continue;
+        // ✅ prefer exact seg match, fallback to line match
+        const info =
+          lineInfoBySeg[segKey] || lineInfoByLine[String(row.line || "").trim()];
+
+        // ✅ WIP must always use a buyer+style:
+        const buyer = (info?.buyer || row.buyer || "").trim();
+        const style = (info?.style || row.style || "").trim();
+
+        if (!buyer || !style || !row.line) continue;
 
         const params = new URLSearchParams({
           factory,
           assigned_building: building,
           line: row.line,
-          buyer: info.buyer,
-          style: info.style,
+          buyer,
+          style,
           date,
         });
 
@@ -327,16 +332,14 @@ export default function FloorDashboardPage() {
         }
       }
 
-      if (!cancelled) {
-        setWipMap(newMap);
-      }
+      if (!cancelled) setWipMap(newMap);
     };
 
     fetchWipForAllSegments();
     return () => {
       cancelled = true;
     };
-  }, [factory, building, date, rows, lineInfoMap]);
+  }, [factory, building, date, rows, lineInfoBySeg, lineInfoByLine]);
 
   // 4) TV MODE: auto-slide
   useEffect(() => {
@@ -357,8 +360,7 @@ export default function FloorDashboardPage() {
   }, [viewMode, sortedRows.length]);
 
   const hasData = sortedRows.length > 0;
-  const safeIndex =
-    sortedRows.length > 0 ? currentCardIndex % sortedRows.length : 0;
+  const safeIndex = sortedRows.length > 0 ? currentCardIndex % sortedRows.length : 0;
   const currentRow = sortedRows[safeIndex];
 
   // ✅ always allow vertical scroll inside content
@@ -484,16 +486,17 @@ export default function FloorDashboardPage() {
           {hasData && viewMode === "grid" && (
             <div className="grid gap-2.5 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 pb-1">
               {sortedRows.map((row) => {
-                const segKey = makeSegmentKey(
-                  row.line,
-                  row.buyer,
-                  row.style
-                );
+                const segKey = makeSegmentKey(row.line, row.buyer, row.style);
+
+                const info =
+                  lineInfoBySeg[segKey] ||
+                  lineInfoByLine[String(row.line || "").trim()];
+
                 return (
                   <LineCard
                     key={segKey}
                     lineData={row}
-                    lineInfo={lineInfoMap[segKey]}
+                    lineInfo={info}
                     wipData={wipMap[segKey]}
                   />
                 );
@@ -511,10 +514,15 @@ export default function FloorDashboardPage() {
                     currentRow.buyer,
                     currentRow.style
                   );
+
+                  const info =
+                    lineInfoBySeg[segKey] ||
+                    lineInfoByLine[String(currentRow.line || "").trim()];
+
                   return (
                     <TvLineCard
                       lineData={currentRow}
-                      lineInfo={lineInfoMap[segKey]}
+                      lineInfo={info}
                       wipData={wipMap[segKey]}
                       factory={factory}
                       building={building}
@@ -527,11 +535,7 @@ export default function FloorDashboardPage() {
               <div className="flex flex-col items-center gap-1 text-[9px] text-slate-400 pb-1">
                 <div className="flex items-center gap-1 flex-wrap justify-center">
                   {sortedRows.map((row, idx) => {
-                    const segKey = makeSegmentKey(
-                      row.line,
-                      row.buyer,
-                      row.style
-                    );
+                    const segKey = makeSegmentKey(row.line, row.buyer, row.style);
                     return (
                       <button
                         key={segKey}
@@ -571,8 +575,6 @@ export default function FloorDashboardPage() {
 function LineCard({ lineData, lineInfo, wipData }) {
   const { line, quality, production, buyer: dataBuyer, style: dataStyle } =
     lineData || {};
-
-  console.log("Production", production);
 
   const buyer = lineInfo?.buyer || dataBuyer || "-";
   const style = lineInfo?.style || dataStyle || "-";
@@ -647,27 +649,17 @@ function LineCard({ lineData, lineInfo, wipData }) {
 
               <div className="text-slate-200 font-semibold">
                 Target:{" "}
-                <span className="font-semibold">
-                  {formatNumber(targetQty, 0)}
-                </span>
+                <span className="font-semibold">{formatNumber(targetQty, 0)}</span>
               </div>
 
               <div className="text-slate-200">
                 Achv:{" "}
-                <span className="font-semibold">
-                  {formatNumber(achievedQty, 0)}
-                </span>
+                <span className="font-semibold">{formatNumber(achievedQty, 0)}</span>
               </div>
 
-              <div
-                className={
-                  varianceQty >= 0 ? "text-emerald-400" : "text-rose-400"
-                }
-              >
+              <div className={varianceQty >= 0 ? "text-emerald-400" : "text-rose-400"}>
                 Var:{" "}
-                <span className="font-semibold">
-                  {formatNumber(varianceQty, 0)}
-                </span>
+                <span className="font-semibold">{formatNumber(varianceQty, 0)}</span>
               </div>
 
               <div className="mt-1 flex items-center justify-end gap-1 text-[8px]">
@@ -679,6 +671,7 @@ function LineCard({ lineData, lineInfo, wipData }) {
                     {manpowerPresent ? formatNumber(manpowerPresent, 0) : "-"}
                   </span>
                 </span>
+
                 {wip ? (
                   <span className="badge badge-outline border-cyan-600 bg-slate-900/80 px-1.5 py-0.5">
                     <span className="uppercase tracking-wide text-[7px] text-slate-400">
@@ -701,18 +694,13 @@ function LineCard({ lineData, lineInfo, wipData }) {
             <div className="flex items-center justify-between text-[9px] text-slate-400">
               <span className="uppercase tracking-wide">Quality</span>
               <span className="badge border-emerald-500/50 bg-emerald-500/10 text-[8px] text-emerald-200">
-                Q Hour:{" "}
-                <span className="font-semibold">{qualityHourLabel}</span>
+                Q Hour: <span className="font-semibold">{qualityHourLabel}</span>
               </span>
             </div>
             <div className="flex flex-wrap gap-1.5 overflow-hidden">
               <MiniKpi label="RFT%" value={rft} color="#22c55e" />
               <MiniKpi label="DHU%" value={dhu} color="#f97316" />
-              <MiniKpi
-                label="Defect RATE"
-                value={defectRate}
-                color="#e11d48"
-              />
+              <MiniKpi label="Defect RATE" value={defectRate} color="#e11d48" />
             </div>
           </div>
 
@@ -721,8 +709,7 @@ function LineCard({ lineData, lineInfo, wipData }) {
             <div className="flex items-center justify-between text-[9px] text-slate-400">
               <span className="uppercase tracking-wide">Production</span>
               <span className="badge border-sky-500/50 bg-sky-500/10 text-[8px] text-sky-200">
-                P Hour:{" "}
-                <span className="font-semibold">{prodHourLabel}</span>
+                P Hour: <span className="font-semibold">{prodHourLabel}</span>
               </span>
             </div>
             <div className="flex gap-1.5">
@@ -781,13 +768,8 @@ function LineCard({ lineData, lineInfo, wipData }) {
 /* ------------ TV CARD ------------ */
 
 function TvLineCard({ lineData, lineInfo, wipData, factory, building, date }) {
-  const {
-    line,
-    quality,
-    production,
-    buyer: dataBuyer,
-    style: dataStyle,
-  } = lineData || {};
+  const { line, quality, production, buyer: dataBuyer, style: dataStyle } =
+    lineData || {};
 
   const buyer = lineInfo?.buyer || dataBuyer || "-";
   const style = lineInfo?.style || dataStyle || "-";
@@ -844,13 +826,10 @@ function TvLineCard({ lineData, lineInfo, wipData, factory, building, date }) {
         });
         if (factory) params.append("factory", factory);
 
-        const res = await fetch(
-          `/api/hourly-productions?${params.toString()}`,
-          {
-            cache: "no-store",
-            signal: controller.signal,
-          }
-        );
+        const res = await fetch(`/api/hourly-productions?${params.toString()}`, {
+          cache: "no-store",
+          signal: controller.signal,
+        });
         const json = await res.json();
 
         if (!res.ok || !json.success) {
@@ -892,36 +871,25 @@ function TvLineCard({ lineData, lineInfo, wipData, factory, building, date }) {
         <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-2 border-b border-slate-800/70 pb-2">
           <div className="flex flex-wrap gap-1.5">
             <span className="badge badge-lg border-slate-600 bg-slate-900/80 text-amber-100">
-              Buyer:&nbsp;
-              <span className="font-semibold text-amber-300">{buyer}</span>
+              Buyer:&nbsp;<span className="font-semibold text-amber-300">{buyer}</span>
             </span>
             <span className="badge badge-lg border-fuchsia-500/70 bg-fuchsia-500/10 text-fuchsia-100">
-              Style:&nbsp;
-              <span className="font-semibold text-fuchsia-300">{style}</span>
+              Style:&nbsp;<span className="font-semibold text-fuchsia-300">{style}</span>
             </span>
             <span className="badge badge-lg border-cyan-500/70 bg-cyan-500/10 text-cyan-100">
-              Item:&nbsp;
-              <span className="font-semibold text-cyan-300">{item}</span>
+              Item:&nbsp;<span className="font-semibold text-cyan-300">{item}</span>
             </span>
             <span className="badge badge-lg border-emerald-500/70 bg-emerald-500/10 text-emerald-100">
-              Run Day:&nbsp;
-              <span className="font-semibold text-emerald-300">{runDay}</span>
+              Run Day:&nbsp;<span className="font-semibold text-emerald-300">{runDay}</span>
             </span>
             <span className="badge badge-lg border-emerald-500/70 bg-emerald-500/10 text-emerald-100">
-              SMV:&nbsp;
-              <span className="font-semibold text-emerald-300">{smv}</span>
+              SMV:&nbsp;<span className="font-semibold text-emerald-300">{smv}</span>
             </span>
             <span className="badge badge-lg border-emerald-500/70 bg-emerald-500/10 text-emerald-100">
-              Man Power:&nbsp;
-              <span className="font-semibold text-emerald-300">
-                {manpowerPresent}
-              </span>
+              Man Power:&nbsp;<span className="font-semibold text-emerald-300">{manpowerPresent}</span>
             </span>
             <span className="badge badge-lg border-emerald-500/70 bg-emerald-500/10 text-emerald-100">
-              Color/Model:&nbsp;
-              <span className="font-semibold text-emerald-300">
-                {colorModel}
-              </span>
+              Color/Model:&nbsp;<span className="font-semibold text-emerald-300">{colorModel}</span>
             </span>
           </div>
 
@@ -953,9 +921,7 @@ function TvLineCard({ lineData, lineInfo, wipData, factory, building, date }) {
                   />
                 ) : (
                   <div className="absolute inset-0 flex items-center justify-center">
-                    <span className="text-xs text-slate-500">
-                      No image attached
-                    </span>
+                    <span className="text-xs text-slate-500">No image attached</span>
                   </div>
                 )}
               </div>
@@ -967,9 +933,7 @@ function TvLineCard({ lineData, lineInfo, wipData, factory, building, date }) {
             <div className="flex-1 min-h-[150px] sm:min-h-[170px] lg:min-h-0 rounded-2xl border border-emerald-500/70 bg-slate-950/95 overflow-hidden flex flex-col">
               <div className="px-3 py-1.5 text-[10px] md:text-xs uppercase tracking-[0.14em] text-emerald-200 bg-gradient-to-r from-emerald-500/25 to-transparent border-b border-emerald-500/40 flex items-center justify-between">
                 <span>LIVE VIDEO</span>
-                <span className="text-[10px] text-emerald-200/70">
-                  Auto Play
-                </span>
+                <span className="text-[10px] text-emerald-200/70">Auto Play</span>
               </div>
               <div className="relative flex-1 bg-black/90">
                 {videoSrc ? (
@@ -983,9 +947,7 @@ function TvLineCard({ lineData, lineInfo, wipData, factory, building, date }) {
                   />
                 ) : (
                   <div className="absolute inset-0 flex items-center justify-center">
-                    <span className="text-xs text-slate-500">
-                      No video attached
-                    </span>
+                    <span className="text-xs text-slate-500">No video attached</span>
                   </div>
                 )}
               </div>
@@ -997,21 +959,14 @@ function TvLineCard({ lineData, lineInfo, wipData, factory, building, date }) {
             {/* PLAN vs ACHV */}
             <div className="rounded-2xl border border-sky-700 bg-gradient-to-br from-sky-900/50 via-slate-950 to-slate-900/95 p-3 md:p-3.5 flex flex-col gap-2.5">
               <div className="flex items-center justify-between text-[11px]">
-                <span className="uppercase tracking-wide text-sky-200">
-                  Plan vs Achieved
-                </span>
+                <span className="uppercase tracking-wide text-sky-200">Plan vs Achieved</span>
                 <span className="badge badge-outline border-sky-500/60 bg-slate-950/80 text-[10px] text-sky-100">
                   Plan: {formatNumber(planPercent, 1)}%
                 </span>
               </div>
 
               <div className="mt-1 flex flex-col lg:flex-row items-center gap-3">
-                <KpiPie
-                  value={planPercent}
-                  label=""
-                  color="#22d3ee"
-                  size={96}
-                />
+                <KpiPie value={planPercent} label="" color="#22d3ee" size={96} />
 
                 <div className="grid grid-cols-2 md:grid-cols-3 gap-2 w-full text-[11px] md:text-xs">
                   <TvStatBox
@@ -1060,12 +1015,10 @@ function TvLineCard({ lineData, lineInfo, wipData, factory, building, date }) {
                 </span>
                 <div className="flex flex-wrap gap-1">
                   <span className="badge border-emerald-500/60 bg-emerald-500/10 text-[11px] text-emerald-100">
-                    Q Hour:{" "}
-                    <span className="font-semibold">{qualityHourLabel}</span>
+                    Q Hour: <span className="font-semibold">{qualityHourLabel}</span>
                   </span>
                   <span className="badge border-sky-500/60 bg-sky-500/10 text-[11px] text-sky-100">
-                    P Hour:{" "}
-                    <span className="font-semibold">{prodHourLabel}</span>
+                    P Hour: <span className="font-semibold">{prodHourLabel}</span>
                   </span>
                 </div>
               </div>
@@ -1144,11 +1097,7 @@ function KpiPie({ value, label, color, size = 40 }) {
         <PieChart
           data={[
             { title: "value", value: pct, color },
-            {
-              title: "rest",
-              value: 100 - pct,
-              color: "#020617",
-            },
+            { title: "rest", value: 100 - pct, color: "#020617" },
           ]}
           startAngle={-90}
           lineWidth={12}
@@ -1219,10 +1168,7 @@ function VarianceBarChart({ data }) {
   }
 
   const maxAbs =
-    data.reduce(
-      (max, d) => Math.max(max, Math.abs(d.varianceQty || 0)),
-      0
-    ) || 1;
+    data.reduce((max, d) => Math.max(max, Math.abs(d.varianceQty || 0)), 0) || 1;
 
   const chartData = data.map((d) => ({
     ...d,
@@ -1232,10 +1178,7 @@ function VarianceBarChart({ data }) {
 
   return (
     <ResponsiveContainer width="100%" height="100%">
-      <BarChart
-        data={chartData}
-        margin={{ top: 6, right: 8, left: 0, bottom: 0 }}
-      >
+      <BarChart data={chartData} margin={{ top: 6, right: 8, left: 0, bottom: 0 }}>
         <XAxis
           dataKey="hourLabel"
           tickLine={false}

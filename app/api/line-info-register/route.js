@@ -1,11 +1,10 @@
+// app/api/line-info-register/route.js
 import { dbConnect } from "@/services/mongo";
 import { LineInfoRegisterModel } from "@/models/line-info-register-model";
 import { v2 as cloudinary } from "cloudinary";
 
-// Make sure this route runs on Node.js runtime
 export const runtime = "nodejs";
 
-// Cloudinary config (env vars must be set)
 cloudinary.config({
   cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
   api_key: process.env.CLOUDINARY_API_KEY,
@@ -20,22 +19,17 @@ async function uploadToCloudinary(file, folder) {
 
   return new Promise((resolve, reject) => {
     cloudinary.uploader
-      .upload_stream(
-        { folder, resource_type: "auto" },
-        (error, result) => {
-          if (error) return reject(error);
-          resolve(result.secure_url);
-        }
-      )
+      .upload_stream({ folder, resource_type: "auto" }, (error, result) => {
+        if (error) return reject(error);
+        resolve(result.secure_url);
+      })
       .end(buffer);
   });
 }
 
-// 🔹 Parse request body: supports JSON and multipart/form-data
 async function parseRequestBody(request) {
   const contentType = request.headers.get("content-type") || "";
 
-  // multipart/form-data from FormData (with files)
   if (contentType.includes("multipart/form-data")) {
     const formData = await request.formData();
 
@@ -65,26 +59,21 @@ async function parseRequestBody(request) {
     return {
       body,
       imageFile:
-        imageFile &&
-        typeof imageFile === "object" &&
-        "arrayBuffer" in imageFile
+        imageFile && typeof imageFile === "object" && "arrayBuffer" in imageFile
           ? imageFile
           : null,
       videoFile:
-        videoFile &&
-        typeof videoFile === "object" &&
-        "arrayBuffer" in videoFile
+        videoFile && typeof videoFile === "object" && "arrayBuffer" in videoFile
           ? videoFile
           : null,
     };
   }
 
-  // JSON: fallback (no file upload, but still works)
   const body = await request.json();
   return { body, imageFile: null, videoFile: null };
 }
 
-// GET /api/line-info-register?factory=K-2&assigned_building=A-2&userId=...
+// ✅ GET supports latest=1 (returns latest per line for factory+building)
 export async function GET(request) {
   try {
     await dbConnect();
@@ -93,17 +82,35 @@ export async function GET(request) {
     const factory = searchParams.get("factory");
     const assignedBuilding = searchParams.get("assigned_building");
     const userId = searchParams.get("userId");
+    const latest = searchParams.get("latest") === "1";
 
-    const filter = {};
-    if (factory) filter.factory = factory;
-    if (assignedBuilding) filter.assigned_building = assignedBuilding;
-    if (userId) filter["user.id"] = userId;
+    const match = {};
+    if (factory) match.factory = factory;
+    if (assignedBuilding) match.assigned_building = assignedBuilding;
+    if (userId) match["user.id"] = userId;
 
-    const data = await LineInfoRegisterModel.find(filter).sort({
-      factory: 1,
-      line: 1,
-      createdAt: -1,
-    });
+    if (!latest) {
+      const data = await LineInfoRegisterModel.find(match).sort({
+        updatedAt: -1,
+        createdAt: -1,
+      });
+
+      return Response.json({ success: true, data }, { status: 200 });
+    }
+
+    // latest per line (robust even if duplicates exist)
+    const data = await LineInfoRegisterModel.aggregate([
+      { $match: match },
+      { $sort: { updatedAt: -1, createdAt: -1 } },
+      {
+        $group: {
+          _id: "$line",
+          doc: { $first: "$$ROOT" },
+        },
+      },
+      { $replaceRoot: { newRoot: "$doc" } },
+      { $sort: { line: 1 } },
+    ]);
 
     return Response.json({ success: true, data }, { status: 200 });
   } catch (err) {
@@ -115,7 +122,6 @@ export async function GET(request) {
   }
 }
 
-// POST /api/line-info-register
 export async function POST(request) {
   try {
     await dbConnect();
@@ -150,18 +156,11 @@ export async function POST(request) {
     let imageSrc = body.imageSrc || "";
     let videoSrc = body.videoSrc || "";
 
-    // If files are present, upload to Cloudinary and override URLs
     if (imageFile) {
-      imageSrc = await uploadToCloudinary(
-        imageFile,
-        "line-info-register/images"
-      );
+      imageSrc = await uploadToCloudinary(imageFile, "line-info-register/images");
     }
     if (videoFile) {
-      videoSrc = await uploadToCloudinary(
-        videoFile,
-        "line-info-register/videos"
-      );
+      videoSrc = await uploadToCloudinary(videoFile, "line-info-register/videos");
     }
 
     const doc = await LineInfoRegisterModel.create({
@@ -171,26 +170,18 @@ export async function POST(request) {
     });
 
     return Response.json(
-      {
-        success: true,
-        data: doc,
-        message: "Line info created successfully",
-      },
+      { success: true, data: doc, message: "Line info created successfully" },
       { status: 201 }
     );
   } catch (err) {
     console.error("POST /api/line-info-register error:", err);
     return Response.json(
-      {
-        success: false,
-        message: err.message || "Failed to create line info",
-      },
+      { success: false, message: err.message || "Failed to create line info" },
       { status: 500 }
     );
   }
 }
 
-// PUT /api/line-info-register
 export async function PUT(request) {
   try {
     await dbConnect();
@@ -199,69 +190,46 @@ export async function PUT(request) {
     const { id, ...rest } = body;
 
     if (!id) {
-      return Response.json(
-        { success: false, message: "id is required" },
-        { status: 400 }
-      );
+      return Response.json({ success: false, message: "id is required" }, { status: 400 });
     }
 
     let imageSrc = rest.imageSrc || "";
     let videoSrc = rest.videoSrc || "";
 
     if (imageFile) {
-      imageSrc = await uploadToCloudinary(
-        imageFile,
-        "line-info-register/images"
-      );
+      imageSrc = await uploadToCloudinary(imageFile, "line-info-register/images");
     }
     if (videoFile) {
-      videoSrc = await uploadToCloudinary(
-        videoFile,
-        "line-info-register/videos"
-      );
+      videoSrc = await uploadToCloudinary(videoFile, "line-info-register/videos");
     }
 
     const updated = await LineInfoRegisterModel.findByIdAndUpdate(
       id,
-      {
-        ...rest,
-        imageSrc,
-        videoSrc,
-      },
+      { ...rest, imageSrc, videoSrc },
       { new: true }
     );
 
     if (!updated) {
-      return Response.json(
-        { success: false, message: "Line not found" },
-        { status: 404 }
-      );
+      return Response.json({ success: false, message: "Line not found" }, { status: 404 });
     }
 
     return Response.json(
-      {
-        success: true,
-        data: updated,
-        message: "Line info updated successfully",
-      },
+      { success: true, data: updated, message: "Line info updated successfully" },
       { status: 200 }
     );
   } catch (err) {
     console.error("PUT /api/line-info-register error:", err);
     return Response.json(
-      {
-        success: false,
-        message: err.message || "Failed to update line info",
-      },
+      { success: false, message: err.message || "Failed to update line info" },
       { status: 500 }
     );
   }
 }
 
-// DELETE /api/line-info-register?id=...
 export async function DELETE(request) {
   try {
     await dbConnect();
+
     const { searchParams } = new URL(request.url);
     const id = searchParams.get("id");
 
@@ -275,10 +243,7 @@ export async function DELETE(request) {
     const deleted = await LineInfoRegisterModel.findByIdAndDelete(id);
 
     if (!deleted) {
-      return Response.json(
-        { success: false, message: "Line not found" },
-        { status: 404 }
-      );
+      return Response.json({ success: false, message: "Line not found" }, { status: 404 });
     }
 
     return Response.json(

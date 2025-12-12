@@ -41,14 +41,19 @@ function toNumber(v, fallback = 0) {
   return Number.isFinite(n) ? n : fallback;
 }
 
+// ✅ normalize key parts for safer matching (case/space difference)
+function norm(v) {
+  return String(v || "").trim().toLowerCase();
+}
+
 // 🔹 segment key = line+buyer+style (dashboard segments)
 function makeSegmentKey(line, buyer, style) {
   return `${line || ""}__${buyer || ""}__${style || ""}`;
 }
 
-// 🔹 line key = factory+building+line (ONLY for image/video)
-function makeLineKey(factory, building, line) {
-  return `${factory || ""}__${building || ""}__${line || ""}`;
+// ✅ style media key = factory+building+buyer+style+color_model (for image/video)
+function makeStyleMediaKey(factory, building, buyer, style, colorModel) {
+  return `${norm(factory)}__${norm(building)}__${norm(buyer)}__${norm(style)}__${norm(colorModel)}`;
 }
 
 function pickLatest(a, b) {
@@ -135,8 +140,8 @@ export default function FloorDashboardPage() {
   // ✅ headerMap: ALL info must come from production header (TargetSetterHeader)
   const [headerMap, setHeaderMap] = useState({}); // segKey -> header doc
 
-  // ✅ lineInfoMap: ONLY image/video per line
-  const [lineInfoMap, setLineInfoMap] = useState({}); // lineKey -> doc
+  // ✅ styleMediaMap: ONLY image/video (style-wise) from /api/style-media (date-wise)
+  const [styleMediaMap, setStyleMediaMap] = useState({}); // styleMediaKey -> doc
 
   // ✅ wip per segment (uses header/row buyer/style)
   const [wipMap, setWipMap] = useState({}); // segKey -> wip data
@@ -267,56 +272,59 @@ export default function FloorDashboardPage() {
     };
   }, [factory, building, date, line, refreshTick]);
 
-  // 3) Load Line Info (ONLY image/video per line). newest first & keep first.
+  // ✅ 3) Load Style Media (style-wise image/video) for selected date
   useEffect(() => {
-    if (!factory || !building) {
-      setLineInfoMap({});
+    if (!factory || !building || !date) {
+      setStyleMediaMap({});
       return;
     }
 
     let cancelled = false;
 
-    const fetchLineInfo = async () => {
+    const fetchStyleMedia = async () => {
       try {
         const params = new URLSearchParams({
           factory,
           assigned_building: building,
+          date, // ✅ date-wise match (history support)
         });
 
-        const res = await fetch(
-          `/api/line-info-register?${params.toString()}`,
-          { cache: "no-store" }
-        );
+        const res = await fetch(`/api/style-media?${params.toString()}`, {
+          cache: "no-store",
+        });
         const json = await res.json();
 
         if (!res.ok || !json.success) {
-          if (!cancelled) setLineInfoMap({});
+          if (!cancelled) setStyleMediaMap({});
           return;
         }
 
         const list = json.data || [];
         const map = {};
 
-        // ✅ API gives newest first; keep FIRST doc per (factory+building+line)
+        // API should already return active-for-date records
         for (const doc of list) {
-          const lk = makeLineKey(factory, building, doc.line);
-          if (!map[lk]) map[lk] = doc;
+          const buyer = doc?.buyer || "";
+          const style = doc?.style || "";
+          const colorModel = doc?.color_model || doc?.colorModel || doc?.color || "";
+          const k = makeStyleMediaKey(factory, building, buyer, style, colorModel);
+          if (!map[k]) map[k] = doc;
         }
 
-        if (!cancelled) setLineInfoMap(map);
+        if (!cancelled) setStyleMediaMap(map);
       } catch (err) {
-        console.error("Error fetching line info:", err);
-        if (!cancelled) setLineInfoMap({});
+        console.error("Error fetching style media:", err);
+        if (!cancelled) setStyleMediaMap({});
       }
     };
 
-    fetchLineInfo();
+    fetchStyleMedia();
     return () => {
       cancelled = true;
     };
-  }, [factory, building, refreshTick]);
+  }, [factory, building, date, refreshTick]);
 
-  // 4) Load WIP per segment using header/row buyer+style (NOT lineInfo)
+  // 4) Load WIP per segment using header/row buyer+style (NOT style media)
   useEffect(() => {
     if (!factory || !building || !date || rows.length === 0) {
       setWipMap({});
@@ -513,14 +521,33 @@ export default function FloorDashboardPage() {
             <div className="grid gap-2.5 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 pb-1">
               {sortedRows.map((row) => {
                 const segKey = makeSegmentKey(row.line, row.buyer, row.style);
-                const lineKey = makeLineKey(factory, building, row.line);
+                const header = headerMap[segKey];
+
+                const buyerForMedia = header?.buyer || row?.buyer || "";
+                const styleForMedia = header?.style || row?.style || "";
+                const colorForMedia =
+                  header?.color_model ||
+                  header?.colorModel ||
+                  header?.color ||
+                  header?.color_model_name ||
+                  row?.colorModel ||
+                  row?.color ||
+                  "";
+
+                const mediaKey = makeStyleMediaKey(
+                  factory,
+                  building,
+                  buyerForMedia,
+                  styleForMedia,
+                  colorForMedia
+                );
 
                 return (
                   <LineCard
-                    key={segKey}
+                    key={`${segKey}__${colorForMedia || ""}`} // safer in case same style diff color
                     lineData={row}
-                    header={headerMap[segKey]}
-                    lineInfo={lineInfoMap[lineKey]} // ✅ ONLY image/video
+                    header={header}
+                    styleMedia={styleMediaMap[mediaKey]} // ✅ style-wise media
                     wipData={wipMap[segKey]}
                   />
                 );
@@ -538,18 +565,37 @@ export default function FloorDashboardPage() {
                     currentRow.buyer,
                     currentRow.style
                   );
-                  const lineKey = makeLineKey(factory, building, currentRow.line);
+                  const header = headerMap[segKey];
+
+                  const buyerForMedia = header?.buyer || currentRow?.buyer || "";
+                  const styleForMedia = header?.style || currentRow?.style || "";
+                  const colorForMedia =
+                    header?.color_model ||
+                    header?.colorModel ||
+                    header?.color ||
+                    header?.color_model_name ||
+                    currentRow?.colorModel ||
+                    currentRow?.color ||
+                    "";
+
+                  const mediaKey = makeStyleMediaKey(
+                    factory,
+                    building,
+                    buyerForMedia,
+                    styleForMedia,
+                    colorForMedia
+                  );
 
                   return (
                     <TvLineCard
                       lineData={currentRow}
-                      header={headerMap[segKey]}
-                      lineInfo={lineInfoMap[lineKey]} // ✅ ONLY image/video
+                      header={header}
+                      styleMedia={styleMediaMap[mediaKey]} // ✅ style-wise media
                       wipData={wipMap[segKey]}
                       factory={factory}
                       building={building}
                       date={date}
-                      refreshTick={refreshTick} // ✅ FIX: realtime variance refresh
+                      refreshTick={refreshTick} // ✅ realtime variance refresh
                     />
                   );
                 })()}
@@ -561,7 +607,7 @@ export default function FloorDashboardPage() {
                     const segKey = makeSegmentKey(row.line, row.buyer, row.style);
                     return (
                       <button
-                        key={segKey}
+                        key={`${segKey}__${idx}`}
                         type="button"
                         onClick={() => setCurrentCardIndex(idx)}
                         className={`h-2 rounded-full transition-all duration-300 ${
@@ -595,18 +641,18 @@ export default function FloorDashboardPage() {
 
 /* ------------ NORMAL GRID CARD ------------ */
 
-function LineCard({ lineData, header, lineInfo, wipData }) {
+function LineCard({ lineData, header, styleMedia, wipData }) {
   const { line, quality, production } = lineData || {};
 
-  // ✅ take info from header (not line-info)
+  // ✅ take info from header (not style-media)
   const buyer = header?.buyer || lineData?.buyer || "-";
   const style = header?.style || lineData?.style || "-";
   const runDay = header?.run_day ?? header?.runDay ?? "-";
   const smv = header?.smv ?? "-";
 
-  // ✅ ONLY image/video from line-info
-  const imageSrc = lineInfo?.imageSrc || "";
-  const videoSrc = lineInfo?.videoSrc || "";
+  // ✅ ONLY image/video from style-media (style-wise)
+  const imageSrc = styleMedia?.imageSrc || "";
+  const videoSrc = styleMedia?.videoSrc || "";
 
   const targetQty = production?.targetQty ?? 0;
   const achievedQty = production?.achievedQty ?? 0;
@@ -743,7 +789,7 @@ function LineCard({ lineData, header, lineInfo, wipData }) {
           </div>
         </div>
 
-        {/* BOTTOM: ONLY media from line-info-register */}
+        {/* BOTTOM: ONLY media from style-media */}
         {(imageSrc || videoSrc) && (
           <div className="grid grid-cols-2 gap-1.5 border-t border-slate-800 pt-1.5">
             {imageSrc && (
@@ -794,7 +840,7 @@ function LineCard({ lineData, header, lineInfo, wipData }) {
 function TvLineCard({
   lineData,
   header,
-  lineInfo,
+  styleMedia,
   wipData,
   factory,
   building,
@@ -803,7 +849,7 @@ function TvLineCard({
 }) {
   const { line, quality, production } = lineData || {};
 
-  // ✅ from header (not line-info)
+  // ✅ from header (not style-media)
   const buyer = header?.buyer || lineData?.buyer || "-";
   const style = header?.style || lineData?.style || "-";
   const item = header?.item || header?.style_item || header?.styleItem || "Item";
@@ -816,9 +862,9 @@ function TvLineCard({
   const runDay = header?.run_day ?? header?.runDay ?? "-";
   const smv = header?.smv ?? "-";
 
-  // ✅ ONLY from line-info
-  const imageSrc = lineInfo?.imageSrc || "";
-  const videoSrc = lineInfo?.videoSrc || "";
+  // ✅ ONLY from style-media (style-wise)
+  const imageSrc = styleMedia?.imageSrc || "";
+  const videoSrc = styleMedia?.videoSrc || "";
 
   const targetQty = production?.targetQty ?? 0;
   const achievedQty = production?.achievedQty ?? 0;
@@ -853,7 +899,6 @@ function TvLineCard({
   const [varianceLoading, setVarianceLoading] = useState(false);
   const [varianceChartData, setVarianceChartData] = useState([]);
 
-  // ✅ FIX 1: make variance field robust (your API might not be "varianceQty")
   const getHourNum = (rec) => {
     const h =
       rec?.hour ??
@@ -892,7 +937,6 @@ function TvLineCard({
     return `${x}th`;
   };
 
-  // ✅ FIX 2: realtime update (depends on refreshTick)
   useEffect(() => {
     if (!factory || !building || !line || !date) {
       setVarianceChartData([]);
@@ -928,11 +972,10 @@ function TvLineCard({
 
         const list = json.data || [];
 
-        // ✅ normalize -> (hour, varianceQty) and ROUND to integer (no point value)
         const normalized = list
           .map((rec) => {
             const hour = getHourNum(rec);
-            const variance = Math.round(getVarianceNum(rec)); // 🔥 integer only
+            const variance = Math.round(getVarianceNum(rec));
             return {
               hour,
               hourLabel: hour != null ? `${ordinal(hour)} Hour` : "-",
@@ -1200,8 +1243,6 @@ function TvStatBox({ label, value, accent = "", big = false }) {
 }
 
 function VarianceBarChart({ data }) {
-  // ✅ If your axis was showing 0.909090... it means your data was coming as 0/empty.
-  // This chart forces integer ticks + integer values.
   const safe = (data || [])
     .map((d) => {
       const v = Math.round(toNumber(d.varianceQty, 0));
@@ -1228,7 +1269,7 @@ function VarianceBarChart({ data }) {
     (max, d) => Math.max(max, Math.abs(d.varianceQty || 0)),
     0
   );
-  const maxAbs = Math.max(5, maxAbsRaw || 0); // keep readable scale
+  const maxAbs = Math.max(5, maxAbsRaw || 0);
 
   return (
     <ResponsiveContainer width="100%" height="100%">
@@ -1244,8 +1285,8 @@ function VarianceBarChart({ data }) {
           axisLine={{ stroke: "#475569" }}
           tick={{ fontSize: 10, fill: "#cbd5f5" }}
           domain={[-maxAbs, maxAbs]}
-          allowDecimals={false} // ✅ FIX
-          tickFormatter={(v) => String(Math.round(toNumber(v, 0)))} // ✅ FIX
+          allowDecimals={false}
+          tickFormatter={(v) => String(Math.round(toNumber(v, 0)))}
         />
         <ReferenceLine y={0} stroke="#64748b" strokeWidth={1} />
         <Tooltip

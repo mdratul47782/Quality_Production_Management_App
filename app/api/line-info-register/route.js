@@ -13,7 +13,6 @@ cloudinary.config({
 
 async function uploadToCloudinary(file, folder) {
   if (!file) return "";
-
   const arrayBuffer = await file.arrayBuffer();
   const buffer = Buffer.from(arrayBuffer);
 
@@ -32,7 +31,6 @@ async function parseRequestBody(request) {
 
   if (contentType.includes("multipart/form-data")) {
     const formData = await request.formData();
-
     const imageFile = formData.get("imageFile");
     const videoFile = formData.get("videoFile");
 
@@ -73,7 +71,7 @@ async function parseRequestBody(request) {
   return { body, imageFile: null, videoFile: null };
 }
 
-// ✅ GET supports latest=1 (returns latest per line for factory+building)
+// GET /api/line-info-register?factory=K-2&assigned_building=A-2
 export async function GET(request) {
   try {
     await dbConnect();
@@ -81,36 +79,18 @@ export async function GET(request) {
     const { searchParams } = new URL(request.url);
     const factory = searchParams.get("factory");
     const assignedBuilding = searchParams.get("assigned_building");
+    const line = searchParams.get("line");
     const userId = searchParams.get("userId");
-    const latest = searchParams.get("latest") === "1";
 
-    const match = {};
-    if (factory) match.factory = factory;
-    if (assignedBuilding) match.assigned_building = assignedBuilding;
-    if (userId) match["user.id"] = userId;
+    const filter = {};
+    if (factory) filter.factory = factory;
+    if (assignedBuilding) filter.assigned_building = assignedBuilding;
+    if (line) filter.line = line;
+    if (userId) filter["user.id"] = userId;
 
-    if (!latest) {
-      const data = await LineInfoRegisterModel.find(match).sort({
-        updatedAt: -1,
-        createdAt: -1,
-      });
-
-      return Response.json({ success: true, data }, { status: 200 });
-    }
-
-    // latest per line (robust even if duplicates exist)
-    const data = await LineInfoRegisterModel.aggregate([
-      { $match: match },
-      { $sort: { updatedAt: -1, createdAt: -1 } },
-      {
-        $group: {
-          _id: "$line",
-          doc: { $first: "$$ROOT" },
-        },
-      },
-      { $replaceRoot: { newRoot: "$doc" } },
-      { $sort: { line: 1 } },
-    ]);
+    const data = await LineInfoRegisterModel.find(filter)
+      .sort({ createdAt: -1 })
+      .lean();
 
     return Response.json({ success: true, data }, { status: 200 });
   } catch (err) {
@@ -122,6 +102,8 @@ export async function GET(request) {
   }
 }
 
+// ✅ POST = UPSERT by (factory + assigned_building + line)
+// so image/video stays for that line until you change again
 export async function POST(request) {
   try {
     await dbConnect();
@@ -135,10 +117,7 @@ export async function POST(request) {
       );
     }
     if (!body.factory) {
-      return Response.json(
-        { success: false, message: "factory is required" },
-        { status: 400 }
-      );
+      return Response.json({ success: false, message: "factory is required" }, { status: 400 });
     }
     if (!body.assigned_building) {
       return Response.json(
@@ -146,11 +125,8 @@ export async function POST(request) {
         { status: 400 }
       );
     }
-    if (!body.date) {
-      return Response.json(
-        { success: false, message: "date is required" },
-        { status: 400 }
-      );
+    if (!body.line) {
+      return Response.json({ success: false, message: "line is required" }, { status: 400 });
     }
 
     let imageSrc = body.imageSrc || "";
@@ -163,25 +139,34 @@ export async function POST(request) {
       videoSrc = await uploadToCloudinary(videoFile, "line-info-register/videos");
     }
 
-    const doc = await LineInfoRegisterModel.create({
-      ...body,
-      imageSrc,
-      videoSrc,
-    });
+    const { id, ...rest } = body;
+
+    const key = {
+      factory: rest.factory,
+      assigned_building: rest.assigned_building,
+      line: rest.line,
+    };
+
+    const doc = await LineInfoRegisterModel.findOneAndUpdate(
+      key,
+      { ...rest, imageSrc, videoSrc },
+      { new: true, upsert: true, setDefaultsOnInsert: true }
+    );
 
     return Response.json(
-      { success: true, data: doc, message: "Line info created successfully" },
-      { status: 201 }
+      { success: true, data: doc, message: "Line info saved (upsert) successfully" },
+      { status: 200 }
     );
   } catch (err) {
     console.error("POST /api/line-info-register error:", err);
     return Response.json(
-      { success: false, message: err.message || "Failed to create line info" },
+      { success: false, message: err.message || "Failed to save line info" },
       { status: 500 }
     );
   }
 }
 
+// PUT (keep if you still use id-based update somewhere)
 export async function PUT(request) {
   try {
     await dbConnect();
@@ -196,12 +181,8 @@ export async function PUT(request) {
     let imageSrc = rest.imageSrc || "";
     let videoSrc = rest.videoSrc || "";
 
-    if (imageFile) {
-      imageSrc = await uploadToCloudinary(imageFile, "line-info-register/images");
-    }
-    if (videoFile) {
-      videoSrc = await uploadToCloudinary(videoFile, "line-info-register/videos");
-    }
+    if (imageFile) imageSrc = await uploadToCloudinary(imageFile, "line-info-register/images");
+    if (videoFile) videoSrc = await uploadToCloudinary(videoFile, "line-info-register/videos");
 
     const updated = await LineInfoRegisterModel.findByIdAndUpdate(
       id,
@@ -229,7 +210,6 @@ export async function PUT(request) {
 export async function DELETE(request) {
   try {
     await dbConnect();
-
     const { searchParams } = new URL(request.url);
     const id = searchParams.get("id");
 
@@ -246,10 +226,7 @@ export async function DELETE(request) {
       return Response.json({ success: false, message: "Line not found" }, { status: 404 });
     }
 
-    return Response.json(
-      { success: true, message: "Line info deleted successfully" },
-      { status: 200 }
-    );
+    return Response.json({ success: true, message: "Line info deleted successfully" }, { status: 200 });
   } catch (err) {
     console.error("DELETE /api/line-info-register error:", err);
     return Response.json(

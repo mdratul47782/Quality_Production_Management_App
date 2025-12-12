@@ -21,8 +21,7 @@ function computeBaseTargetPerHourFromHeader(header) {
       ? (manpowerPresent * 60 * planEffDecimal) / smv
       : 0;
 
-  const targetFromFullDay =
-    workingHour > 0 ? targetFullDay / workingHour : 0;
+  const targetFromFullDay = workingHour > 0 ? targetFullDay / workingHour : 0;
 
   return targetFromCapacity || targetFromFullDay || 0;
 }
@@ -40,17 +39,15 @@ export async function GET(request) {
     const assigned_building = searchParams.get("assigned_building");
     const line = searchParams.get("line");
     const date = searchParams.get("date");
+    const buyer = searchParams.get("buyer"); // ✅ NEW
+    const style = searchParams.get("style"); // ✅ NEW
     const days = parseInt(searchParams.get("days") || "30", 10);
 
     // 1) Specific header (current Hourly card)
     if (headerId) {
       const query = { headerId };
-      if (productionUserId) {
-        query["productionUser.id"] = productionUserId;
-      }
-      if (factory) {
-        query.factory = factory;
-      }
+      if (productionUserId) query["productionUser.id"] = productionUserId;
+      if (factory) query.factory = factory;
 
       const records = await HourlyProductionModel.find(query)
         .sort({ hour: 1 })
@@ -59,10 +56,12 @@ export async function GET(request) {
       return Response.json({ success: true, data: records }, { status: 200 });
     }
 
-    // 2) Building + Line + Date ভিত্তিক API
+    // 2) Building + Line + Date ভিত্তিক API (✅ now supports buyer/style filter)
     if (assigned_building && line && date) {
       const headerFilter = { assigned_building, line, date };
       if (factory) headerFilter.factory = factory;
+      if (buyer) headerFilter.buyer = buyer; // ✅ NEW
+      if (style) headerFilter.style = style; // ✅ NEW
 
       const headers = await TargetSetterHeader.find(headerFilter)
         .select("_id")
@@ -75,12 +74,8 @@ export async function GET(request) {
       const headerIds = headers.map((h) => h._id);
 
       const query = { headerId: { $in: headerIds } };
-      if (productionUserId) {
-        query["productionUser.id"] = productionUserId;
-      }
-      if (factory) {
-        query.factory = factory;
-      }
+      if (productionUserId) query["productionUser.id"] = productionUserId;
+      if (factory) query.factory = factory;
 
       const records = await HourlyProductionModel.find(query)
         .sort({ hour: 1 })
@@ -105,20 +100,14 @@ export async function GET(request) {
     const startDate = new Date();
     startDate.setDate(startDate.getDate() - days);
 
-    const startStr = startDate.toISOString().slice(0, 10); // "YYYY-MM-DD"
+    const startStr = startDate.toISOString().slice(0, 10);
     const endStr = endDate.toISOString().slice(0, 10);
 
     const query = {
       "productionUser.id": productionUserId,
-      productionDate: {
-        $gte: startStr,
-        $lte: endStr,
-      },
+      productionDate: { $gte: startStr, $lte: endStr },
     };
-
-    if (factory) {
-      query.factory = factory;
-    }
+    if (factory) query.factory = factory;
 
     const records = await HourlyProductionModel.find(query)
       .sort({ productionDate: 1, hour: 1 })
@@ -160,7 +149,6 @@ export async function POST(request) {
     }
 
     const header = await TargetSetterHeader.findById(headerId).lean();
-
     if (!header) {
       return Response.json(
         { success: false, message: "Target header not found" },
@@ -170,8 +158,7 @@ export async function POST(request) {
 
     const manpowerPresent = toNumberOrZero(header.manpower_present);
     const smv = toNumberOrZero(header.smv);
-    const productionDate =
-      header.date || new Date().toISOString().slice(0, 10);
+    const productionDate = header.date || new Date().toISOString().slice(0, 10);
 
     const baseTargetPerHour = computeBaseTargetPerHourFromHeader(header);
 
@@ -199,8 +186,7 @@ export async function POST(request) {
 
     const totalAchievedUpToThisHour = totalAchievedBefore + achievedQty;
     const baselineToDateCurrent = baseTargetPerHour * hour;
-    const cumulativeVariance =
-      totalAchievedUpToThisHour - baselineToDateCurrent;
+    const cumulativeVariance = totalAchievedUpToThisHour - baselineToDateCurrent;
 
     const hourlyEfficiency =
       manpowerPresent > 0 && smv > 0
@@ -233,13 +219,11 @@ export async function POST(request) {
       hourlyEfficiency,
       achieveEfficiency,
       totalEfficiency,
-
       factory,
       assigned_building,
       line,
       buyer,
       style,
-
       productionUser: {
         id: productionUser.id,
         Production_user_name: productionUser.Production_user_name,

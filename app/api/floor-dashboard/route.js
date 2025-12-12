@@ -185,7 +185,7 @@ export async function GET(req) {
           (Number.isFinite(baseTargetPerHourRaw)
             ? baseTargetPerHourRaw
             : 0) *
-            (Number.isFinite(workingHours) ? workingHours : 0)
+          (Number.isFinite(workingHours) ? workingHours : 0)
         );
       }
 

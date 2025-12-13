@@ -76,6 +76,14 @@ async function parseRequestBody(request) {
   return { body, imageFile: null, videoFile: null };
 }
 
+function dupMsg(err) {
+  const raw = err?.message || "";
+  if (raw.includes("effectiveFrom")) {
+    return "This style media already exists for this Effective From date (same factory/floor/buyer/style/color).";
+  }
+  return "Duplicate style media found (same factory/floor/buyer/style/color).";
+}
+
 // GET /api/style-media?factory=K-2&assigned_building=A-2&date=2025-12-12
 // optional filters: buyer, style, color_model
 export async function GET(request) {
@@ -85,7 +93,7 @@ export async function GET(request) {
     const { searchParams } = new URL(request.url);
     const factory = searchParams.get("factory") || "";
     const assigned_building = searchParams.get("assigned_building") || "";
-    const date = searchParams.get("date") || ""; // ✅ for dashboard date wise
+    const date = searchParams.get("date") || "";
     const buyer = searchParams.get("buyer") || "";
     const style = searchParams.get("style") || "";
     const color_model = searchParams.get("color_model") || "";
@@ -97,7 +105,6 @@ export async function GET(request) {
     if (style) filter.style = style;
     if (color_model) filter.color_model = color_model;
 
-    // ✅ pick records active for this date
     if (date) {
       filter.$and = [
         { effectiveFrom: { $lte: date } },
@@ -119,7 +126,7 @@ export async function GET(request) {
   }
 }
 
-// POST = create/update style media for a start date (effectiveFrom) and close previous active record
+// POST = create/update version for effectiveFrom AND close previous active record (effectiveTo="")
 export async function POST(request) {
   try {
     await dbConnect();
@@ -129,11 +136,15 @@ export async function POST(request) {
     const required = ["factory", "assigned_building", "buyer", "style", "color_model"];
     for (const k of required) {
       if (!body?.[k]) {
-        return Response.json({ success: false, message: `${k} is required` }, { status: 400 });
+        return Response.json(
+          { success: false, message: `${k} is required` },
+          { status: 400 }
+        );
       }
     }
 
     const effectiveFrom = body.effectiveFrom || todayIso();
+
     const key = {
       factory: body.factory,
       assigned_building: body.assigned_building,
@@ -148,16 +159,15 @@ export async function POST(request) {
     if (imageFile) imageSrc = await uploadToCloudinary(imageFile, "style-media/images");
     if (videoFile) videoSrc = await uploadToCloudinary(videoFile, "style-media/videos");
 
-    // ✅ close previous ACTIVE record (effectiveTo="") for this key
-    // so old one remains visible on old dates
-    const prevEnd = dayBefore(effectiveFrom);
+    // ✅ close current ACTIVE record for this key
+    const prevEnd = dayBefore(effectiveFrom) || effectiveFrom;
 
     await StyleMediaModel.updateMany(
       { ...key, effectiveTo: "" },
-      { $set: { effectiveTo: prevEnd || effectiveFrom } }
+      { $set: { effectiveTo: prevEnd } }
     );
 
-    // ✅ upsert record for this effectiveFrom (if same day re-save, it updates)
+    // ✅ upsert version for this effectiveFrom (no duplicate for same day)
     const doc = await StyleMediaModel.findOneAndUpdate(
       { ...key, effectiveFrom },
       {
@@ -177,6 +187,11 @@ export async function POST(request) {
     );
   } catch (err) {
     console.error("POST /api/style-media error:", err);
+
+    if (err?.code === 11000) {
+      return Response.json({ success: false, message: dupMsg(err) }, { status: 409 });
+    }
+
     return Response.json(
       { success: false, message: err.message || "Failed to save style media" },
       { status: 500 }
@@ -184,8 +199,8 @@ export async function POST(request) {
   }
 }
 
-// PUT = update by id (manual edit)
-export async function PUT(request) {
+// PATCH = update by id (manual edit)
+export async function PATCH(request) {
   try {
     await dbConnect();
 
@@ -216,7 +231,12 @@ export async function PUT(request) {
       { status: 200 }
     );
   } catch (err) {
-    console.error("PUT /api/style-media error:", err);
+    console.error("PATCH /api/style-media error:", err);
+
+    if (err?.code === 11000) {
+      return Response.json({ success: false, message: dupMsg(err) }, { status: 409 });
+    }
+
     return Response.json(
       { success: false, message: err.message || "Failed to update style media" },
       { status: 500 }

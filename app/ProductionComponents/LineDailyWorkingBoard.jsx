@@ -1059,7 +1059,7 @@ function HourlyHeaderCard({ header, auth }) {
           <div className="flex items-center gap-2">
             <div className="flex items-center gap-3">
               <span className="text-slate-1000 font-bold">
-                Total Input :
+                Total Input :{/*It is mainly Capacity .previously i used it as capacity but then tolf me that it will be total input not capacity ,but i already did the code with capacity so i did no change */}
               </span>
 
               <input

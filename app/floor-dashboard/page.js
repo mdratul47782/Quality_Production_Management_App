@@ -1,6 +1,5 @@
 // app/floor-dashboard/page.jsx
 "use client";
-
 import { useState, useEffect, useMemo } from "react";
 import { PieChart } from "react-minimal-pie-chart";
 import {
@@ -14,18 +13,13 @@ import {
   Cell,
 } from "recharts";
 import { Gauge, TrendingUp, Activity, AlertTriangle } from "lucide-react";
-
 const factoryOptions = ["K-1", "K-2", "K-3"];
 const buildingOptions = ["A-2", "B-2", "A-3", "B-3", "A-4", "B-4", "A-5", "B-5"];
 const lineOptions = [
   "ALL",
-  "Line-1","Line-2","Line-3","Line-4","Line-5",
-  "Line-6","Line-7","Line-8","Line-9","Line-10",
-  "Line-11","Line-12","Line-13","Line-14","Line-15",
+  "Line-1", "Line-2", "Line-3", "Line-4", "Line-5", "Line-6", "Line-7", "Line-8", "Line-9", "Line-10", "Line-11", "Lin-12", "Line-13", "Line-14", "Line-15",
 ];
-
 const REFRESH_INTERVAL_MS = 10000;
-
 function formatNumber(value, digits = 2) {
   const num = Number(value);
   if (!Number.isFinite(num)) return "-";
@@ -610,11 +604,10 @@ export default function FloorDashboardPage() {
                         key={`${segKey}__${idx}`}
                         type="button"
                         onClick={() => setCurrentCardIndex(idx)}
-                        className={`h-2 rounded-full transition-all duration-300 ${
-                          idx === safeIndex
+                        className={`h-2 rounded-full transition-all duration-300 ${idx === safeIndex
                             ? "w-5 bg-sky-400"
                             : "w-2 bg-slate-600 hover:bg-slate-400"
-                        }`}
+                          }`}
                       />
                     );
                   })}
@@ -1228,9 +1221,8 @@ function MiniKpi({ label, value, color }) {
 function TvStatBox({ label, value, accent = "", big = false }) {
   return (
     <div
-      className={`rounded-xl border bg-slate-950/90 px-2 py-1.5 flex flex-col justify-center ${
-        accent || "border-slate-600 text-slate-100"
-      }`}
+      className={`rounded-xl border bg-slate-950/90 px-2 py-1.5 flex flex-col justify-center ${accent || "border-slate-600 text-slate-100"
+        }`}
     >
       <span className="text-[11px] uppercase tracking-wide text-slate-400">
         {label}

@@ -13,8 +13,8 @@ const StyleMediaSchema = new Schema(
     imageSrc: { type: String, default: "" },
     videoSrc: { type: String, default: "" },
 
-    // ✅ date-wise history (string "YYYY-MM-DD" so compare works)
-    effectiveFrom: { type: String, required: true, trim: true }, // start date
+    // timeline
+    effectiveFrom: { type: String, required: true, trim: true }, // YYYY-MM-DD
     effectiveTo: { type: String, default: "", trim: true }, // "" = active
 
     user: {
@@ -25,15 +25,33 @@ const StyleMediaSchema = new Schema(
   { timestamps: true }
 );
 
-StyleMediaSchema.index({
-  factory: 1,
-  assigned_building: 1,
-  buyer: 1,
-  style: 1,
-  color_model: 1,
-  effectiveFrom: -1,
-  effectiveTo: 1,
-});
+/**
+ * ✅ RULES (no duplicates)
+ * 1) Same key + same effectiveFrom => only ONE doc (history day-wise no duplicate)
+ * 2) Same key => only ONE ACTIVE doc (effectiveTo="") at a time
+ */
+
+// 1) prevent duplicates per day/version
+StyleMediaSchema.index(
+  {
+    factory: 1,
+    assigned_building: 1,
+    buyer: 1,
+    style: 1,
+    color_model: 1,
+    effectiveFrom: 1,
+  },
+  { unique: true }
+);
+
+// 2) prevent duplicates for ACTIVE record only
+StyleMediaSchema.index(
+  { factory: 1, assigned_building: 1, buyer: 1, style: 1, color_model: 1 },
+  {
+    unique: true,
+    partialFilterExpression: { effectiveTo: "" }, // ✅ only active docs
+  }
+);
 
 export const StyleMediaModel =
   mongoose.models.StyleMedia || mongoose.model("StyleMedia", StyleMediaSchema);

@@ -16,6 +16,7 @@ import {
   ChartNoAxesCombined,
   MonitorCloud,
   User,
+  Table2
 } from "lucide-react";
 
 export default function SideNavbar() {
@@ -33,8 +34,9 @@ export default function SideNavbar() {
     { href: "/floor-summary", icon: ChartNoAxesCombined },
     { href: "/ProductionInput", icon: Activity },
     { href: "/QualityInput", icon: ClipboardList },
-    { href: "/QualitySummaryTable", icon: BarChart2 },
-    { href: "/line-info-register", icon: FileText },
+    { href: "/QualitySummaryTable", icon: Table2 },
+    // { href: "/line-info-register", icon: FileText },
+    { href: "/style-media-register", icon: FileText },
   ];
 
   // Safely read user name and role from auth
@@ -59,23 +61,23 @@ export default function SideNavbar() {
         <div className="flex flex-col items-center gap-4">
           {/* HKD Logo */}
           <Link href="/">
-          <div className="flex items-center justify-center">
+            <div className="flex items-center justify-center">
 
-            <div className="h-9 w-9 rounded-xl bg-white flex items-center justify-center overflow-hidden shadow-[0_0_16px_rgba(15,23,42,0.8)]">
-              
-              <Image
-                src="/HKD_LOGO.png"
-                alt="HKD Outdoor Innovations Ltd."
-                width={30}
-                height={30}
-                className="object-contain"
-                priority
-              />
-            
+              <div className="h-9 w-9 rounded-xl bg-white flex items-center justify-center overflow-hidden shadow-[0_0_16px_rgba(15,23,42,0.8)]">
+
+                <Image
+                  src="/HKD_LOGO.png"
+                  alt="HKD Outdoor Innovations Ltd."
+                  width={30}
+                  height={30}
+                  className="object-contain"
+                  priority
+                />
+
+              </div>
+
             </div>
-            
-          </div>
-  </Link>
+          </Link>
           {/* NAV ICONS */}
           <div className="flex flex-col items-center gap-3 mt-1">
             {navItems.map(({ href, icon: Icon }) => {
@@ -88,10 +90,9 @@ export default function SideNavbar() {
                     flex items-center justify-center
                     h-9 w-9 rounded-2xl border
                     transition-all
-                    ${
-                      active
-                        ? "bg-emerald-500 border-emerald-400 text-slate-950 shadow-[0_0_14px_rgba(16,185,129,0.7)]"
-                        : "bg-slate-900 border-slate-700 text-slate-300 hover:bg-slate-800 hover:border-slate-500 hover:text-slate-50"
+                    ${active
+                      ? "bg-emerald-500 border-emerald-400 text-slate-950 shadow-[0_0_14px_rgba(16,185,129,0.7)]"
+                      : "bg-slate-900 border-slate-700 text-slate-300 hover:bg-slate-800 hover:border-slate-500 hover:text-slate-50"
                     }
                   `}
                 >

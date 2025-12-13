@@ -43,6 +43,9 @@ export default function StyleMediaRegisterPage() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
 
+  // ✅ date filter to avoid “duplicate-looking” history list
+  const [listDate, setListDate] = useState(todayIso());
+
   // file + preview
   const [imageFile, setImageFile] = useState(null);
   const [videoFile, setVideoFile] = useState(null);
@@ -81,11 +84,17 @@ export default function StyleMediaRegisterPage() {
       assigned_building: auth.assigned_building,
     }));
 
-    fetchRecords(auth.factory, auth.assigned_building);
+    fetchRecords(auth.factory, auth.assigned_building, listDate);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [auth?.factory, auth?.assigned_building]);
 
-  const fetchRecords = async (factory, assigned_building) => {
+  useEffect(() => {
+    if (!auth?.factory || !auth?.assigned_building) return;
+    fetchRecords(auth.factory, auth.assigned_building, listDate);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [listDate]);
+
+  const fetchRecords = async (factory, assigned_building, date) => {
     if (!factory || !assigned_building) {
       setRecords([]);
       setLoading(false);
@@ -95,6 +104,7 @@ export default function StyleMediaRegisterPage() {
     setLoading(true);
     try {
       const params = new URLSearchParams({ factory, assigned_building });
+      if (date) params.set("date", date); // ✅ IMPORTANT
       const res = await fetch(`/api/style-media?${params.toString()}`, { cache: "no-store" });
       const json = await res.json();
       if (json.success) setRecords(json.data || []);
@@ -124,12 +134,13 @@ export default function StyleMediaRegisterPage() {
 
   const handleSave = async () => {
     if (!auth) return alert("Please login.");
+    if (saving) return;
     if (!validate()) return alert("Please fill required fields.");
 
     setSaving(true);
     try {
       const userId = auth._id || auth.id || auth.user?.id || auth.user?._id || "";
-      const method = editingId ? "PUT" : "POST";
+      const method = editingId ? "PATCH" : "POST"; // ✅ PATCH exists now
 
       const fd = new FormData();
       fd.append("factory", auth.factory);
@@ -150,9 +161,11 @@ export default function StyleMediaRegisterPage() {
       const res = await fetch("/api/style-media", { method, body: fd });
       const json = await res.json();
 
+      if (!res.ok) return alert(json.message || "Save failed");
       alert(json.message || "Saved!");
+
       if (json.success) {
-        await fetchRecords(auth.factory, auth.assigned_building);
+        await fetchRecords(auth.factory, auth.assigned_building, listDate);
         resetForm();
       }
     } catch (err) {
@@ -171,7 +184,7 @@ export default function StyleMediaRegisterPage() {
       const json = await res.json();
       alert(json.message || "Deleted");
       if (json.success) {
-        await fetchRecords(auth.factory, auth.assigned_building);
+        await fetchRecords(auth.factory, auth.assigned_building, listDate);
         resetForm();
       }
     } catch (err) {
@@ -235,21 +248,37 @@ export default function StyleMediaRegisterPage() {
         {/* LEFT: list */}
         <aside className="space-y-4">
           <div className="bg-gradient-to-br from-white to-slate-50 p-3 rounded-2xl border shadow-sm">
-            <div className="flex items-center justify-between mb-2">
+            <div className="flex items-center justify-between mb-2 gap-2">
               <h3 className="font-semibold text-gray-700 text-xs">
-                Saved style media ({auth.factory} – {auth.assigned_building})
+                Active on: {listDate}
               </h3>
-              <button
-                type="button"
-                onClick={resetForm}
-                className="text-[11px] px-2 py-1 rounded bg-sky-100 text-sky-700 hover:bg-sky-200"
-              >
-                + New
-              </button>
+
+              <div className="flex items-center gap-2">
+                <input
+                  type="date"
+                  value={listDate}
+                  onChange={(e) => setListDate(e.target.value)}
+                  className="rounded-lg border px-2 py-1 text-[11px] bg-white"
+                />
+                <button
+                  type="button"
+                  onClick={() => setListDate(todayIso())}
+                  className="text-[11px] px-2 py-1 rounded bg-slate-200 text-slate-700 hover:bg-slate-300"
+                >
+                  Today
+                </button>
+                <button
+                  type="button"
+                  onClick={resetForm}
+                  className="text-[11px] px-2 py-1 rounded bg-sky-100 text-sky-700 hover:bg-sky-200"
+                >
+                  + New
+                </button>
+              </div>
             </div>
 
             {records.length === 0 ? (
-              <p className="text-[11px] text-gray-500">No style media saved yet.</p>
+              <p className="text-[11px] text-gray-500">No style media for this date.</p>
             ) : (
               <ul className="space-y-2 max-h-[360px] overflow-auto text-xs">
                 {records.map((r) => (
@@ -441,7 +470,7 @@ export default function StyleMediaRegisterPage() {
               <div className="border rounded-lg p-2 bg-gray-50">
                 <p className="text-[11px] text-gray-500 mb-1">Video</p>
                 {videoPreview ? (
-                  <video src={videoPreview} className="w-full h-36 rounded" controls muted />
+                  <video src={videoPreview} className="w-full h-36 rounded object-cover" controls muted />
                 ) : (
                   <p className="text-[11px] text-gray-400">No video</p>
                 )}

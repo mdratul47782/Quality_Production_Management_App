@@ -16,16 +16,7 @@ import {
 
 const factoryOptions = ["K-1", "K-2", "K-3"];
 
-const buildingOptions = [
-  "A-2",
-  "B-2",
-  "A-3",
-  "B-3",
-  "A-4",
-  "B-4",
-  "A-5",
-  "B-5",
-];
+const buildingOptions = ["A-2", "B-2", "A-3", "B-3", "A-4", "B-4", "A-5", "B-5"];
 
 // 🔹 Serial order for line labels
 const lineOrder = [
@@ -112,6 +103,34 @@ const renderQtyLabelVertical = (props) => {
   );
 };
 
+// ✅ Crown label (shows only on the "best" label in achieved bar)
+function makeCrownLabel(bestLabel) {
+  return function renderCrownLabel(props) {
+    const { x, y, width, height, value } = props; // value will be item.label
+    if (!bestLabel) return null;
+    if (!value || String(value) !== String(bestLabel)) return null;
+
+    // if bar too small, avoid weird positioning
+    if (!height || height < 6) return null;
+
+    const cx = x + width / 2;
+    const cy = Math.max(12, y - 6); // keep inside chart area
+
+    return (
+      <text
+        x={cx}
+        y={cy}
+        textAnchor="middle"
+        fontSize={16}
+        fill="#fbbf24"
+        style={{ filter: "drop-shadow(0px 2px 4px rgba(0,0,0,0.65))" }}
+      >
+        👑
+      </text>
+    );
+  };
+}
+
 // 🔹 helper: get serial order index for label
 function getLabelOrderIndex(label, isAllBuildings) {
   if (isAllBuildings) {
@@ -128,12 +147,31 @@ function getLabelOrderIndex(label, isAllBuildings) {
   return 999;
 }
 
+// ✅ Decide "best" by highest Plan% (achieved/target). Tie-breaker: highest achieved.
+function getBestLabelFromQtyData(qtyData) {
+  let best = "";
+  let bestScore = -Infinity;
+
+  for (const d of qtyData || []) {
+    const target = Number(d?.target ?? 0);
+    const achieved = Number(d?.achieved ?? 0);
+    const plan = target > 0 ? achieved / target : 0; // 0..1..1.2 etc
+
+    // plan% dominates, achieved breaks ties
+    const score = plan * 1_000_000 + achieved;
+
+    if (score > bestScore) {
+      bestScore = score;
+      best = d?.label || "";
+    }
+  }
+  return best;
+}
+
 export default function FloorSummaryPage() {
   const [factory, setFactory] = useState("K-2");
   const [building, setBuilding] = useState("A-2"); // "" => All
-  const [date, setDate] = useState(
-    () => new Date().toISOString().slice(0, 10)
-  );
+  const [date, setDate] = useState(() => new Date().toISOString().slice(0, 10));
 
   const [summary, setSummary] = useState(null);
   const [lines, setLines] = useState([]);
@@ -156,10 +194,7 @@ export default function FloorSummaryPage() {
         setLoading(true);
         setError("");
 
-        const params = new URLSearchParams({
-          factory,
-          date,
-        });
+        const params = new URLSearchParams({ factory, date });
         if (building) params.append("building", building);
 
         const res = await fetch(`/api/floor-summary?${params.toString()}`, {
@@ -185,9 +220,7 @@ export default function FloorSummaryPage() {
           setBuildingsData([]);
         }
       } finally {
-        if (!cancelled) {
-          setLoading(false);
-        }
+        if (!cancelled) setLoading(false);
       }
     };
 
@@ -254,18 +287,20 @@ export default function FloorSummaryPage() {
     );
   }, [lines, buildingsData, isAllBuildings]);
 
+  // ✅ Best label for Qty chart (crown)
+  const bestQtyLabel = useMemo(
+    () => getBestLabelFromQtyData(qtyChartData),
+    [qtyChartData]
+  );
+
   const overallPlanPercent =
     Number(production.totalTargetQty) > 0
       ? clampPercent(
-        (Number(production.totalAchievedQty) /
-          Number(production.totalTargetQty)) *
-        100
-      )
+          (Number(production.totalAchievedQty) / Number(production.totalTargetQty)) * 100
+        )
       : 0;
 
-  const hasChartData = isAllBuildings
-    ? buildingsData.length > 0
-    : lines.length > 0;
+  const hasChartData = isAllBuildings ? buildingsData.length > 0 : lines.length > 0;
 
   return (
     <div className="min-h-screen bg-slate-950 py-3 px-2 text-slate-100">
@@ -351,10 +386,7 @@ export default function FloorSummaryPage() {
                   Production Summary
                 </div>
                 <div className="text-[10px] text-slate-400">
-                  {factory}{" "}
-                  {building
-                    ? `• ${building}`
-                    : "• All buildings (factory view)"}
+                  {factory} {building ? `• ${building}` : "• All buildings (factory view)"}
                 </div>
               </div>
               <div className="text-right text-[9px] text-slate-400">
@@ -388,24 +420,24 @@ export default function FloorSummaryPage() {
             <div className="mt-2 grid grid-cols-3 gap-2 text-[11px]">
               <MetricBox
                 label="Avg Eff%"
-                value={`${formatNumber(
-                  production.avgEffPercent ?? 0,
-                  1
-                )} %`}
+                value={`${formatNumber(production.avgEffPercent ?? 0, 1)} %`}
                 accent="border-indigo-500/60 text-indigo-300"
               />
               <MetricBox
                 label="Current Hr Eff%"
                 value={
                   production.currentHour != null
-                    ? `${formatNumber(
-                      production.currentHourEfficiency ?? 0,
-                      1
-                    )} %     
-                     (Hr ${production.currentHour})`
+                    ? `${formatNumber(production.currentHourEfficiency ?? 0, 1)} % (Hr ${
+                        production.currentHour
+                      })`
                     : "-"
                 }
                 accent="border-amber-500/60 text-amber-300"
+              />
+              <MetricBox
+                label="Plan%"
+                value={`${formatNumber(overallPlanPercent, 1)} %`}
+                accent="border-cyan-500/60 text-cyan-300"
               />
             </div>
           </div>
@@ -418,10 +450,7 @@ export default function FloorSummaryPage() {
                   Quality Summary
                 </div>
                 <div className="text-[10px] text-slate-400">
-                  {factory}{" "}
-                  {building
-                    ? `• ${building}`
-                    : "• All buildings (factory view)"}
+                  {factory} {building ? `• ${building}` : "• All buildings (factory view)"}
                 </div>
               </div>
               <div className="text-right text-[9px] text-slate-400">
@@ -468,10 +497,7 @@ export default function FloorSummaryPage() {
               />
               <MetricBox
                 label="Defect Rate%"
-                value={`${formatNumber(
-                  quality.defectRatePercent ?? 0,
-                  1
-                )} %`}
+                value={`${formatNumber(quality.defectRatePercent ?? 0, 1)} %`}
                 accent="border-rose-500/60 text-rose-300"
               />
             </div>
@@ -489,9 +515,7 @@ export default function FloorSummaryPage() {
                     ? "Floor Efficiency (Hr vs Avg)"
                     : "Line Efficiency (Hr vs Avg)"}
                 </div>
-                <div className="text-[9px] text-slate-400">
-                  Bars capped at 0–150%
-                </div>
+                <div className="text-[9px] text-slate-400">Bars capped at 0–150%</div>
               </div>
               <div className="h-60 w-full">
                 <ResponsiveContainer width="100%" height="100%">
@@ -520,12 +544,7 @@ export default function FloorSummaryPage() {
                       }}
                       formatter={(value) => `${formatNumber(value, 1)} %`}
                     />
-                    <Legend
-                      wrapperStyle={{
-                        fontSize: 10,
-                        color: "#e5e7eb",
-                      }}
-                    />
+                    <Legend wrapperStyle={{ fontSize: 10, color: "#e5e7eb" }} />
                     <Bar
                       dataKey="hourlyEff"
                       name="Hr Eff%"
@@ -538,7 +557,6 @@ export default function FloorSummaryPage() {
                       fill="#3b82f6"
                       radius={[4, 4, 0, 0]}
                     />
-
                   </BarChart>
                 </ResponsiveContainer>
               </div>
@@ -553,9 +571,7 @@ export default function FloorSummaryPage() {
                     : "Line Quality (RFT / DHU / Defect Rate)"}
                 </div>
                 <div className="text-[9px] text-slate-400">
-                  {isAllBuildings
-                    ? "Per-building quality percentages"
-                    : "Per-line quality percentages"}
+                  {isAllBuildings ? "Per-building quality percentages" : "Per-line quality percentages"}
                 </div>
               </div>
               <div className="h-60 w-full">
@@ -569,7 +585,6 @@ export default function FloorSummaryPage() {
                       dataKey="label"
                       tick={{ fill: "#e5e7eb", fontSize: 10 }}
                       interval={0}
-
                       height={50}
                     />
                     <YAxis
@@ -586,31 +601,15 @@ export default function FloorSummaryPage() {
                       }}
                       formatter={(value) => `${formatNumber(value, 1)} %`}
                     />
-                    <Legend
-                      wrapperStyle={{
-                        fontSize: 10,
-                        color: "#e5e7eb",
-                      }}
-                    />
-                    <Bar
-                      dataKey="rft"
-                      name="RFT%"
-                      fill="#22c55e"
-                      radius={[4, 4, 0, 0]}
-                    />
-                    <Bar
-                      dataKey="dhu"
-                      name="DHU%"
-                      fill="#eab308"
-                      radius={[4, 4, 0, 0]}
-                    />
+                    <Legend wrapperStyle={{ fontSize: 10, color: "#e5e7eb" }} />
+                    <Bar dataKey="rft" name="RFT%" fill="#22c55e" radius={[4, 4, 0, 0]} />
+                    <Bar dataKey="dhu" name="DHU%" fill="#eab308" radius={[4, 4, 0, 0]} />
                     <Bar
                       dataKey="defectRate"
                       name="Defect Rate%"
                       fill="#ef4444"
                       radius={[4, 4, 0, 0]}
                     />
-
                   </BarChart>
                 </ResponsiveContainer>
               </div>
@@ -624,22 +623,25 @@ export default function FloorSummaryPage() {
                     ? "Floor Target vs Achieved (Qty)"
                     : "Line Target vs Achieved (Qty)"}
                 </div>
-                <div className="text-[9px] text-slate-400">
-                  Comparing planned vs production output
+
+                {/* ✅ Show best label text */}
+                <div className="text-[10px] text-slate-300/70">
+                  Best: <span className="font-semibold text-amber-300">{bestQtyLabel || "-"}</span>{" "}
+                  <span className="ml-1">👑</span>
                 </div>
               </div>
+
               <div className="h-64 w-full">
                 <ResponsiveContainer width="100%" height="100%">
                   <BarChart
                     data={qtyChartData}
-                    margin={{ top: 10, right: 10, left: 0, bottom: 40 }}
+                    margin={{ top: 18, right: 10, left: 0, bottom: 40 }}
                   >
                     <CartesianGrid strokeDasharray="3 3" stroke="#1f2937" />
                     <XAxis
                       dataKey="label"
                       tick={{ fill: "#e5e7eb", fontSize: 10 }}
                       interval={0}
-
                       height={60}
                     />
                     <YAxis
@@ -655,39 +657,27 @@ export default function FloorSummaryPage() {
                       }}
                       formatter={(value) => formatNumber(value, 0)}
                     />
-                    <Legend
-                      wrapperStyle={{
-                        fontSize: 10,
-                        color: "#e5e7eb",
-                      }}
-                    />
+                    <Legend wrapperStyle={{ fontSize: 10, color: "#e5e7eb" }} />
+
                     <Bar
                       dataKey="target"
-                      name={
-                        isAllBuildings ? "Target Qty (Floor)" : "Target Qty"
-                      }
+                      name={isAllBuildings ? "Target Qty (Floor)" : "Target Qty"}
                       fill="#38bdf8"
                       radius={[4, 4, 0, 0]}
                     >
-                      <LabelList
-                        dataKey="target"
-                        content={renderQtyLabelVertical}
-                      />
+                      <LabelList dataKey="target" content={renderQtyLabelVertical} />
                     </Bar>
+
                     <Bar
                       dataKey="achieved"
-                      name={
-                        isAllBuildings
-                          ? "Achieved Qty (Floor)"
-                          : "Achieved Qty"
-                      }
+                      name={isAllBuildings ? "Achieved Qty (Floor)" : "Achieved Qty"}
                       fill="oklch(60.3% 0.11 240.79)"
                       radius={[4, 4, 0, 0]}
                     >
-                      <LabelList
-                        dataKey="achieved"
-                        content={renderQtyLabelVertical}
-                      />
+                      {/* qty label */}
+                      <LabelList dataKey="achieved" content={renderQtyLabelVertical} />
+                      {/* ✅ crown label (value comes from item.label) */}
+                      <LabelList dataKey="label" content={makeCrownLabel(bestQtyLabel)} />
                     </Bar>
                   </BarChart>
                 </ResponsiveContainer>

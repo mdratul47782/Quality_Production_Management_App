@@ -11,6 +11,7 @@ export const dynamic = "force-dynamic";
 // ---------- constants ----------
 const BUILDINGS = ["A-2", "B-2", "A-3", "B-3", "A-4", "B-4", "A-5", "B-5"];
 const LINES = Array.from({ length: 15 }).map((_, i) => `Line-${i + 1}`);
+const TZ = "Asia/Dhaka";
 
 // ---------- helpers ----------
 function toNum(v, fallback = 0) {
@@ -54,7 +55,6 @@ function listDateStrings(fromStr, toStr) {
   }
   return out;
 }
-
 function lineSortKey(lineName = "") {
   const m = String(lineName).match(/(\d+)/);
   return m ? Number(m[1]) : 9999;
@@ -63,7 +63,6 @@ function buildingSortKey(b = "") {
   const idx = BUILDINGS.indexOf(String(b));
   return idx === -1 ? 999 : idx;
 }
-
 function makeSegmentKey(building, line, buyer, style) {
   return `${building || ""}__${line || ""}__${buyer || ""}__${style || ""}`;
 }
@@ -85,7 +84,7 @@ export async function GET(req) {
     const building = searchParams.get("building") || ""; // "" => ALL floors
     const from = searchParams.get("from");
     const to = searchParams.get("to");
-    const groupBy = (searchParams.get("groupBy") || "line").toLowerCase(); // line|building|segment
+    const groupBy = (searchParams.get("groupBy") || "line").toLowerCase();
     const lineFilter = searchParams.get("line") || "ALL";
 
     if (!factory || !from || !to) {
@@ -119,10 +118,9 @@ export async function GET(req) {
 
     const headers = await TargetSetterHeader.find(headerFilter).lean();
 
-    const headerIdToCtx = {}; // headerId -> ctx
+    const headerIdToCtx = {};
     const headerIds = [];
 
-    // production aggregates
     const prodAgg = {}; // key -> row
     const prodSeries = {}; // date -> totals
 
@@ -186,7 +184,6 @@ export async function GET(req) {
         const ctx = headerIdToCtx[String(rec.headerId)];
         if (!ctx) continue;
 
-        // extra safety filters
         if (building && ctx.building !== building) continue;
         if (lineFilter && lineFilter !== "ALL" && ctx.line !== lineFilter) continue;
 
@@ -209,7 +206,7 @@ export async function GET(req) {
         const smv = toNum(ctx.smv, 0);
         if (mp > 0 && smv > 0) {
           const produceMin = achieved * smv;
-          const availMin = mp * 60;
+          const availMin = mp * 60; // per hour record
 
           row.produceMin += produceMin;
           row.availMin += availMin;
@@ -236,6 +233,7 @@ export async function GET(req) {
       prodOverall._produceMin += r.produceMin;
       prodOverall._availMin += r.availMin;
     });
+
     prodOverall.totalVarianceQty = prodOverall.totalAchievedQty - prodOverall.totalTargetQty;
     prodOverall.avgEffPercent =
       prodOverall._availMin > 0 ? (prodOverall._produceMin / prodOverall._availMin) * 100 : 0;
@@ -244,6 +242,7 @@ export async function GET(req) {
     const series = dates.map((d) => {
       const p = prodSeries[d] || { targetQty: 0, achievedQty: 0, produceMin: 0, availMin: 0 };
       const eff = p.availMin > 0 ? (p.produceMin / p.availMin) * 100 : 0;
+
       return {
         date: d,
         production: {
@@ -254,6 +253,7 @@ export async function GET(req) {
         },
         quality: {
           totalInspected: 0,
+          totalPassed: 0,
           rftPercent: 0,
           dhuPercent: 0,
           defectRatePercent: 0,
@@ -268,23 +268,31 @@ export async function GET(req) {
       factory,
       reportDate: { $gte: start, $lte: end },
     };
-    if (building) qualityMatch.building = building;
+
+    // ✅ supports both `building` and `assigned_building`
+    if (building) {
+      qualityMatch.$or = [{ building }, { assigned_building: building }];
+    }
+
     if (lineFilter && lineFilter !== "ALL") qualityMatch.line = lineFilter;
 
-    // group:
-    // - line: "$line"
-    // - building: "$building"
-    // - segment mode: group by building+line (buyer/style not available in inspection)
+    // normalize building in aggregation
+    const addFieldsNormalizeBuilding = {
+      $addFields: {
+        _b: { $ifNull: ["$building", "$assigned_building"] },
+      },
+    };
+
+    // group stage
     let qualityGroupStage = { _id: "$line" };
-    if (groupBy === "building") qualityGroupStage = { _id: "$building" };
+    if (groupBy === "building") qualityGroupStage = { _id: "$_b" };
     if (groupBy === "segment") {
-      qualityGroupStage = {
-        _id: { building: "$building", line: "$line" },
-      };
+      qualityGroupStage = { _id: { building: "$_b", line: "$line" } };
     }
 
     const qualityAggDocs = await HourlyInspectionModel.aggregate([
       { $match: qualityMatch },
+      addFieldsNormalizeBuilding,
       {
         $group: {
           ...qualityGroupStage,
@@ -309,7 +317,6 @@ export async function GET(req) {
 
     for (const doc of qualityAggDocs) {
       let key = doc._id || "";
-
       if (groupBy === "segment" && doc._id && typeof doc._id === "object") {
         key = makeBuildingLineKey(doc._id.building, doc._id.line);
       }
@@ -346,12 +353,16 @@ export async function GET(req) {
       qualOverall.dhuPercent = (qualOverall.totalDefects / qualOverall.totalInspected) * 100;
     }
 
-    // daily quality series (always overall)
+    // daily quality series (overall) ✅ include totalPassed and timezone
     const qualitySeriesDocs = await HourlyInspectionModel.aggregate([
       { $match: qualityMatch },
       {
         $group: {
-          _id: { date: { $dateToString: { format: "%Y-%m-%d", date: "$reportDate" } } },
+          _id: {
+            date: {
+              $dateToString: { format: "%Y-%m-%d", date: "$reportDate", timezone: TZ },
+            },
+          },
           totalInspected: { $sum: "$inspectedQty" },
           totalPassed: { $sum: "$passedQty" },
           totalDefectivePcs: { $sum: "$defectivePcs" },
@@ -372,6 +383,7 @@ export async function GET(req) {
 
       qualSeriesMap[d] = {
         totalInspected,
+        totalPassed,
         rftPercent: totalInspected > 0 ? (totalPassed / totalInspected) * 100 : 0,
         defectRatePercent: totalInspected > 0 ? (totalDefectivePcs / totalInspected) * 100 : 0,
         dhuPercent: totalInspected > 0 ? (totalDefects / totalInspected) * 100 : 0,
@@ -382,6 +394,7 @@ export async function GET(req) {
       const q = qualSeriesMap[s.date];
       if (q) {
         s.quality.totalInspected = q.totalInspected;
+        s.quality.totalPassed = q.totalPassed;
         s.quality.rftPercent = q.rftPercent;
         s.quality.defectRatePercent = q.defectRatePercent;
         s.quality.dhuPercent = q.dhuPercent;
@@ -389,9 +402,39 @@ export async function GET(req) {
     }
 
     // -----------------------------------------
+    // 3.5) ENSURE "ALL lines/buildings" appear (even 0)
+    // -----------------------------------------
+    const zeroQual = {
+      totalInspected: 0,
+      totalPassed: 0,
+      totalDefectivePcs: 0,
+      totalDefects: 0,
+      rftPercent: 0,
+      defectRatePercent: 0,
+      dhuPercent: 0,
+    };
+
+    if (groupBy === "line") {
+      const ensureLines = lineFilter !== "ALL" ? [lineFilter] : LINES;
+      for (const ln of ensureLines) {
+        ensureProd(ln, { line: ln });
+        if (!qualAgg[ln]) qualAgg[ln] = { ...zeroQual };
+      }
+    }
+
+    if (groupBy === "building") {
+      const ensureB = building ? [building] : BUILDINGS;
+      for (const b of ensureB) {
+        ensureProd(b, { building: b });
+        if (!qualAgg[b]) qualAgg[b] = { ...zeroQual };
+      }
+    }
+
+    // -----------------------------------------
     // 4) MERGE rows (production + quality)
     // -----------------------------------------
     const keySet = new Set([...Object.keys(prodAgg), ...Object.keys(qualAgg)]);
+
     const rows = Array.from(keySet)
       .filter(Boolean)
       .map((key) => {
@@ -412,26 +455,15 @@ export async function GET(req) {
 
         // quality mapping:
         // - segment => building+line
-        // - building => building
-        // - line => line
         let qKey = key;
         if (groupBy === "segment") qKey = makeBuildingLineKey(p.building, p.line);
 
-        const q =
-          qualAgg[qKey] || {
-            totalInspected: 0,
-            totalPassed: 0,
-            totalDefectivePcs: 0,
-            totalDefects: 0,
-            rftPercent: 0,
-            defectRatePercent: 0,
-            dhuPercent: 0,
-          };
+        const q = qualAgg[qKey] || { ...zeroQual };
 
         return {
           key,
           building: p.building || "",
-          line: p.line || "",
+          line: p.line || (groupBy === "line" ? key : ""),
           buyer: p.buyer || "",
           style: p.style || "",
           production: {
@@ -442,6 +474,7 @@ export async function GET(req) {
           },
           quality: {
             totalInspected: q.totalInspected,
+            totalPassed: q.totalPassed,
             rftPercent: q.rftPercent,
             defectRatePercent: q.defectRatePercent,
             dhuPercent: q.dhuPercent,
@@ -460,30 +493,25 @@ export async function GET(req) {
         const ld = lineSortKey(a.line) - lineSortKey(b.line);
         if (ld !== 0) return ld;
 
-        // keep stable with buyer/style
         const bs = String(a.buyer || "").localeCompare(String(b.buyer || ""));
         if (bs !== 0) return bs;
         return String(a.style || "").localeCompare(String(b.style || ""));
       }
 
-      // line mode
       return lineSortKey(a.key) - lineSortKey(b.key);
     });
 
-    // buildings present (for UI)
-    const buildingsPresent = Array.from(
-      new Set(
-        rows
-          .map((r) => r.building)
-          .filter(Boolean)
-      )
-    ).sort((a, b) => buildingSortKey(a) - buildingSortKey(b));
+    // meta buildings for UI (segment needs all)
+    const metaBuildings =
+      building ? [building] : groupBy === "segment" ? BUILDINGS : Array.from(
+        new Set(rows.map((r) => r.building).filter(Boolean))
+      ).sort((a, b) => buildingSortKey(a) - buildingSortKey(b));
 
     return NextResponse.json({
       success: true,
       params: { factory, building, from, to, groupBy, line: lineFilter },
       meta: {
-        buildings: building ? [building] : buildingsPresent.length ? buildingsPresent : BUILDINGS,
+        buildings: metaBuildings.length ? metaBuildings : (building ? [building] : BUILDINGS),
         lines: LINES,
       },
       summary: {

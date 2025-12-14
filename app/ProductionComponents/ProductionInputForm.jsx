@@ -126,7 +126,7 @@ export default function ProductionInputForm() {
 
   const assignedBuilding =
     auth?.assigned_building || auth?.user?.assigned_building || "";
-// 🔹 NEW: factory from auth
+  // 🔹 NEW: factory from auth
   const factory =
     auth?.factory ||
     auth?.user?.factory ||
@@ -151,33 +151,35 @@ export default function ProductionInputForm() {
   };
 
   // ---------- input change ----------
-  const handleChange = (e) => {
-    const { name, value } = e.target;
 
-    setForm((prev) => {
-      const next = { ...prev, [name]: value };
+const handleChange = (e) => {
+  const { name, value } = e.target;
 
-      // auto manpower_absent = total - present
-      if (name === "total_manpower" || name === "manpower_present") {
-        const total = Number(next.total_manpower);
-        const present = Number(next.manpower_present);
+  setForm((prev) => {
+    const nextValue = name === "color_model" ? value.toUpperCase() : value;
+    const next = { ...prev, [name]: nextValue };
 
-        if (
-          next.total_manpower !== "" &&
-          next.manpower_present !== "" &&
-          Number.isFinite(total) &&
-          Number.isFinite(present)
-        ) {
-          const diff = total - present;
-          next.manpower_absent = diff >= 0 ? diff.toString() : "0";
-        } else {
-          next.manpower_absent = "";
-        }
+    // auto manpower_absent = total - present
+    if (name === "total_manpower" || name === "manpower_present") {
+      const total = Number(next.total_manpower);
+      const present = Number(next.manpower_present);
+
+      if (
+        next.total_manpower !== "" &&
+        next.manpower_present !== "" &&
+        Number.isFinite(total) &&
+        Number.isFinite(present)
+      ) {
+        const diff = total - present;
+        next.manpower_absent = diff >= 0 ? diff.toString() : "0";
+      } else {
+        next.manpower_absent = "";
       }
+    }
 
-      return next;
-    });
-  };
+    return next;
+  });
+};
 
   const handleLineChange = (e) => {
     const value = e.target.value;
@@ -197,7 +199,7 @@ export default function ProductionInputForm() {
     setSuccess("");
   };
 
-   // ---------- fetch headers for building + factory + line + date ----------
+  // ---------- fetch headers for building + factory + line + date ----------
   useEffect(() => {
     if (authLoading) return;
     if (!assignedBuilding || !factory) {
@@ -247,7 +249,7 @@ export default function ProductionInputForm() {
   }, [authLoading, assignedBuilding, factory, selectedLine, selectedDate]);
   // 🔺 added `factory` in deps
 
- // ---------- submit (create / update) ----------
+  // ---------- submit (create / update) ----------
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError("");
@@ -296,7 +298,7 @@ export default function ProductionInputForm() {
         buyer: form.buyer,
         style: form.style,
         run_day: Number(form.run_day),
-        color_model: form.color_model,
+        color_model: form.color_model.toUpperCase(),
         total_manpower: Number(form.total_manpower),
         manpower_present: Number(form.manpower_present),
         manpower_absent:
@@ -417,7 +419,7 @@ export default function ProductionInputForm() {
     setSuccess("");
   };
 
-// ---------- delete ----------
+  // ---------- delete ----------
   const handleDelete = async (id) => {
     const ok = window.confirm("Delete this target header?");
     if (!ok) return;
@@ -438,7 +440,7 @@ export default function ProductionInputForm() {
       let json = {};
       try {
         json = await res.json();
-      } catch (e) {}
+      } catch (e) { }
 
       if (res.status === 404) {
         setSuccess("Header was already deleted (404). Syncing list.");
@@ -463,7 +465,7 @@ export default function ProductionInputForm() {
   };
   // ---------- UI ----------
   return (
-  <div className="space-y-3">
+    <div className="space-y-3">
       <div className="card card-bordered shadow-sm border-slate-200 bg-base-100 rounded-2xl">
         <div className="border-b border-slate-200 bg-gray-200 px-2 py-2 flex flex-wrap items-center justify-between gap-2">
           <div>
@@ -592,9 +594,11 @@ export default function ProductionInputForm() {
                 />
 
                 <Field
+
                   label="Color/Model"
                   name="color_model"
                   value={form.color_model}
+
                   onChange={handleChange}
                   placeholder="Color"
                 />
@@ -676,7 +680,7 @@ export default function ProductionInputForm() {
                   label="Target (preview, auto)"
                   name="target_preview"
                   value={targetPreview === "" ? "" : targetPreview.toString()}
-                  onChange={() => {}}
+                  onChange={() => { }}
                   placeholder="Auto from manpower, hour, SMV, efficiency"
                   type="number"
                   readOnly
@@ -703,8 +707,8 @@ export default function ProductionInputForm() {
                   {saving
                     ? "Saving..."
                     : editingId
-                    ? "Update Target"
-                    : "Save Target"}
+                      ? "Update Target"
+                      : "Save Target"}
                 </button>
               </div>
             </form>
@@ -758,7 +762,7 @@ export default function ProductionInputForm() {
                         <p className="font-semibold">Run day</p>
                         <p className="text-slate-900">{h.run_day}</p>
 
-                        <p className="font-semibold">Color/Model</p>
+                        <p className="font-semibold ">Color/Model</p>
                         <p className="text-slate-900">{h.color_model}</p>
 
                         <p className="font-semibold">Total Man Power</p>

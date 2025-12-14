@@ -1,7 +1,7 @@
 "use client";
 import { useAuth } from "@/app/hooks/useAuth";
 import React, { useEffect, useMemo, useState } from "react";
-
+import { toast, Toaster } from "react-hot-toast";
 // -------- helpers --------
 const hourOptions = ["1st Hour", "2nd Hour", "3rd Hour", "4th Hour", "5th Hour", "6th Hour", "7th Hour", "8th Hour", "9th Hour", "10th Hour", "11th Hour", "12th Hour"];
 
@@ -546,35 +546,40 @@ export default function EndlineDashboard() {
         <div className="mb-4 flex items-center justify-between gap-3">
           <div className="card bg-base-200/80 shadow-md border border-base-300 mb-3">
             <div className="card-body py-3 px-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
-              {/* LEFT: title + user/factory */}
-              <div>
-                <h1 className="card-title text-lg sm:text-xl text-base-content">
-                  Endline Hourly Dashboard
-                </h1>
-                <p className="text-xs sm:text-sm text-base-content/70 mt-1">
-                  <span className="font-semibold text-primary">
-                    {auth?.user_name || "User"}
-                  </span>
-                  {auth?.factory && (
-                    <>
-                      {" "}
-                      • Factory:{" "}
-                      <span className="font-medium text-secondary">
-                        {auth.factory}
-                      </span>
-                    </>
-                  )}
-                  {auth?.assigned_building && (
-                    <>
-                      {" "}
-                      • Floor:{" "}
-                      <span className="font-medium text-accent">
-                        {auth.assigned_building}
-                      </span>
-                    </>
-                  )}
-                </p>
-              </div>
+             {/* LEFT: title + user/factory (responsive, no overflow, perfect on any screen) */}
+<div className="min-w-0">
+  {/* small badge line (optional but helps layout) */}
+  <div className="inline-flex items-center gap-2 rounded-2xl border border-base-300 bg-base-100/70 px-3 py-1 shadow-sm">
+    <span className="h-2 w-2 rounded-full bg-success" />
+    <span className="text-[11px] font-semibold text-base-content/70">
+      Live quality view
+    </span>
+  </div>
+
+  <h1 className="mt-2 text-[15px] sm:text-xl font-extrabold tracking-tight text-base-content leading-tight">
+    Quality Hourly Dashboard
+  </h1>
+
+  {/* chips: wraps nicely, never pushes layout */}
+  <div className="mt-1 flex flex-wrap items-center gap-1.5 text-[11px] sm:text-sm text-base-content/70">
+    <span className="inline-flex max-w-full items-center rounded-xl border border-base-300 bg-base-100 px-2.5 py-1 font-semibold text-primary truncate">
+      {auth?.user_name || "User"}
+    </span>
+
+    {auth?.factory && (
+      <span className="inline-flex max-w-full items-center rounded-xl border border-base-300 bg-base-100 px-2.5 py-1 font-medium text-secondary truncate">
+        Factory: {auth.factory}
+      </span>
+    )}
+
+    {auth?.assigned_building && (
+      <span className="inline-flex max-w-full items-center rounded-xl border border-base-300 bg-base-100 px-2.5 py-1 font-medium text-accent truncate">
+        Floor: {auth.assigned_building}
+      </span>
+    )}
+  </div>
+</div>
+
 
               {/* RIGHT: today chip */}
               <div className="flex items-center gap-2">

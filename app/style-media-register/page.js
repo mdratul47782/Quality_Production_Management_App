@@ -1,10 +1,10 @@
 // app/style-media-register/page.js
 "use client";
-
-import React, { useEffect, useRef, useState } from "react";
-import Image from "next/image";
 import { useAuth } from "@/app/hooks/useAuth";
-import { Search, Trash2, Save } from "lucide-react";
+import { Save, Search, Trash2 } from "lucide-react";
+import Image from "next/image";
+import React, { useEffect, useRef, useState } from "react";
+import { toast, Toaster } from "react-hot-toast"; // ✅
 
 const buyers = [
   "Decathlon - knit",
@@ -43,7 +43,6 @@ export default function StyleMediaRegisterPage() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
 
-  // ✅ date filter to avoid “duplicate-looking” history list
   const [listDate, setListDate] = useState(todayIso());
 
   // file + preview
@@ -104,13 +103,16 @@ export default function StyleMediaRegisterPage() {
     setLoading(true);
     try {
       const params = new URLSearchParams({ factory, assigned_building });
-      if (date) params.set("date", date); // ✅ IMPORTANT
-      const res = await fetch(`/api/style-media?${params.toString()}`, { cache: "no-store" });
+      if (date) params.set("date", date);
+      const res = await fetch(`/api/style-media?${params.toString()}`, {
+        cache: "no-store",
+      });
       const json = await res.json();
       if (json.success) setRecords(json.data || []);
-      else console.error(json.message);
+      else toast.error(json.message || "Failed to load list");
     } catch (err) {
       console.error("fetch style-media error:", err);
+      toast.error("Failed to load style media list");
     }
     setLoading(false);
   };
@@ -127,27 +129,39 @@ export default function StyleMediaRegisterPage() {
   };
 
   const validate = () => {
-    const keys = ["factory", "assigned_building", "buyer", "style", "color_model", "effectiveFrom"];
+    const keys = [
+      "factory",
+      "assigned_building",
+      "buyer",
+      "style",
+      "color_model",
+      "effectiveFrom",
+    ];
     for (const k of keys) if (!formValues[k]) return false;
     return true;
   };
 
   const handleSave = async () => {
-    if (!auth) return alert("Please login.");
+    if (!auth) return toast.error("Please login.");
     if (saving) return;
-    if (!validate()) return alert("Please fill required fields.");
+    if (!validate()) return toast.error("Please fill required fields.");
 
     setSaving(true);
+
+    const loadingToastId = toast.loading(
+      editingId ? "Updating..." : "Saving..."
+    );
+
     try {
       const userId = auth._id || auth.id || auth.user?.id || auth.user?._id || "";
-      const method = editingId ? "PATCH" : "POST"; // ✅ PATCH exists now
+      const method = editingId ? "PATCH" : "POST";
 
       const fd = new FormData();
       fd.append("factory", auth.factory);
       fd.append("assigned_building", auth.assigned_building);
       fd.append("buyer", formValues.buyer);
       fd.append("style", formValues.style);
-      fd.append("color_model", formValues.color_model);
+      fd.append("color_model", (formValues.color_model || "").toUpperCase()); // ✅
       fd.append("effectiveFrom", formValues.effectiveFrom);
       fd.append("imageSrc", formValues.imageSrc || "");
       fd.append("videoSrc", formValues.videoSrc || "");
@@ -159,37 +173,47 @@ export default function StyleMediaRegisterPage() {
       if (videoFile) fd.append("videoFile", videoFile);
 
       const res = await fetch("/api/style-media", { method, body: fd });
-      const json = await res.json();
+      const json = await res.json().catch(() => ({}));
 
-      if (!res.ok) return alert(json.message || "Save failed");
-      alert(json.message || "Saved!");
-
-      if (json.success) {
-        await fetchRecords(auth.factory, auth.assigned_building, listDate);
-        resetForm();
+      if (!res.ok || !json.success) {
+        throw new Error(json.message || "Save failed");
       }
+
+      toast.success(json.message || "Saved!", { id: loadingToastId });
+
+      await fetchRecords(auth.factory, auth.assigned_building, listDate);
+      resetForm();
     } catch (err) {
       console.error(err);
-      alert("Save failed. Check console.");
+      toast.error(err.message || "Save failed", { id: loadingToastId });
+    } finally {
+      setSaving(false);
     }
-    setSaving(false);
   };
 
   const handleDelete = async () => {
     if (!editingId) return;
     if (!confirm("Delete this style media?")) return;
 
+    const loadingToastId = toast.loading("Deleting...");
+
     try {
-      const res = await fetch(`/api/style-media?id=${editingId}`, { method: "DELETE" });
-      const json = await res.json();
-      alert(json.message || "Deleted");
-      if (json.success) {
-        await fetchRecords(auth.factory, auth.assigned_building, listDate);
-        resetForm();
+      const res = await fetch(`/api/style-media?id=${editingId}`, {
+        method: "DELETE",
+      });
+      const json = await res.json().catch(() => ({}));
+
+      if (!res.ok || !json.success) {
+        throw new Error(json.message || "Delete failed");
       }
+
+      toast.success(json.message || "Deleted", { id: loadingToastId });
+
+      await fetchRecords(auth.factory, auth.assigned_building, listDate);
+      resetForm();
     } catch (err) {
       console.error(err);
-      alert("Delete failed.");
+      toast.error(err.message || "Delete failed", { id: loadingToastId });
     }
   };
 
@@ -227,6 +251,9 @@ export default function StyleMediaRegisterPage() {
 
   return (
     <section className="max-w-3xl mx-auto bg-white border border-gray-200 shadow-xl rounded-2xl mt-3 overflow-hidden">
+      {/* ✅ Toast mount */}
+      <Toaster position="top-right" toastOptions={{ duration: 2500 }} />
+
       {/* Header */}
       <div className="flex items-center bg-gradient-to-br from-blue-600 to-blue-700 text-white px-4 py-2 rounded-t-lg gap-3">
         <div className="w-10 h-10 bg-white rounded-md flex items-center justify-center">
@@ -236,95 +263,106 @@ export default function StyleMediaRegisterPage() {
           <h1 className="text-xl font-semibold leading-tight">
             HKD Outdoor Innovations Ltd.
           </h1>
-          <p className="text-sm opacity-90">Style Media Register – {auth.assigned_building}</p>
+          <p className="text-sm opacity-90">
+            Style Media Register – {auth.assigned_building}
+          </p>
           <p className="text-xs opacity-80">
-            Factory: <span className="font-semibold">{auth.factory}</span> • Inputter:{" "}
-            <span className="font-semibold">{auth.user_name}</span>
+            Factory: <span className="font-semibold">{auth.factory}</span> •
+            Inputter: <span className="font-semibold">{auth.user_name}</span>
           </p>
         </div>
       </div>
 
       <div className="px-5 py-5 grid grid-cols-1 lg:grid-cols-3 gap-5">
-        {/* LEFT: list */}
-        <aside className="space-y-4">
-          <div className="bg-gradient-to-br from-white to-slate-50 p-3 rounded-2xl border shadow-sm">
-            <div className="flex items-center justify-between mb-2 gap-2">
-              <h3 className="font-semibold text-gray-700 text-xs">
-                Active on: {listDate}
-              </h3>
+        {/* LEFT: list (responsive, fixed-height, no overflow issues) */}
+<aside className="w-full min-w-0">
+  <div className="bg-gradient-to-br from-white to-slate-50 rounded-2xl border shadow-sm overflow-hidden">
+    {/* Header (wraps nicely on small screens) */}
+    <div className="p-3 sm:p-4 border-b bg-white/60">
+      <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+        <h3 className="font-semibold text-gray-700 text-xs sm:text-[13px]">
+          Active on: {listDate}
+        </h3>
 
-              <div className="flex items-center gap-2">
-                <input
-                  type="date"
-                  value={listDate}
-                  onChange={(e) => setListDate(e.target.value)}
-                  className="rounded-lg border px-2 py-1 text-[11px] bg-white"
-                />
-                <button
-                  type="button"
-                  onClick={() => setListDate(todayIso())}
-                  className="text-[11px] px-2 py-1 rounded bg-slate-200 text-slate-700 hover:bg-slate-300"
-                >
-                  Today
-                </button>
-                <button
-                  type="button"
-                  onClick={resetForm}
-                  className="text-[11px] px-2 py-1 rounded bg-sky-100 text-sky-700 hover:bg-sky-200"
-                >
-                  + New
-                </button>
+        <div className="flex flex-wrap items-center gap-2">
+          <input
+            type="date"
+            value={listDate}
+            onChange={(e) => setListDate(e.target.value)}
+            className="h-8 rounded-lg border px-2 text-[11px] bg-white w-full sm:w-auto"
+          />
+
+          <button
+            type="button"
+            onClick={() => setListDate(todayIso())}
+            className="h-8 text-[11px] px-3 rounded-lg bg-slate-200 text-slate-700 hover:bg-slate-300 w-full sm:w-auto"
+          >
+            Today
+          </button>
+
+          <button
+            type="button"
+            onClick={resetForm}
+            className="h-8 text-[11px] px-3 rounded-lg bg-sky-100 text-sky-700 hover:bg-sky-200 w-full sm:w-auto"
+          >
+            + New
+          </button>
+        </div>
+      </div>
+    </div>
+
+    {/* Body: scroll area that adapts to screen height */}
+    <div className="p-3 sm:p-4">
+      {records.length === 0 ? (
+        <p className="text-[11px] text-gray-500">No style media for this date.</p>
+      ) : (
+        <ul
+          className="
+            space-y-2 text-xs overflow-auto pr-1
+            h-[52vh] min-h-[240px] max-h-[520px]
+            sm:h-[56vh] sm:min-h-[280px] sm:max-h-[640px]
+            lg:h-[62vh] lg:min-h-[320px] lg:max-h-[720px]
+          "
+        >
+          {records.map((r) => (
+            <li
+              key={r._id}
+              className={`border rounded-lg p-2 cursor-pointer hover:border-sky-400 ${
+                editingId === r._id ? "border-sky-500 bg-sky-50" : "bg-white/70"
+              }`}
+              onClick={() => handleEditClick(r)}
+            >
+              <div className="flex items-center justify-between gap-2 min-w-0">
+                <span className="font-semibold text-gray-800 truncate min-w-0">
+                  {r.style}
+                </span>
+                <span className="text-[11px] text-gray-500 truncate max-w-[55%]">
+                  {r.buyer}
+                </span>
               </div>
-            </div>
 
-            {records.length === 0 ? (
-              <p className="text-[11px] text-gray-500">No style media for this date.</p>
-            ) : (
-              <ul className="space-y-2 max-h-[360px] overflow-auto text-xs">
-                {records.map((r) => (
-                  <li
-                    key={r._id}
-                    className={`border rounded-lg p-2 cursor-pointer hover:border-sky-400 ${
-                      editingId === r._id ? "border-sky-500 bg-sky-50" : ""
-                    }`}
-                    onClick={() => handleEditClick(r)}
-                  >
-                    <div className="flex justify-between gap-2">
-                      <span className="font-semibold text-gray-800 truncate">{r.style}</span>
-                      <span className="text-[11px] text-gray-500 truncate">{r.buyer}</span>
-                    </div>
-                    <div className="text-[11px] text-gray-600 mt-1">
-                      Color/Model: <span className="font-medium">{r.color_model}</span>
-                    </div>
-                    <div className="text-[10px] text-gray-400 mt-0.5">
-                      From: {r.effectiveFrom} {r.effectiveTo ? `• To: ${r.effectiveTo}` : "• Active"}
-                    </div>
-                    {(r.imageSrc || r.videoSrc) && (
-                      <div className="mt-0.5 text-[10px] text-sky-600">
-                        {r.imageSrc && "🖼️"} {r.videoSrc && "🎥"} media attached
-                      </div>
-                    )}
-                  </li>
-                ))}
-              </ul>
-            )}
-          </div>
+              <div className="text-[11px] text-gray-600 mt-1">
+                Color/Model: <span className="font-medium">{r.color_model}</span>
+              </div>
 
-          {/* preview */}
-          <div className="bg-white p-3 rounded-2xl border shadow-sm">
-            <h3 className="font-semibold text-gray-700 text-xs">Current form preview</h3>
-            <dl className="mt-2 text-[11px] text-gray-600 space-y-1.5">
-              <Row label="Factory" value={auth.factory} />
-              <Row label="Floor" value={auth.assigned_building} />
-              <Row label="Buyer" value={formValues.buyer} />
-              <Row label="Style" value={formValues.style} />
-              <Row label="Color/Model" value={formValues.color_model} />
-              <Row label="Effective From" value={formValues.effectiveFrom} />
-              <Row label="Image URL" value={formValues.imageSrc} />
-              <Row label="Video URL" value={formValues.videoSrc} />
-            </dl>
-          </div>
-        </aside>
+              <div className="text-[10px] text-gray-400 mt-0.5">
+                From: {r.effectiveFrom}{" "}
+                {r.effectiveTo ? `• To: ${r.effectiveTo}` : "• Active"}
+              </div>
+
+              {(r.imageSrc || r.videoSrc) && (
+                <div className="mt-0.5 text-[10px] text-sky-600">
+                  {r.imageSrc && "🖼️"} {r.videoSrc && "🎥"} media attached
+                </div>
+              )}
+            </li>
+          ))}
+        </ul>
+      )}
+    </div>
+  </div>
+</aside>
+
 
         {/* RIGHT: form */}
         <form
@@ -365,7 +403,9 @@ export default function StyleMediaRegisterPage() {
             <input
               type="date"
               value={formValues.effectiveFrom}
-              onChange={(e) => setFormValues({ ...formValues, effectiveFrom: e.target.value })}
+              onChange={(e) =>
+                setFormValues({ ...formValues, effectiveFrom: e.target.value })
+              }
               className="w-full rounded-lg border px-3 py-1.5 focus:ring-2 focus:ring-sky-400 outline-none text-sm"
             />
           </Field>
@@ -375,7 +415,9 @@ export default function StyleMediaRegisterPage() {
               type="text"
               placeholder="Enter style number"
               value={formValues.style}
-              onChange={(e) => setFormValues({ ...formValues, style: e.target.value })}
+              onChange={(e) =>
+                setFormValues({ ...formValues, style: e.target.value })
+              }
               className="w-full rounded-lg border px-3 py-1.5 focus:ring-2 focus:ring-sky-400 outline-none text-sm"
             />
           </Field>
@@ -385,8 +427,13 @@ export default function StyleMediaRegisterPage() {
               type="text"
               placeholder="Enter color/model"
               value={formValues.color_model}
-              onChange={(e) => setFormValues({ ...formValues, color_model: e.target.value })}
-              className="w-full rounded-lg border px-3 py-1.5 focus:ring-2 focus:ring-sky-400 outline-none text-sm"
+              onChange={(e) =>
+                setFormValues((p) => ({
+                  ...p,
+                  color_model: (e.target.value || "").toUpperCase(),
+                }))
+              }
+              className="w-full rounded-lg border px-3 py-1.5 focus:ring-2 focus:ring-sky-400 outline-none text-sm uppercase"
             />
           </Field>
 
@@ -456,12 +503,18 @@ export default function StyleMediaRegisterPage() {
 
           {/* Media preview */}
           <div className="md:col-span-2 mt-2">
-            <h3 className="text-xs font-semibold text-gray-700 mb-2">Image & Video preview</h3>
+            <h3 className="text-xs font-semibold text-gray-700 mb-2">
+              Image & Video preview
+            </h3>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
               <div className="border rounded-lg p-2 bg-gray-50">
                 <p className="text-[11px] text-gray-500 mb-1">Image</p>
                 {imagePreview ? (
-                  <img src={imagePreview} alt="Style image" className="w-full h-36 object-cover rounded" />
+                  <img
+                    src={imagePreview}
+                    alt="Style image"
+                    className="w-full h-36 object-cover rounded"
+                  />
                 ) : (
                   <p className="text-[11px] text-gray-400">No image</p>
                 )}
@@ -470,7 +523,12 @@ export default function StyleMediaRegisterPage() {
               <div className="border rounded-lg p-2 bg-gray-50">
                 <p className="text-[11px] text-gray-500 mb-1">Video</p>
                 {videoPreview ? (
-                  <video src={videoPreview} className="w-full h-36 rounded object-cover" controls muted />
+                  <video
+                    src={videoPreview}
+                    className="w-full h-36 rounded object-cover"
+                    controls
+                    muted
+                  />
                 ) : (
                   <p className="text-[11px] text-gray-400">No video</p>
                 )}
@@ -496,7 +554,7 @@ export default function StyleMediaRegisterPage() {
                 disabled={saving}
                 className="inline-flex items-center gap-2 px-3 py-1.5 bg-sky-600 hover:bg-sky-700 text-white rounded-lg text-xs disabled:opacity-70"
               >
-                <Save size={14} /> {editingId ? "Update" : "Save"}
+                <Save size={14} /> {saving ? "Saving..." : editingId ? "Update" : "Save"}
               </button>
             </div>
 
@@ -504,6 +562,7 @@ export default function StyleMediaRegisterPage() {
               type="button"
               onClick={resetForm}
               className="text-xs px-3 py-1.5 rounded-lg border bg-white hover:bg-gray-50"
+              disabled={saving}
             >
               Reset
             </button>

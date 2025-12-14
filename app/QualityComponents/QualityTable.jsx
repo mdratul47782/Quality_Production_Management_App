@@ -372,43 +372,83 @@ export default function QualityTable() {
       )}
 
       <div className="mx-auto max-w-7xl p-4 md:p-6">
-        {/* PAGE HEADER */}
-        <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
-          <div>
-            <h1 className="text-xl font-bold text-black">
-              Endline Defect Summary —{" "}
-              <span className="text-indigo-600">
-                {auth?.user_name || "User"}{" "}
-                {factory && `| ${factory}`}{" "}
-                {building && `(${building})`}
-              </span>
-            </h1>
-          </div>
+        {/* PAGE HEADER (beautiful + responsive) */}
+<div className="mb-1 relative overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
+  {/* soft ambient background */}
+  <div className="pointer-events-none absolute -inset-6 bg-[radial-gradient(900px_380px_at_0%_0%,rgba(99,102,241,0.18),transparent),radial-gradient(900px_380px_at_100%_0%,rgba(16,185,129,0.14),transparent),radial-gradient(900px_380px_at_50%_120%,rgba(245,158,11,0.10),transparent)]" />
 
-          <div className="flex flex-wrap items-center gap-2 text-xs md:text-sm">
-            <span className="text-gray-600">Pick date:</span>
-            <input
-              type="date"
-              value={selectedDate}
-              onChange={(e) => setSelectedDate(e.target.value)}
-              className="rounded-md bg-gray-300 text-gray-700 border border-gray-700 px-2 py-1 text-sm"
-            />
-            <button
-              type="button"
-              onClick={() => setSelectedDate(formatDateInput())}
-              className="rounded-md border border-gray-300 bg-white px-3 py-1 text-xs font-medium hover:bg-gray-100 text-gray-700"
-            >
-              Today
-            </button>
-            <button
-              type="button"
-              onClick={() => window.print()}
-              className="rounded-md bg-green-600 px-4 py-1 text-xs font-semibold text-white hover:bg-green-700"
-            >
-              Print
-            </button>
-          </div>
+  <div className="relative p-4 sm:p-3">
+    <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+      {/* Title */}
+      <div className="min-w-0">
+        <div className="inline-flex items-center gap-2 rounded-2xl border border-slate-200/70 bg-white/70 px-3 py-1.5 shadow-sm">
+          <span className="h-2 w-2 rounded-full bg-emerald-500" />
+          <span className="text-[11px] font-semibold text-slate-600">
+            Hourly Quality Report
+          </span>
         </div>
+
+        <h1 className="mt-2 text-[15px] sm:text-xl font-extrabold tracking-tight text-slate-900">
+          Quality Hourly Defect Summary
+          <span className="mx-2 text-slate-400 font-semibold">—</span>
+          <span className="inline-flex flex-wrap items-center gap-1.5 align-middle">
+            <span className="rounded-xl border border-indigo-200/70 bg-indigo-50 px-2.5 py-1 text-[12px] sm:text-sm font-semibold text-indigo-700 shadow-sm">
+              {auth?.user_name || "User"}
+            </span>
+
+            {factory && (
+              <span className="rounded-xl border border-amber-200/70 bg-amber-50 px-2.5 py-1 text-[12px] sm:text-sm font-semibold text-amber-700 shadow-sm">
+                {factory}
+              </span>
+            )}
+
+            {building && (
+              <span className="rounded-xl border border-emerald-200/70 bg-emerald-50 px-2.5 py-1 text-[12px] sm:text-sm font-semibold text-emerald-700 shadow-sm">
+                {building}
+              </span>
+            )}
+          </span>
+        </h1>
+
+        <p className="mt-1 text-[11px] sm:text-xs text-slate-600">
+          Pick a date to view hour-wise inspection, defect and efficiency summary.
+        </p>
+      </div>
+
+      {/* Controls */}
+      <div className="flex flex-col sm:flex-row sm:flex-wrap items-stretch sm:items-center gap-2">
+        <div className="flex items-center justify-between sm:justify-start gap-2 rounded-2xl border border-slate-200 bg-white/80 px-3 py-2 shadow-sm">
+          <span className="text-[11px] font-semibold text-slate-600 whitespace-nowrap">
+            Pick date
+          </span>
+          <input
+            type="date"
+            value={selectedDate}
+            onChange={(e) => setSelectedDate(e.target.value)}
+            className="h-8 rounded-xl border border-slate-300 bg-white px-3 text-[12px] font-medium text-slate-700 focus:outline-none focus:ring-2 focus:ring-indigo-200"
+          />
+        </div>
+
+        <button
+          type="button"
+          onClick={() => setSelectedDate(formatDateInput())}
+          className="h-10 rounded-2xl border border-slate-200 bg-white px-4 text-[12px] font-semibold text-slate-700 shadow-sm hover:bg-slate-50 active:scale-[0.99]"
+        >
+          Today
+        </button>
+
+        <button
+          type="button"
+          onClick={() => window.print()}
+          className="h-10 rounded-2xl bg-gradient-to-r from-emerald-600 to-emerald-500 px-5 text-[12px] font-semibold text-white shadow-sm hover:from-emerald-700 hover:to-emerald-600 active:scale-[0.99]"
+        >
+          Print
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+
 
         {error && (
           <div className="mb-4 rounded-md border border-red-300 bg-red-50 p-3 text-sm text-red-700">

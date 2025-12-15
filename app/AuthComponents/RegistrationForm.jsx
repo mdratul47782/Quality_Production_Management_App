@@ -1,16 +1,27 @@
-// app/registration/page.jsx (or wherever this form lives)
+// app/registration/page.jsx
 "use client";
 
+import React from "react";
 import Image from "next/image";
-import { registerUser } from "@/app/actions";
 import Link from "next/link";
+import { registerUser } from "@/app/actions";
+
+const initialState = { success: false, message: "", fieldErrors: {} };
 
 export default function RegistrationForm() {
+  const [state, formAction] = React.useActionState(registerUser, initialState);
+
+  const fe = state?.fieldErrors || {};
+  const inputClass = (name) =>
+    `w-full border px-3 py-2 rounded-lg transition-all focus:outline-none ${
+      fe[name]
+        ? "border-red-400 focus:ring-2 focus:ring-red-300 focus:border-red-400"
+        : "border-gray-300 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+    } text-gray-800`;
+
   return (
     <section className="min-h-screen flex items-center justify-center bg-gradient-to-br from-indigo-50 via-white to-indigo-100 px-4">
-      {/* Outer container */}
       <div className="bg-white shadow-2xl rounded-2xl w-full max-w-4xl border border-gray-100 flex flex-col md:flex-row overflow-hidden">
-        {/* LEFT: Illustration */}
         <div className="hidden md:flex w-1/2 items-center justify-center bg-indigo-50 p-8">
           <Image
             src="/Sign up-rafiki.svg"
@@ -22,10 +33,8 @@ export default function RegistrationForm() {
           />
         </div>
 
-        {/* RIGHT: Form */}
         <div className="w-full md:w-1/2 p-8 flex flex-col justify-center">
-          {/* Header */}
-          <div className="text-center mb-8">
+          <div className="text-center mb-6">
             <h1 className="text-3xl font-extrabold text-gray-800">
               Create Your Account
             </h1>
@@ -34,74 +43,70 @@ export default function RegistrationForm() {
             </p>
           </div>
 
-          {/* Registration Form */}
-          <form action={registerUser} className="space-y-5">
-            {/* User Name */}
+          {/* ✅ show server-action message (duplicate / validation) */}
+          {state?.message ? (
+            <div className="mb-4 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
+              {state.message}
+            </div>
+          ) : null}
+
+          <form action={formAction} className="space-y-5">
             <div>
-              <label
-                htmlFor="user_name"
-                className="block text-sm font-medium text-gray-700 mb-1"
-              >
+              <label htmlFor="user_name" className="block text-sm font-medium text-gray-700 mb-1">
                 User Name
               </label>
               <input
                 type="text"
                 id="user_name"
                 name="user_name"
-                className="w-full border border-gray-300 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 text-gray-800 focus:outline-none rounded-lg px-3 py-2 transition-all"
+                className={inputClass("user_name")}
                 placeholder="Enter your name"
                 required
               />
+              {fe.user_name && (
+                <p className="mt-1 text-xs text-red-600">
+                  এই User Name আগে থেকেই আছে।
+                </p>
+              )}
             </div>
 
-            {/* Password */}
             <div>
-              <label
-                htmlFor="password"
-                className="block text-sm font-medium text-gray-700 mb-1"
-              >
+              <label htmlFor="password" className="block text-sm font-medium text-gray-700 mb-1">
                 Password
               </label>
               <input
                 type="password"
                 id="password"
                 name="password"
-                className="w-full border border-gray-300 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 text-gray-800 focus:outline-none rounded-lg px-3 py-2 transition-all"
+                className={inputClass("password")}
                 placeholder="••••••••"
                 required
+                minLength={6}
               />
             </div>
 
-            {/* Role */}
             <div>
-              <label
-                htmlFor="role"
-                className="block text-sm font-medium text-gray-700 mb-1"
-              >
+              <label htmlFor="role" className="block text-sm font-medium text-gray-700 mb-1">
                 Role
               </label>
               <input
                 type="text"
                 id="role"
                 name="role"
-                className="w-full border border-gray-300 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 text-gray-800 focus:outline-none rounded-lg px-3 py-2 transition-all"
+                className={inputClass("role")}
                 placeholder="Enter your role"
                 required
               />
             </div>
 
-            {/* Assigned Building */}
             <div>
-              <label
-                htmlFor="assigned_building"
-                className="block text-sm font-medium text-gray-700 mb-1"
-              >
+              <label htmlFor="assigned_building" className="block text-sm font-medium text-gray-700 mb-1">
                 Assigned Building
               </label>
               <select
                 id="assigned_building"
                 name="assigned_building"
-                className="w-full border border-gray-300 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 text-gray-800 focus:outline-none rounded-lg px-3 py-2 transition-all"
+                className={inputClass("assigned_building")}
                 required
               >
                 <option value="">Select a building</option>
@@ -114,20 +119,21 @@ export default function RegistrationForm() {
                 <option value="A-5">A-5</option>
                 <option value="B-5">B-5</option>
               </select>
+              {(fe.factory || fe.assigned_building) && (
+                <p className="mt-1 text-xs text-red-600">
+                  একই Factory + Building আগে থেকেই registered.
+                </p>
+              )}
             </div>
 
-            {/* 🔹 NEW: Factory */}
             <div>
-              <label
-                htmlFor="factory"
-                className="block text-sm font-medium text-gray-700 mb-1"
-              >
+              <label htmlFor="factory" className="block text-sm font-medium text-gray-700 mb-1">
                 Factory
               </label>
               <select
                 id="factory"
                 name="factory"
-                className="w-full border border-gray-300 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 text-gray-800 focus:outline-none rounded-lg px-3 py-2 transition-all"
+                className={inputClass("factory")}
                 required
               >
                 <option value="">Select a factory</option>
@@ -137,7 +143,6 @@ export default function RegistrationForm() {
               </select>
             </div>
 
-            {/* Submit Button */}
             <button
               type="submit"
               className="w-full bg-indigo-600 hover:bg-indigo-700 active:bg-indigo-800 text-white font-semibold rounded-lg py-2 transition-all duration-300 shadow-md hover:shadow-lg"
@@ -146,13 +151,9 @@ export default function RegistrationForm() {
             </button>
           </form>
 
-          {/* Footer */}
           <div className="mt-6 text-center text-sm text-gray-600">
             Already have an account?{" "}
-            <Link
-              href="/login"
-              className="text-indigo-600 font-medium hover:underline"
-            >
+            <Link href="/login" className="text-indigo-600 font-medium hover:underline">
               Login here
             </Link>
           </div>

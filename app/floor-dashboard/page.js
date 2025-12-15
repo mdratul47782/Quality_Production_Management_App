@@ -1010,9 +1010,9 @@ function TvLineCard({
             <span className="badge badge-lg border-fuchsia-500/70 bg-fuchsia-500/10 text-fuchsia-100">
               Style:&nbsp;<span className="font-semibold text-fuchsia-300">{style}</span>
             </span>
-            <span className="badge badge-lg border-cyan-500/70 bg-cyan-500/10 text-cyan-100">
+            {/* <span className="badge badge-lg border-cyan-500/70 bg-cyan-500/10 text-cyan-100">
               Item:&nbsp;<span className="font-semibold text-cyan-300">{item}</span>
-            </span>
+            </span> */}
             <span className="badge badge-lg border-emerald-500/70 bg-emerald-500/10 text-emerald-100">
               Run Day:&nbsp;<span className="font-semibold text-emerald-300">{runDay}</span>
             </span>

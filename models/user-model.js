@@ -6,23 +6,19 @@ const userSchema = new mongoose.Schema(
     user_name: {
       type: String,
       required: [true, "Username is required"],
-      unique: true,
+      unique: true, // ✅ username always unique
       trim: true,
       minlength: [3, "Username must be at least 3 characters long"],
       maxlength: [50, "Username cannot exceed 50 characters"],
     },
+
     password: {
       type: String,
       required: [true, "Password is required"],
-      minlength: [3, "Password must be at least 6 characters long"],
-      // Always store hashed password using bcrypt
+      minlength: [6, "Password must be at least 6 characters long"],
     },
 
-    role: {
-      type: String,
-      required: [true, "Role is required"],
-      trim: true,
-    },
+    role: { type: String, required: [true, "Role is required"], trim: true },
 
     assigned_building: {
       type: String,
@@ -33,7 +29,6 @@ const userSchema = new mongoose.Schema(
       },
     },
 
-    // 🔹 NEW FIELD: Factory
     factory: {
       type: String,
       required: [true, "Factory is required"],
@@ -43,15 +38,15 @@ const userSchema = new mongoose.Schema(
       },
     },
   },
-  {
-    timestamps: true,
-  }
+  { timestamps: true }
 );
 
-// index for faster username lookups
-userSchema.index({ user_name: 1 });
+// ✅ username unique
+userSchema.index({ user_name: 1 }, { unique: true });
 
-// hide password in JSON
+// ✅ same factory + same building cannot repeat
+userSchema.index({ factory: 1, assigned_building: 1 }, { unique: true });
+
 userSchema.set("toJSON", {
   transform: function (doc, ret) {
     delete ret.password;
@@ -59,6 +54,5 @@ userSchema.set("toJSON", {
   },
 });
 
-// Prevent multiple model compilation in Next.js hot reload
 export const userModel =
   mongoose.models.users || mongoose.model("users", userSchema);

@@ -110,26 +110,26 @@ function makeCrownLabel(bestLabel) {
     if (!bestLabel) return null;
     if (!value || String(value) !== String(bestLabel)) return null;
 
-    // if bar too small, avoid weird positioning
     if (!height || height < 6) return null;
 
     const cx = x + width / 2;
-    const cy = Math.max(12, y - 6); // keep inside chart area
+    const cy = Math.max(24, y - 10); // ✅ a bit higher & safer
 
     return (
       <text
         x={cx}
         y={cy}
         textAnchor="middle"
-        fontSize={16}
+        fontSize={26} // ✅ bigger crown
         fill="#fbbf24"
-        style={{ filter: "drop-shadow(0px 2px 4px rgba(0,0,0,0.65))" }}
+        style={{ filter: "drop-shadow(0px 3px 6px rgba(0,0,0,0.75))" }} // ✅ stronger shadow
       >
         👑
       </text>
     );
   };
 }
+
 
 // 🔹 helper: get serial order index for label
 function getLabelOrderIndex(label, isAllBuildings) {
@@ -709,3 +709,5 @@ function MetricBox({ label, value, accent = "" }) {
     </div>
   );
 }
+
+

@@ -642,7 +642,7 @@ function LineCard({ lineData, header, styleMedia, wipData }) {
   const style = header?.style || lineData?.style || "-";
   const runDay = header?.run_day ?? header?.runDay ?? "-";
   const smv = header?.smv ?? "-";
-
+  const item = header?.Item || lineData?.Item | "-";
   // ✅ ONLY image/video from style-media (style-wise)
   const imageSrc = styleMedia?.imageSrc || "";
   const videoSrc = styleMedia?.videoSrc || "";
@@ -700,6 +700,9 @@ function LineCard({ lineData, header, styleMedia, wipData }) {
               </span>
               <span className="badge border-sky-500/60 bg-sky-500/10 text-sky-100 text-[9px]">
                 Run Day: <span className="font-semibold">{runDay}</span>
+              </span>
+               <span className="badge border-sky-500/60 bg-sky-500/10 text-sky-100 text-[9px]">
+                Item: <span className="font-semibold">{item}</span>
               </span>
             </div>
           </div>
@@ -845,7 +848,7 @@ function TvLineCard({
   // ✅ from header (not style-media)
   const buyer = header?.buyer || lineData?.buyer || "-";
   const style = header?.style || lineData?.style || "-";
-  const item = header?.item || header?.style_item || header?.styleItem || "Item";
+  const item = header?.item || header?.style_item || header?.Item || "Item";
   const colorModel =
     header?.color_model ||
     header?.colorModel ||
@@ -1025,6 +1028,9 @@ function TvLineCard({
             </span>
             <span className="badge badge-lg border-emerald-500/70 bg-emerald-500/10 text-emerald-100">
               Color/Model:&nbsp;<span className="font-semibold text-emerald-300">{colorModel}</span>
+            </span>
+            <span className="badge badge-lg border-emerald-500/70 bg-emerald-500/10 text-emerald-100">
+              Item:&nbsp;<span className="font-semibold text-emerald-300">{item}</span>
             </span>
           </div>
 

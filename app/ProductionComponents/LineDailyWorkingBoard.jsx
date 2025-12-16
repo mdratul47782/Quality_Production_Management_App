@@ -543,9 +543,9 @@ function HourlyHeaderCard({ header, auth }) {
 
   const totalAchievedAll = hasRecords
     ? recordsDecorated.reduce(
-        (sum, rec) => sum + (rec._achievedRounded ?? 0),
-        0
-      )
+      (sum, rec) => sum + (rec._achievedRounded ?? 0),
+      0
+    )
     : 0;
 
   const lastRecord = hasRecords
@@ -610,7 +610,7 @@ function HourlyHeaderCard({ header, auth }) {
   const achieveEfficiency =
     manpowerPresent > 0 && smv > 0 && selectedHourInt > 0
       ? (totalAchievedPreview * smv * 100) /
-        (manpowerPresent * 60 * selectedHourInt)
+      (manpowerPresent * 60 * selectedHourInt)
       : 0;
 
   // ---------- save handler ----------
@@ -667,8 +667,8 @@ function HourlyHeaderCard({ header, auth }) {
       if (!res.ok || !json.success) {
         throw new Error(
           json?.errors?.join(", ") ||
-            json?.message ||
-            "Failed to save hourly production record"
+          json?.message ||
+          "Failed to save hourly production record"
         );
       }
 
@@ -753,8 +753,8 @@ function HourlyHeaderCard({ header, auth }) {
       if (!res.ok || !json.success) {
         throw new Error(
           json?.errors?.join(", ") ||
-            json?.message ||
-            "Failed to save capacity."
+          json?.message ||
+          "Failed to save capacity."
         );
       }
 
@@ -807,6 +807,8 @@ function HourlyHeaderCard({ header, auth }) {
               <span className="mx-1 text-slate-1000">•</span>
               <span className="font-semibold">Working hour:</span>{" "}
               {header.working_hour}h
+              <span className="font-semibold"> • Item:</span>{" "}
+              {header.Item}
             </div>
           </div>
 
@@ -907,11 +909,10 @@ function HourlyHeaderCard({ header, auth }) {
                 Net variance vs base (to date):
               </span>{" "}
               <span
-                className={`font-semibold ${
-                  netVarVsBaseToDateSelected >= 0
+                className={`font-semibold ${netVarVsBaseToDateSelected >= 0
                     ? "text-green-700"
                     : "text-red-700"
-                }`}
+                  }`}
               >
                 {formatNumber(netVarVsBaseToDateSelected, 0)}
               </span>
@@ -922,11 +923,10 @@ function HourlyHeaderCard({ header, auth }) {
                 Cumulative variance (prev vs dynamic):
               </span>{" "}
               <span
-                className={`font-semibold ${
-                  cumulativeVarianceDynamicPrev >= 0
+                className={`font-semibold ${cumulativeVarianceDynamicPrev >= 0
                     ? "text-green-700"
                     : "text-red-700"
-                }`}
+                  }`}
               >
                 {formatNumber(cumulativeVarianceDynamicPrev, 0)}
               </span>
@@ -938,11 +938,10 @@ function HourlyHeaderCard({ header, auth }) {
                   Last hour variance (Δ vs dynamic):
                 </span>{" "}
                 <span
-                  className={`font-semibold ${
-                    previousVariance >= 0
+                  className={`font-semibold ${previousVariance >= 0
                       ? "text-green-700"
                       : "text-red-700"
-                  }`}
+                    }`}
                 >
                   {formatNumber(previousVariance, 0)}
                 </span>
@@ -1091,8 +1090,8 @@ function HourlyHeaderCard({ header, auth }) {
                 {wipLoading || capacityLoading
                   ? "..."
                   : wipInfo
-                  ? formatNumber(wipInfo.totalAchieved, 0)
-                  : "-"}
+                    ? formatNumber(wipInfo.totalAchieved, 0)
+                    : "-"}
               </span>
             </div>
 
@@ -1102,17 +1101,16 @@ function HourlyHeaderCard({ header, auth }) {
                 WIP:
               </span>
               <span
-                className={`font-bold ${
-                  (wipInfo?.wip ?? 0) > 0
+                className={`font-bold ${(wipInfo?.wip ?? 0) > 0
                     ? "text-amber-1000"
                     : "text-emerald-1000"
-                }`}
+                  }`}
               >
                 {wipLoading || capacityLoading
                   ? "..."
                   : wipInfo
-                  ? formatNumber(wipInfo.wip, 0)
-                  : "-"}
+                    ? formatNumber(wipInfo.wip, 0)
+                    : "-"}
               </span>
             </div>
           </div>
@@ -1162,20 +1160,18 @@ function HourlyHeaderCard({ header, auth }) {
                         {rec._achievedRounded}
                       </td>
                       <td
-                        className={`px-2 py-1 ${
-                          (rec._perHourVarDynamic ?? 0) >= 0
+                        className={`px-2 py-1 ${(rec._perHourVarDynamic ?? 0) >= 0
                             ? "text-green-700"
                             : "text-red-700"
-                        }`}
+                          }`}
                       >
                         {formatNumber(rec._perHourVarDynamic ?? 0, 0)}
                       </td>
                       <td
-                        className={`px-2 py-1 ${
-                          (rec._netVarVsBaseToDate ?? 0) >= 0
+                        className={`px-2 py-1 ${(rec._netVarVsBaseToDate ?? 0) >= 0
                             ? "text-green-700"
                             : "text-red-700"
-                        }`}
+                          }`}
                       >
                         {formatNumber(rec._netVarVsBaseToDate ?? 0, 0)}
                       </td>
@@ -1205,11 +1201,10 @@ function HourlyHeaderCard({ header, auth }) {
                       </td>
                       <td className="px-2 py-1 ">-</td>
                       <td
-                        className={`px-2 py-1   ${
-                          totalNetVarVsBaseToDate >= 0
+                        className={`px-2 py-1   ${totalNetVarVsBaseToDate >= 0
                             ? "text-green-700"
                             : "text-red-700"
-                        }`}
+                          }`}
                       >
                         {formatNumber(totalNetVarVsBaseToDate, 0)}
                       </td>

@@ -5,7 +5,6 @@ const targetSetterHeaderSchema = new mongoose.Schema(
   {
     date: { type: String, required: true }, // "YYYY-MM-DD"
 
-    // 🔹 NEW
     factory: { type: String, required: true, trim: true },
 
     assigned_building: { type: String, required: true },
@@ -13,6 +12,10 @@ const targetSetterHeaderSchema = new mongoose.Schema(
 
     buyer: { type: String, required: true },
     style: { type: String, required: true },
+
+    // ✅ NEW (auto-uppercase)
+    Item: { type: String, trim: true, uppercase: true },
+
     run_day: { type: Number, required: true },
     color_model: { type: String, required: true },
 

@@ -11,16 +11,10 @@ const HourlyProductionSchema = new Schema(
     productionDate: {
       type: String, // "YYYY-MM-DD"
       required: true,
+      trim: true,
     },
-    hour: {
-      type: Number,
-      required: true,
-    },
-    achievedQty: {
-      type: Number,
-      required: true,
-      min: 0,
-    },
+    hour: { type: Number, required: true },
+    achievedQty: { type: Number, required: true, min: 0 },
 
     baseTargetPerHour: { type: Number, required: true },
     dynamicTarget: { type: Number, required: true },
@@ -31,7 +25,14 @@ const HourlyProductionSchema = new Schema(
     achieveEfficiency: { type: Number, required: true },
     totalEfficiency: { type: Number, required: true },
 
-    // 🔹 NEW: multi-factory context
+    // 🔹 NEW: upper case field name "Item"
+    Item: {
+      type: String,
+      trim: true,
+      set: (v) => (typeof v === "string" ? v.trim().toUpperCase() : v),
+    },
+
+    // 🔹 multi-factory context
     factory: { type: String, trim: true },
     assigned_building: { type: String, trim: true },
     line: { type: String, trim: true },
@@ -48,7 +49,7 @@ const HourlyProductionSchema = new Schema(
   { timestamps: true }
 );
 
-// (optional): index to avoid duplicate per (headerId + user + hour)
+// avoid duplicate per (headerId + user + hour)
 HourlyProductionSchema.index(
   { headerId: 1, "productionUser.id": 1, hour: 1 },
   { unique: true }

@@ -38,6 +38,7 @@ const buyers = [
 const initialForm = {
   buyer: "",
   style: "",
+  Item: "",
   run_day: "",
   color_model: "",
   total_manpower: "",
@@ -126,12 +127,10 @@ export default function ProductionInputForm() {
 
   const assignedBuilding =
     auth?.assigned_building || auth?.user?.assigned_building || "";
-  // 🔹 NEW: factory from auth
+  // 🔹 factory from auth
   const factory =
-    auth?.factory ||
-    auth?.user?.factory ||
-    auth?.assigned_factory ||
-    "";
+    auth?.factory || auth?.user?.factory || auth?.assigned_factory || "";
+
   // ---------- computed target preview ----------
   const targetPreview = useMemo(
     () => computeTargetPreview(form),
@@ -151,35 +150,38 @@ export default function ProductionInputForm() {
   };
 
   // ---------- input change ----------
+  const handleChange = (e) => {
+    const { name, value } = e.target;
 
-const handleChange = (e) => {
-  const { name, value } = e.target;
+    setForm((prev) => {
+      const nextValue =
+        name === "color_model" || name === "Item"
+          ? value.toUpperCase()
+          : value;
 
-  setForm((prev) => {
-    const nextValue = name === "color_model" ? value.toUpperCase() : value;
-    const next = { ...prev, [name]: nextValue };
+      const next = { ...prev, [name]: nextValue };
 
-    // auto manpower_absent = total - present
-    if (name === "total_manpower" || name === "manpower_present") {
-      const total = Number(next.total_manpower);
-      const present = Number(next.manpower_present);
+      // auto manpower_absent = total - present
+      if (name === "total_manpower" || name === "manpower_present") {
+        const total = Number(next.total_manpower);
+        const present = Number(next.manpower_present);
 
-      if (
-        next.total_manpower !== "" &&
-        next.manpower_present !== "" &&
-        Number.isFinite(total) &&
-        Number.isFinite(present)
-      ) {
-        const diff = total - present;
-        next.manpower_absent = diff >= 0 ? diff.toString() : "0";
-      } else {
-        next.manpower_absent = "";
+        if (
+          next.total_manpower !== "" &&
+          next.manpower_present !== "" &&
+          Number.isFinite(total) &&
+          Number.isFinite(present)
+        ) {
+          const diff = total - present;
+          next.manpower_absent = diff >= 0 ? diff.toString() : "0";
+        } else {
+          next.manpower_absent = "";
+        }
       }
-    }
 
-    return next;
-  });
-};
+      return next;
+    });
+  };
 
   const handleLineChange = (e) => {
     const value = e.target.value;
@@ -217,15 +219,10 @@ const handleChange = (e) => {
         setError("");
         setSuccess("");
 
-        const url = new URL(
-          "/api/target-setter-header",
-          window.location.origin
-        );
+        const url = new URL("/api/target-setter-header", window.location.origin);
         url.searchParams.set("assigned_building", assignedBuilding);
         url.searchParams.set("line", selectedLine);
         url.searchParams.set("date", selectedDate);
-
-        // 🔹 NEW: scope by factory
         url.searchParams.set("factory", factory);
 
         const res = await fetch(url, { cache: "no-store" });
@@ -247,7 +244,6 @@ const handleChange = (e) => {
 
     fetchHeaders();
   }, [authLoading, assignedBuilding, factory, selectedLine, selectedDate]);
-  // 🔺 added `factory` in deps
 
   // ---------- submit (create / update) ----------
   const handleSubmit = async (e) => {
@@ -282,8 +278,14 @@ const handleChange = (e) => {
       return;
     }
 
-    if (!form.buyer || !form.style || !form.run_day || !form.color_model) {
-      setError("Buyer, Style, Run day and Color/Model are required.");
+    if (
+      !form.buyer ||
+      !form.style ||
+      !form.Item ||
+      !form.run_day ||
+      !form.color_model
+    ) {
+      setError("Buyer, Style, Item, Run day and Color/Model are required.");
       return;
     }
 
@@ -293,18 +295,17 @@ const handleChange = (e) => {
       const payload = {
         date: selectedDate,
         assigned_building: assignedBuilding,
-        factory,                         // 🔹 NEW
+        factory,
         line: selectedLine,
         buyer: form.buyer,
         style: form.style,
+        Item: form.Item.toUpperCase(),
         run_day: Number(form.run_day),
         color_model: form.color_model.toUpperCase(),
         total_manpower: Number(form.total_manpower),
         manpower_present: Number(form.manpower_present),
         manpower_absent:
-          form.manpower_absent !== ""
-            ? Number(form.manpower_absent)
-            : undefined,
+          form.manpower_absent !== "" ? Number(form.manpower_absent) : undefined,
         working_hour: Number(form.working_hour),
         plan_quantity: Number(form.plan_quantity),
         plan_efficiency_percent: Number(form.plan_efficiency_percent),
@@ -313,12 +314,10 @@ const handleChange = (e) => {
         user: userInfo,
       };
 
-      const query = factory
-        ? `?factory=${encodeURIComponent(factory)}`
-        : "";
+      const query = factory ? `?factory=${encodeURIComponent(factory)}` : "";
 
       const endpoint = editingId
-        ? `/api/target-setter-header/${editingId}${query}` // 🔹 include factory
+        ? `/api/target-setter-header/${editingId}${query}`
         : "/api/target-setter-header";
 
       const method = editingId ? "PATCH" : "POST";
@@ -332,9 +331,7 @@ const handleChange = (e) => {
       const json = await res.json();
 
       if (!res.ok || !json.success) {
-        throw new Error(
-          json.message || "Failed to save target setter header."
-        );
+        throw new Error(json.message || "Failed to save target setter header.");
       }
 
       setSuccess(
@@ -354,7 +351,7 @@ const handleChange = (e) => {
           url.searchParams.set("assigned_building", assignedBuilding);
           url.searchParams.set("line", selectedLine);
           url.searchParams.set("date", selectedDate);
-          url.searchParams.set("factory", factory); // 🔹 NEW
+          url.searchParams.set("factory", factory);
 
           const listRes = await fetch(url, { cache: "no-store" });
           const listJson = await listRes.json();
@@ -382,20 +379,17 @@ const handleChange = (e) => {
     setForm({
       buyer: header.buyer || "",
       style: header.style || "",
+      Item: header.Item || "",
       run_day: header.run_day != null ? header.run_day.toString() : "",
       color_model: header.color_model || "",
       total_manpower:
-        header.total_manpower != null
-          ? header.total_manpower.toString()
-          : "",
+        header.total_manpower != null ? header.total_manpower.toString() : "",
       manpower_present:
         header.manpower_present != null
           ? header.manpower_present.toString()
           : "",
       manpower_absent:
-        header.manpower_absent != null
-          ? header.manpower_absent.toString()
-          : "",
+        header.manpower_absent != null ? header.manpower_absent.toString() : "",
       working_hour:
         header.working_hour != null ? header.working_hour.toString() : "",
       plan_quantity:
@@ -405,8 +399,7 @@ const handleChange = (e) => {
           ? header.plan_efficiency_percent.toString()
           : "",
       smv: header.smv != null ? header.smv.toString() : "",
-      capacity:
-        header.capacity != null ? header.capacity.toString() : "",
+      capacity: header.capacity != null ? header.capacity.toString() : "",
     });
 
     setSelectedLine(header.line);
@@ -429,9 +422,7 @@ const handleChange = (e) => {
     setDeletingId(id);
 
     try {
-      const query = factory
-        ? `?factory=${encodeURIComponent(factory)}`
-        : "";
+      const query = factory ? `?factory=${encodeURIComponent(factory)}` : "";
 
       const res = await fetch(`/api/target-setter-header/${id}${query}`, {
         method: "DELETE",
@@ -440,7 +431,7 @@ const handleChange = (e) => {
       let json = {};
       try {
         json = await res.json();
-      } catch (e) { }
+      } catch (e) {}
 
       if (res.status === 404) {
         setSuccess("Header was already deleted (404). Syncing list.");
@@ -463,6 +454,7 @@ const handleChange = (e) => {
       setDeletingId(null);
     }
   };
+
   // ---------- UI ----------
   return (
     <div className="space-y-3">
@@ -585,6 +577,14 @@ const handleChange = (e) => {
                 />
 
                 <Field
+                  label="Item"
+                  name="Item"
+                  value={form.Item}
+                  onChange={handleChange}
+                  placeholder="Item"
+                />
+
+                <Field
                   label="Run day"
                   name="run_day"
                   value={form.run_day}
@@ -594,11 +594,9 @@ const handleChange = (e) => {
                 />
 
                 <Field
-
                   label="Color/Model"
                   name="color_model"
                   value={form.color_model}
-
                   onChange={handleChange}
                   placeholder="Color"
                 />
@@ -680,7 +678,7 @@ const handleChange = (e) => {
                   label="Target (preview, auto)"
                   name="target_preview"
                   value={targetPreview === "" ? "" : targetPreview.toString()}
-                  onChange={() => { }}
+                  onChange={() => {}}
                   placeholder="Auto from manpower, hour, SMV, efficiency"
                   type="number"
                   readOnly
@@ -704,11 +702,7 @@ const handleChange = (e) => {
                   className="btn btn-xs bg-amber-500 hover:bg-amber-600 text-white text-[11px] font-semibold px-3 border-0 disabled:opacity-70"
                   disabled={busy || !selectedLine}
                 >
-                  {saving
-                    ? "Saving..."
-                    : editingId
-                      ? "Update Target"
-                      : "Save Target"}
+                  {saving ? "Saving..." : editingId ? "Update Target" : "Save Target"}
                 </button>
               </div>
             </form>
@@ -747,36 +741,28 @@ const handleChange = (e) => {
                       {/* Details grid */}
                       <div className="grid grid-cols-2 gap-x-2 gap-y-0.5 text-slate-700">
                         <p className="font-semibold">Buyer</p>
-                        <p className="font-semibold text-slate-900">
-                          {h.buyer}
-                        </p>
+                        <p className="font-semibold text-slate-900">{h.buyer}</p>
 
                         <p className="font-semibold">Style</p>
-                        <p className="font-semibold text-slate-900">
-                          {h.style}
-                        </p>
+                        <p className="font-semibold text-slate-900">{h.style}</p>
 
-                        <p className="font-semibold">Style no / name</p>
-                        <p className="text-slate-900">{h.style}</p>
+                        <p className="font-semibold">Item</p>
+                        <p className="text-slate-900">{h.Item || "-"}</p>
 
                         <p className="font-semibold">Run day</p>
                         <p className="text-slate-900">{h.run_day}</p>
 
-                        <p className="font-semibold ">Color/Model</p>
+                        <p className="font-semibold">Color/Model</p>
                         <p className="text-slate-900">{h.color_model}</p>
 
                         <p className="font-semibold">Total Man Power</p>
                         <p className="text-slate-900">{h.total_manpower}</p>
 
                         <p className="font-semibold">Manpower Present</p>
-                        <p className="text-slate-900">
-                          {h.manpower_present}
-                        </p>
+                        <p className="text-slate-900">{h.manpower_present}</p>
 
                         <p className="font-semibold">Manpower Absent</p>
-                        <p className="text-slate-900">
-                          {h.manpower_absent}
-                        </p>
+                        <p className="text-slate-900">{h.manpower_absent}</p>
 
                         <p className="font-semibold">
                           Working Hour (for this style)
@@ -798,14 +784,10 @@ const handleChange = (e) => {
                         <p className="text-slate-900">{h.capacity}</p>
 
                         <p className="font-semibold">Target</p>
-                        <p className="text-slate-900">
-                          {h.target_full_day ?? "-"}
-                        </p>
+                        <p className="text-slate-900">{h.target_full_day ?? "-"}</p>
 
                         <p className="font-semibold">Created By</p>
-                        <p className="text-slate-900">
-                          {h.user?.user_name || "-"}
-                        </p>
+                        <p className="text-slate-900">{h.user?.user_name || "-"}</p>
                       </div>
 
                       {/* Actions */}

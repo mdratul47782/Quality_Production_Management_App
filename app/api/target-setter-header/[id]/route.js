@@ -79,10 +79,11 @@ export async function PATCH(req, context) {
     const updatableFields = [
       "date",
       "assigned_building",
-      "factory", // 🔹 allow updating factory if you ever need
+      "factory",
       "line",
       "buyer",
       "style",
+      "Item",
       "run_day",
       "color_model",
       "total_manpower",
@@ -126,7 +127,12 @@ export async function PATCH(req, context) {
         if (isNumericField) {
           doc[field] = toNumberOrNull(updates[field]);
         } else {
-          doc[field] = updates[field];
+          if (field === "color_model" || field === "Item") {
+            const v = updates[field];
+            doc[field] = typeof v === "string" ? v.trim().toUpperCase() : v;
+          } else {
+            doc[field] = updates[field];
+          }
         }
       }
     }
@@ -137,10 +143,7 @@ export async function PATCH(req, context) {
       doc.manpower_present != null &&
       !("manpower_absent" in updates)
     ) {
-      doc.manpower_absent = Math.max(
-        0,
-        doc.total_manpower - doc.manpower_present
-      );
+      doc.manpower_absent = Math.max(0, doc.total_manpower - doc.manpower_present);
     }
 
     doc.target_full_day = computeTargetFullDay(doc);

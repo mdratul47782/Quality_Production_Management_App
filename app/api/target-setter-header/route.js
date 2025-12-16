@@ -28,7 +28,6 @@ function computeTargetFullDay({
   return Math.round(target);
 }
 
-// GET /api/target-setter-header?assigned_building=...&line=...&date=...&buyer=...&style=...&factory=...
 export async function GET(req) {
   try {
     await dbConnect();
@@ -41,18 +40,18 @@ export async function GET(req) {
     const date = searchParams.get("date");
     const buyer = searchParams.get("buyer");
     const style = searchParams.get("style");
-    const factory = searchParams.get("factory"); // 🔹 NEW
+    const Item = searchParams.get("Item");
+    const factory = searchParams.get("factory");
 
     if (assigned_building) filters.assigned_building = assigned_building;
     if (line) filters.line = line;
     if (date) filters.date = date;
     if (buyer) filters.buyer = buyer;
     if (style) filters.style = style;
-    if (factory) filters.factory = factory; // 🔹 NEW
+    if (Item) filters.Item = Item;
+    if (factory) filters.factory = factory;
 
-    const headers = await TargetSetterHeader.find(filters).sort({
-      createdAt: -1,
-    });
+    const headers = await TargetSetterHeader.find(filters).sort({ createdAt: -1 });
 
     return NextResponse.json({ success: true, data: headers });
   } catch (err) {
@@ -63,7 +62,7 @@ export async function GET(req) {
     );
   }
 }
-// POST /api/target-setter-header
+
 export async function POST(req) {
   try {
     await dbConnect();
@@ -74,9 +73,10 @@ export async function POST(req) {
       date,
       assigned_building,
       line,
-      factory, // 🔹 NEW
+      factory,
       buyer,
       style,
+      Item,
       run_day,
       color_model,
       total_manpower,
@@ -90,13 +90,15 @@ export async function POST(req) {
       user,
     } = body;
 
-    // fallback: today's date if not sent
     if (!date) {
       const now = new Date();
       date = now.toISOString().split("T")[0];
     }
 
-    // numeric conversions
+    const itemVal = typeof Item === "string" ? Item.trim().toUpperCase() : "";
+    const colorModelVal =
+      typeof color_model === "string" ? color_model.trim().toUpperCase() : "";
+
     const runDayNum = toNumberOrNull(run_day);
     const totalManpowerNum = toNumberOrNull(total_manpower);
     const manpowerPresentNum = toNumberOrNull(manpower_present);
@@ -107,12 +109,10 @@ export async function POST(req) {
     const smvNum = toNumberOrNull(smv);
     const capacityNum = toNumberOrNull(capacity);
 
-    // auto-calc absent
     if (totalManpowerNum != null && manpowerPresentNum != null) {
       manpowerAbsentNum = Math.max(0, totalManpowerNum - manpowerPresentNum);
     }
 
-    // normalize user payload
     let userPayload = null;
     if (user && (user.id || user._id || user.user_id)) {
       const id = user.id || user._id || user.user_id;
@@ -123,7 +123,6 @@ export async function POST(req) {
       };
     }
 
-    // 🔹 ensure factory is present
     if (!factory) {
       return NextResponse.json(
         { success: false, message: "Factory is required." },
@@ -131,7 +130,6 @@ export async function POST(req) {
       );
     }
 
-    // basic validation (just added factory)
     if (
       !date ||
       !assigned_building ||
@@ -139,8 +137,9 @@ export async function POST(req) {
       !line ||
       !buyer ||
       !style ||
+      !itemVal ||
       runDayNum == null ||
-      !color_model ||
+      !colorModelVal ||
       totalManpowerNum == null ||
       manpowerPresentNum == null ||
       manpowerAbsentNum == null ||
@@ -166,12 +165,13 @@ export async function POST(req) {
     const doc = await TargetSetterHeader.create({
       date,
       assigned_building,
-      factory, // 🔹 NEW
+      factory,
       line,
       buyer,
       style,
+      Item: itemVal,
       run_day: runDayNum,
-      color_model,
+      color_model: colorModelVal,
       total_manpower: totalManpowerNum,
       manpower_present: manpowerPresentNum,
       manpower_absent: manpowerAbsentNum,

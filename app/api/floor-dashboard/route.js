@@ -29,8 +29,7 @@ function computeBaseTargetPerHourFromHeader(header) {
 
   const workingHour = toNumberOrZero(header.working_hour);
   const targetFullDay = toNumberOrZero(header.target_full_day);
-  const targetFromFullDay =
-    workingHour > 0 ? targetFullDay / workingHour : 0;
+  const targetFromFullDay = workingHour > 0 ? targetFullDay / workingHour : 0;
 
   return targetFromCapacity || targetFromFullDay || 0;
 }
@@ -79,6 +78,7 @@ export async function GET(req) {
     const factory = searchParams.get("factory");
     const building = searchParams.get("building");
     const date = searchParams.get("date");
+    const dateKey = (date || "").includes("T") ? String(date).slice(0, 10) : date;
     const line = searchParams.get("line"); // optional, "ALL" for all lines
 
     if (!factory || !building || !date) {
@@ -98,7 +98,7 @@ export async function GET(req) {
     const headerFilter = {
       factory,
       assigned_building: building,
-      date,
+      date: dateKey,
     };
     if (line && line !== "ALL") {
       headerFilter.line = line;
@@ -182,10 +182,8 @@ export async function GET(req) {
         const baseTargetPerHourRaw = computeBaseTargetPerHourFromHeader(h);
         const workingHours = toNumberOrZero(h.working_hour);
         targetFullDay = Math.round(
-          (Number.isFinite(baseTargetPerHourRaw)
-            ? baseTargetPerHourRaw
-            : 0) *
-          (Number.isFinite(workingHours) ? workingHours : 0)
+          (Number.isFinite(baseTargetPerHourRaw) ? baseTargetPerHourRaw : 0) *
+            (Number.isFinite(workingHours) ? workingHours : 0)
         );
       }
 
@@ -228,17 +226,10 @@ export async function GET(req) {
       }
 
       const hourNum = toNumberOrZero(rec.hour);
-      if (
-        seg.production.currentHour === null ||
-        hourNum > seg.production.currentHour
-      ) {
+      if (seg.production.currentHour === null || hourNum > seg.production.currentHour) {
         seg.production.currentHour = hourNum;
-        seg.production.currentHourEfficiency = toNumberOrZero(
-          rec.hourlyEfficiency
-        );
-        seg.production._lastTotalEfficiency = toNumberOrZero(
-          rec.totalEfficiency
-        );
+        seg.production.currentHourEfficiency = toNumberOrZero(rec.hourlyEfficiency);
+        seg.production._lastTotalEfficiency = toNumberOrZero(rec.totalEfficiency);
       }
     }
 
@@ -250,8 +241,7 @@ export async function GET(req) {
       p.varianceQty = p.achievedQty - p.targetQty;
 
       if (p._availMinSum > 0) {
-        p.avgEffPercent =
-          (p._produceMinSum / p._availMinSum) * 100;
+        p.avgEffPercent = (p._produceMinSum / p._availMinSum) * 100;
       } else if (
         typeof p._lastTotalEfficiency === "number" &&
         !Number.isNaN(p._lastTotalEfficiency)
@@ -267,9 +257,65 @@ export async function GET(req) {
     });
 
     // ============================================================
+    // PREV WORKING DAY ACHIEVED (per line)
+    // ============================================================
+    const uniqueLines = Array.from(new Set(headers.map((h) => h.line).filter(Boolean)));
+
+    const prevByLine = {};
+
+    for (const lineName of uniqueLines) {
+      const prevHeader = await TargetSetterHeader.findOne({
+        factory,
+        assigned_building: building,
+        line: lineName,
+        date: { $lt: dateKey },
+      })
+        .sort({ date: -1 })
+        .select("date")
+        .lean();
+
+      const prevDate = prevHeader?.date || null;
+
+      if (!prevDate) {
+        prevByLine[lineName] = {
+          prevWorkingDate: null,
+          prevWorkingAchievedQty: 0,
+        };
+        continue;
+      }
+
+      const prevHeaders = await TargetSetterHeader.find({
+        factory,
+        assigned_building: building,
+        line: lineName,
+        date: prevDate,
+      })
+        .select("_id")
+        .lean();
+
+      const prevHeaderIds = prevHeaders.map((h) => h._id);
+
+      let prevAchieved = 0;
+
+      if (prevHeaderIds.length > 0) {
+        const agg = await HourlyProductionModel.aggregate([
+          { $match: { headerId: { $in: prevHeaderIds } } },
+          { $group: { _id: null, achievedQty: { $sum: "$achievedQty" } } },
+        ]);
+
+        prevAchieved = toNumberOrZero(agg?.[0]?.achievedQty);
+      }
+
+      prevByLine[lineName] = {
+        prevWorkingDate: prevDate,
+        prevWorkingAchievedQty: prevAchieved,
+      };
+    }
+
+    // ============================================================
     // QUALITY PART (per line, shared across segments of that line)
     // ============================================================
-    const { start, end } = getDayRange(date);
+    const { start, end } = getDayRange(dateKey);
 
     const qualityMatch = {
       factory,
@@ -302,19 +348,13 @@ export async function GET(req) {
       const totalDefectivePcs = toNumberOrZero(doc.totalDefectivePcs);
       const totalDefects = toNumberOrZero(doc.totalDefects);
 
-      const rftPercent =
-        totalInspected > 0 ? (totalPassed / totalInspected) * 100 : 0;
+      const rftPercent = totalInspected > 0 ? (totalPassed / totalInspected) * 100 : 0;
       const defectRatePercent =
-        totalInspected > 0
-          ? (totalDefectivePcs / totalInspected) * 100
-          : 0;
-      const dhuPercent =
-        totalInspected > 0 ? (totalDefects / totalInspected) * 100 : 0;
+        totalInspected > 0 ? (totalDefectivePcs / totalInspected) * 100 : 0;
+      const dhuPercent = totalInspected > 0 ? (totalDefects / totalInspected) * 100 : 0;
 
       const currentHour =
-        Number(doc.maxHourIndex ?? 0) > 0
-          ? Number(doc.maxHourIndex)
-          : null;
+        Number(doc.maxHourIndex ?? 0) > 0 ? Number(doc.maxHourIndex) : null;
 
       qualityLineAgg[lineName] = {
         line: lineName,
@@ -354,7 +394,7 @@ export async function GET(req) {
         buyer: seg.buyer,
         style: seg.style,
         quality: qual,
-        production: seg.production,
+        production: { ...seg.production, ...(prevByLine[lineName] || {}) },
       };
     });
 
@@ -362,7 +402,7 @@ export async function GET(req) {
       success: true,
       factory,
       building,
-      date,
+      date: dateKey,
       lineFilter: line || "ALL",
       lines: segments, // <-- your FloorDashboardPage uses json.lines
     });

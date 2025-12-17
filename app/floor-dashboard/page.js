@@ -13,23 +13,42 @@ import {
   Cell,
 } from "recharts";
 import { Gauge, TrendingUp, Activity, AlertTriangle } from "lucide-react";
+
 const factoryOptions = ["K-1", "K-2", "K-3"];
 const buildingOptions = ["A-2", "B-2", "A-3", "B-3", "A-4", "B-4", "A-5", "B-5"];
 const lineOptions = [
   "ALL",
-  "Line-1", "Line-2", "Line-3", "Line-4", "Line-5", "Line-6", "Line-7", "Line-8", "Line-9", "Line-10", "Line-11", "Lin-12", "Line-13", "Line-14", "Line-15",
+  "Line-1",
+  "Line-2",
+  "Line-3",
+  "Line-4",
+  "Line-5",
+  "Line-6",
+  "Line-7",
+  "Line-8",
+  "Line-9",
+  "Line-10",
+  "Line-11",
+  "Line-12", // ✅ fixed typo (Lin-12)
+  "Line-13",
+  "Line-14",
+  "Line-15",
 ];
+
 const REFRESH_INTERVAL_MS = 10000;
+
 function formatNumber(value, digits = 2) {
   const num = Number(value);
   if (!Number.isFinite(num)) return "-";
   return num.toFixed(digits);
 }
+
 function clampPercent(value) {
   const n = Number(value);
   if (!Number.isFinite(n)) return 0;
   return Math.max(0, Math.min(100, n));
 }
+
 function toNumber(v, fallback = 0) {
   const n = Number(v);
   return Number.isFinite(n) ? n : fallback;
@@ -47,7 +66,9 @@ function makeSegmentKey(line, buyer, style) {
 
 // ✅ style media key = factory+building+buyer+style+color_model (for image/video)
 function makeStyleMediaKey(factory, building, buyer, style, colorModel) {
-  return `${norm(factory)}__${norm(building)}__${norm(buyer)}__${norm(style)}__${norm(colorModel)}`;
+  return `${norm(factory)}__${norm(building)}__${norm(buyer)}__${norm(style)}__${norm(
+    colorModel
+  )}`;
 }
 
 function pickLatest(a, b) {
@@ -280,7 +301,7 @@ export default function FloorDashboardPage() {
         const params = new URLSearchParams({
           factory,
           assigned_building: building,
-          date, // ✅ date-wise match (history support)
+          date, // ✅ date-wise match
         });
 
         const res = await fetch(`/api/style-media?${params.toString()}`, {
@@ -296,11 +317,11 @@ export default function FloorDashboardPage() {
         const list = json.data || [];
         const map = {};
 
-        // API should already return active-for-date records
         for (const doc of list) {
           const buyer = doc?.buyer || "";
           const style = doc?.style || "";
-          const colorModel = doc?.color_model || doc?.colorModel || doc?.color || "";
+          const colorModel =
+            doc?.color_model || doc?.colorModel || doc?.color || "";
           const k = makeStyleMediaKey(factory, building, buyer, style, colorModel);
           if (!map[k]) map[k] = doc;
         }
@@ -392,10 +413,14 @@ export default function FloorDashboardPage() {
   const currentRow = sortedRows[safeIndex];
 
   // ✅ allow vertical scroll inside content
-  const contentWrapperClass = "flex-1 min-h-0 overflow-y-auto pr-1";
+ const contentWrapperClass =
+  viewMode === "tv"
+    ? "flex-1 min-h-0 overflow-hidden"
+    : "flex-1 min-h-0 overflow-y-auto pr-1";
+
 
   return (
-    <div className="h-screen bg-gradient-to-b from-slate-950 via-slate-950 to-slate-900 text-slate-50 py-1.5 px-2">
+    <div className="h-screen overflow-hidden bg-gradient-to-b from-slate-950 via-slate-950 to-slate-900 text-slate-50 py-1.5 px-2">
       <div className="max-w-[1700px] mx-auto flex flex-col gap-2 h-full">
         {/* Filter Panel */}
         <div className="card bg-base-300/10 border border-slate-800/80 shadow-[0_8px_28px_rgba(0,0,0,0.9)]">
@@ -538,7 +563,7 @@ export default function FloorDashboardPage() {
 
                 return (
                   <LineCard
-                    key={`${segKey}__${colorForMedia || ""}`} // safer in case same style diff color
+                    key={`${segKey}__${colorForMedia || ""}`}
                     lineData={row}
                     header={header}
                     styleMedia={styleMediaMap[mediaKey]} // ✅ style-wise media
@@ -604,10 +629,11 @@ export default function FloorDashboardPage() {
                         key={`${segKey}__${idx}`}
                         type="button"
                         onClick={() => setCurrentCardIndex(idx)}
-                        className={`h-2 rounded-full transition-all duration-300 ${idx === safeIndex
+                        className={`h-2 rounded-full transition-all duration-300 ${
+                          idx === safeIndex
                             ? "w-5 bg-sky-400"
                             : "w-2 bg-slate-600 hover:bg-slate-400"
-                          }`}
+                        }`}
                       />
                     );
                   })}
@@ -642,8 +668,13 @@ function LineCard({ lineData, header, styleMedia, wipData }) {
   const style = header?.style || lineData?.style || "-";
   const runDay = header?.run_day ?? header?.runDay ?? "-";
   const smv = header?.smv ?? "-";
-  const item = header?.Item || lineData?.Item | "-";
-  const colorModel = header?.color_model || header?.colorModel || header?.color || "-";
+
+  // ✅ FIX: you had bitwise OR (|). This must be || to work correctly.
+  const item = header?.Item || lineData?.Item || "-";
+
+  const colorModel =
+    header?.color_model || header?.colorModel || header?.color || "-";
+
   // ✅ ONLY image/video from style-media (style-wise)
   const imageSrc = styleMedia?.imageSrc || "";
   const videoSrc = styleMedia?.videoSrc || "";
@@ -653,6 +684,10 @@ function LineCard({ lineData, header, styleMedia, wipData }) {
   const rawPlan = targetQty > 0 ? (achievedQty / targetQty) * 100 : 0;
   const planPercent = clampPercent(rawPlan);
   const varianceQty = production?.varianceQty ?? 0;
+
+  // ✅ NEW (no design change): previous working day achieved
+  const prevWorkingDate = production?.prevWorkingDate || null;
+  const prevWorkingAchievedQty = production?.prevWorkingAchievedQty ?? 0;
 
   const rft = clampPercent(quality?.rftPercent ?? 0);
   const dhu = clampPercent(quality?.dhuPercent ?? 0);
@@ -702,7 +737,7 @@ function LineCard({ lineData, header, styleMedia, wipData }) {
               <span className="badge border-sky-500/60 bg-sky-500/10 text-sky-100 text-[9px]">
                 Run Day: <span className="font-semibold">{runDay}</span>
               </span>
-               <span className="badge border-sky-500/60 bg-sky-500/10 text-sky-100 text-[9px]">
+              <span className="badge border-sky-500/60 bg-sky-500/10 text-sky-100 text-[9px]">
                 Item: <span className="font-semibold">{item}</span>
               </span>
               <span className="badge border-sky-500/60 bg-sky-500/10 text-sky-100 text-[9px]">
@@ -729,7 +764,17 @@ function LineCard({ lineData, header, styleMedia, wipData }) {
                 <span className="font-semibold">{formatNumber(achievedQty, 0)}</span>
               </div>
 
-              <div className={varianceQty >= 0 ? "text-emerald-400" : "text-rose-400"}>
+              {/* ✅ NEW line (same box, same style) */}
+              <div className="text-slate-200">
+                Last Day ({prevWorkingDate || "-"}):{" "}
+                <span className="font-semibold">
+                  {formatNumber(prevWorkingAchievedQty, 0)}
+                </span>
+              </div>
+
+              <div
+                className={varianceQty >= 0 ? "text-emerald-400" : "text-rose-400"}
+              >
                 Var:{" "}
                 <span className="font-semibold">{formatNumber(varianceQty, 0)}</span>
               </div>
@@ -845,11 +890,10 @@ function TvLineCard({
   factory,
   building,
   date,
-  refreshTick, // ✅
+  refreshTick,
 }) {
   const { line, quality, production } = lineData || {};
 
-  // ✅ from header (not style-media)
   const buyer = header?.buyer || lineData?.buyer || "-";
   const style = header?.style || lineData?.style || "-";
   const item = header?.item || header?.style_item || header?.Item || "Item";
@@ -862,7 +906,6 @@ function TvLineCard({
   const runDay = header?.run_day ?? header?.runDay ?? "-";
   const smv = header?.smv ?? "-";
 
-  // ✅ ONLY from style-media (style-wise)
   const imageSrc = styleMedia?.imageSrc || "";
   const videoSrc = styleMedia?.videoSrc || "";
 
@@ -871,6 +914,10 @@ function TvLineCard({
   const rawPlan = targetQty > 0 ? (achievedQty / targetQty) * 100 : 0;
   const planPercent = clampPercent(rawPlan);
   const varianceQty = production?.varianceQty ?? 0;
+
+  // ✅ NEW (no design change): previous working day achieved
+  const prevWorkingDate = production?.prevWorkingDate || null;
+  const prevWorkingAchievedQty = production?.prevWorkingAchievedQty ?? 0;
 
   const rft = clampPercent(quality?.rftPercent ?? 0);
   const dhu = clampPercent(quality?.dhuPercent ?? 0);
@@ -893,7 +940,6 @@ function TvLineCard({
   const totalAchieved = wipData?.totalAchieved ?? 0;
 
   const isBehind = varianceQty < 0;
-
   const headerId = header?._id || header?.id || "";
 
   const [varianceLoading, setVarianceLoading] = useState(false);
@@ -1012,34 +1058,41 @@ function TvLineCard({
         <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-2 border-b border-slate-800/70 pb-2">
           <div className="flex flex-wrap gap-1.5">
             <span className="badge badge-lg border-slate-600 bg-slate-900/80 text-amber-100">
-              Buyer:&nbsp;<span className="font-semibold text-amber-300">{buyer}</span>
+              Buyer:&nbsp;
+              <span className="font-semibold text-amber-300">{buyer}</span>
             </span>
             <span className="badge badge-lg border-fuchsia-500/70 bg-fuchsia-500/10 text-fuchsia-100">
-              Style:&nbsp;<span className="font-semibold text-fuchsia-300">{style}</span>
-            </span>
-            {/* <span className="badge badge-lg border-cyan-500/70 bg-cyan-500/10 text-cyan-100">
-              Item:&nbsp;<span className="font-semibold text-cyan-300">{item}</span>
-            </span> */}
-            <span className="badge badge-lg border-emerald-500/70 bg-emerald-500/10 text-emerald-100">
-              Run Day:&nbsp;<span className="font-semibold text-emerald-300">{runDay}</span>
+              Style:&nbsp;
+              <span className="font-semibold text-fuchsia-300">{style}</span>
             </span>
             <span className="badge badge-lg border-emerald-500/70 bg-emerald-500/10 text-emerald-100">
-              SMV:&nbsp;<span className="font-semibold text-emerald-300">{smv}</span>
+              Run Day:&nbsp;
+              <span className="font-semibold text-emerald-300">{runDay}</span>
+            </span>
+            <span className="badge badge-lg border-emerald-500/70 bg-emerald-500/10 text-emerald-100">
+              SMV:&nbsp;
+              <span className="font-semibold text-emerald-300">{smv}</span>
             </span>
             <span className="badge badge-lg border-emerald-500/70 bg-emerald-500/10 text-emerald-100">
               Man Power:&nbsp;
-              <span className="font-semibold text-emerald-300">{manpowerPresent}</span>
+              <span className="font-semibold text-emerald-300">
+                {manpowerPresent}
+              </span>
             </span>
             <span className="badge badge-lg border-fuchsia-300/70 bg bg-emerald-500/10 text-fuchsia-500/70">
-              Color/Model:&nbsp;<span className="font-semibold text-emerald-300">{colorModel}</span>
+              Color/Model:&nbsp;
+              <span className="font-semibold text-emerald-300">{colorModel}</span>
             </span>
             <span className="badge badge-lg border-emerald-500/70 bg-emerald-500/10 text-emerald-100">
-              Item:&nbsp;<span className="font-semibold text-emerald-300">{item}</span>
+              Item:&nbsp;
+              <span className="font-semibold text-emerald-300">{item}</span>
             </span>
           </div>
 
           <div className="text-right">
-            <div className="text-[11px] uppercase tracking-wide text-slate-400">Line</div>
+            <div className="text-[11px] uppercase tracking-wide text-slate-400">
+              Line
+            </div>
             <div className="text-3xl md:text-4xl font-semibold text-cyan-300 drop-shadow-[0_0_24px_rgba(34,211,238,0.9)]">
               {line}
             </div>
@@ -1102,7 +1155,9 @@ function TvLineCard({
             {/* PLAN vs ACHV */}
             <div className="rounded-2xl border border-sky-700 bg-gradient-to-br from-sky-900/50 via-slate-950 to-slate-900/95 p-3 md:p-3.5 flex flex-col gap-2.5">
               <div className="flex items-center justify-between text-[11px]">
-                <span className="uppercase tracking-wide text-sky-200">Plan vs Achieved</span>
+                <span className="uppercase tracking-wide text-sky-200">
+                  Plan vs Achieved
+                </span>
                 <span className="badge badge-outline border-sky-500/60 bg-slate-950/80 text-[10px] text-sky-100">
                   Plan: {formatNumber(planPercent, 1)}%
                 </span>
@@ -1112,16 +1167,47 @@ function TvLineCard({
                 <KpiPie value={planPercent} label="" color="#22d3ee" size={96} />
 
                 <div className="grid grid-cols-2 md:grid-cols-3 gap-2 w-full text-[11px] md:text-xs">
-                  <TvStatBox label="Target" value={formatNumber(targetQty, 0)} accent="text-sky-200 border-sky-500/80" />
-                  <TvStatBox label="Achieved" value={formatNumber(achievedQty, 0)} accent="text-emerald-200 border-emerald-500/80" />
+                  <TvStatBox
+                    label="Target"
+                    value={formatNumber(targetQty, 0)}
+                    accent="text-sky-200 border-sky-500/80"
+                  />
+                  <TvStatBox
+                    label="Achieved"
+                    value={formatNumber(achievedQty, 0)}
+                    accent="text-emerald-200 border-emerald-500/80"
+                  />
                   <TvStatBox
                     label="Variance"
                     value={formatNumber(varianceQty, 0)}
-                    accent={varianceQty >= 0 ? "text-emerald-200 border-emerald-500/80" : "text-rose-200 border-rose-500/80"}
+                    accent={
+                      varianceQty >= 0
+                        ? "text-emerald-200 border-emerald-500/80"
+                        : "text-rose-200 border-rose-500/80"
+                    }
                   />
-                  <TvStatBox label="Total Input" value={formatNumber(totalInput || 0, 0)} accent="text-cyan-200 border-cyan-500/80" />
-                  <TvStatBox label="WIP" value={formatNumber(wip || 0, 0)} accent="text-fuchsia-200 border-fuchsia-500/80" />
-                  <TvStatBox label="Upto Date Achieved" value={formatNumber(totalAchieved || 0, 0)} accent="text-fuchsia-200 border-fuchsia-500/80" />
+                  <TvStatBox
+                    label="Total Input"
+                    value={formatNumber(totalInput || 0, 0)}
+                    accent="text-cyan-200 border-cyan-500/80"
+                  />
+                  <TvStatBox
+                    label="WIP"
+                    value={formatNumber(wip || 0, 0)}
+                    accent="text-fuchsia-200 border-fuchsia-500/80"
+                  />
+                  <TvStatBox
+                    label="Upto Date Achieved"
+                    value={formatNumber(totalAchieved || 0, 0)}
+                    accent="text-fuchsia-200 border-fuchsia-500/80"
+                  />
+
+                  {/* ✅ NEW box (same component / same design) */}
+                  <TvStatBox
+                    label={`Last Day (${prevWorkingDate || "-"})`}
+                    value={formatNumber(prevWorkingAchievedQty || 0, 0)}
+                    accent="text-slate-200 border-slate-500/80"
+                  />
                 </div>
               </div>
             </div>
@@ -1129,35 +1215,68 @@ function TvLineCard({
             {/* QUALITY + EFF + VARIANCE */}
             <div className="rounded-2xl border border-amber-600 bg-gradient-to-br from-slate-950 via-slate-950 to-slate-900/95 p-3 flex flex-col gap-2 min-h-0">
               <div className="flex items-center justify-between text-[11px]">
-                <span className="uppercase tracking-wide text-amber-200">Production & Quality</span>
+                <span className="uppercase tracking-wide text-amber-200">
+                  Production & Quality
+                </span>
                 <div className="flex flex-wrap gap-1">
                   <span className="badge border-emerald-500/60 bg-emerald-500/10 text-[11px] text-emerald-100">
-                    Q Hour: <span className="font-semibold">{qualityHourLabel}</span>
+                    Q Hour:{" "}
+                    <span className="font-semibold">{qualityHourLabel}</span>
                   </span>
                   <span className="badge border-sky-500/60 bg-sky-500/10 text-[11px] text-sky-100">
-                    P Hour: <span className="font-semibold">{prodHourLabel}</span>
+                    P Hour:{" "}
+                    <span className="font-semibold">{prodHourLabel}</span>
                   </span>
                 </div>
               </div>
 
               <div className="grid grid-cols-2 lg:grid-cols-3 gap-2">
-                <KpiTile label="RFT%" value={`${formatNumber(rft, 1)}%`} tone="emerald" icon={Gauge} />
-                <KpiTile label="DEFECT RATE%" value={`${formatNumber(defectRate, 1)}%`} tone="red" icon={AlertTriangle} />
-                <KpiTile label="DHU%" value={`${formatNumber(dhu, 1)}%`} tone="amber" icon={Activity} />
-                <KpiTile label="HOURLY EFF%" value={`${formatNumber(hourlyEff, 1)}%`} tone="sky" icon={Gauge} />
-                <KpiTile label="AVG EFF%" value={`${formatNumber(avgEff, 1)}%`} tone="purple" icon={TrendingUp} />
+                <KpiTile
+                  label="RFT%"
+                  value={`${formatNumber(rft, 1)}%`}
+                  tone="emerald"
+                  icon={Gauge}
+                />
+                <KpiTile
+                  label="DEFECT RATE%"
+                  value={`${formatNumber(defectRate, 1)}%`}
+                  tone="red"
+                  icon={AlertTriangle}
+                />
+                <KpiTile
+                  label="DHU%"
+                  value={`${formatNumber(dhu, 1)}%`}
+                  tone="amber"
+                  icon={Activity}
+                />
+                <KpiTile
+                  label="HOURLY EFF%"
+                  value={`${formatNumber(hourlyEff, 1)}%`}
+                  tone="sky"
+                  icon={Gauge}
+                />
+                <KpiTile
+                  label="AVG EFF%"
+                  value={`${formatNumber(avgEff, 1)}%`}
+                  tone="purple"
+                  icon={TrendingUp}
+                />
               </div>
 
               <div className="mt-1 space-y-1 min-h-0">
                 <div className="flex items-center justify-between text-[11px] text-slate-200">
-                  <span className="uppercase tracking-wide text-amber-200">Hourly Variance</span>
+                  <span className="uppercase tracking-wide text-amber-200">
+                    Hourly Variance
+                  </span>
                   {varianceLoading ? (
                     <span className="flex items-center gap-1 text-[10px] text-slate-400">
                       <span className="loading loading-spinner loading-xs" />
                       Loading...
                     </span>
                   ) : (
-                    <span className="text-[10px] text-slate-400">Green = ahead, Red = behind</span>
+                    <span className="text-[10px] text-slate-400">
+                      Green = ahead, Red = behind
+                    </span>
                   )}
                 </div>
                 <div className="h-24 sm:h-28 md:h-32 lg:h-36 w-full">
@@ -1167,6 +1286,8 @@ function TvLineCard({
             </div>
           </div>
         </div>
+
+        {/* You can place more sections below if you already had them */}
       </div>
     </div>
   );
@@ -1231,18 +1352,24 @@ function MiniKpi({ label, value, color }) {
 function TvStatBox({ label, value, accent = "", big = false }) {
   return (
     <div
-      className={`rounded-xl border bg-slate-950/90 px-2 py-1.5 flex flex-col justify-center ${accent || "border-slate-600 text-slate-100"
-        }`}
+      className={`rounded-xl border bg-slate-950/90 px-2 py-1 flex flex-col justify-center leading-tight ${
+        accent || "border-slate-600 text-slate-100"
+      }`}
     >
-      <span className="text-[11px] uppercase tracking-wide text-slate-400">
+      <span className="text-[10px] uppercase tracking-wide text-slate-400 leading-none">
         {label}
       </span>
-      <span className={`font-semibold ${big ? "text-[15px]" : "text-[14px]"}`}>
+      <span
+        className={`font-semibold leading-none ${
+          big ? "text-[14px]" : "text-[13px]"
+        }`}
+      >
         {value}
       </span>
     </div>
   );
 }
+
 
 function VarianceBarChart({ data }) {
   const safe = (data || [])
@@ -1301,7 +1428,10 @@ function VarianceBarChart({ data }) {
           }}
           labelStyle={{ fontSize: 11, color: "#e2e8f0" }}
           itemStyle={{ fontSize: 11, color: "#e2e8f0" }}
-          formatter={(value) => [String(Math.round(toNumber(value, 0))), "Variance"]}
+          formatter={(value) => [
+            String(Math.round(toNumber(value, 0))),
+            "Variance",
+          ]}
         />
         <Bar dataKey="varianceQty" radius={[3, 3, 0, 0]}>
           {safe.map((entry, idx) => (

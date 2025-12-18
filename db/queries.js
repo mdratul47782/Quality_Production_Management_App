@@ -1,4 +1,5 @@
 // db/queries.js
+import { dbConnect } from "@/services/mongo";
 import { userModel } from "@/models/user-model";
 import { replaceMongoIdInObject } from "@/utils/data-util";
 
@@ -25,6 +26,7 @@ function parseMongoDuplicate(err) {
 
 async function createUser(user) {
   try {
+    await dbConnect(); // ✅ must
     const created = await userModel.create(user);
     return { success: true, data: replaceMongoIdInObject(created.toObject()) };
   } catch (err) {
@@ -41,6 +43,7 @@ async function createUser(user) {
 }
 
 async function findUserByCredentials(credentials) {
+  await dbConnect(); // ✅ must
   const user = await userModel.findOne(credentials).lean();
   if (user) return replaceMongoIdInObject(user);
   return null;

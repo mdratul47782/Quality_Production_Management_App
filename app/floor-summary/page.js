@@ -16,7 +16,16 @@ import {
 
 const factoryOptions = ["K-1", "K-2", "K-3"];
 
-const buildingOptions = ["A-2", "B-2", "A-3", "B-3", "A-4", "B-4", "A-5", "B-5"];
+const buildingOptions = [
+  "A-2",
+  "B-2",
+  "A-3",
+  "B-3",
+  "A-4",
+  "B-4",
+  "A-5",
+  "B-5",
+];
 
 // 🔹 Serial order for line labels
 const lineOrder = [
@@ -49,34 +58,27 @@ function clampPercent(value) {
   return Math.max(0, Math.min(100, n));
 }
 
+function clamp(value, min, max) {
+  const n = Number(value);
+  if (!Number.isFinite(n)) return min;
+  return Math.max(min, Math.min(max, n));
+}
+
 const labelColor = "#000000";
-const MIN_BAR_HEIGHT_FOR_LABEL = 14; // 🔹 below this, no label to avoid X-axis overlap
+const topLabelColor = "#e5e7eb";
 
-// 🔹 Vertical % label (inside bar, centered by bar height)
-const renderPercentLabelVertical = (props) => {
-  const { x, y, width, height, value } = props;
-  const num = Number(value);
-  if (!Number.isFinite(num)) return null;
+const MIN_BAR_HEIGHT_FOR_LABEL = 14; // below this, no inside label
+const MIN_BAR_WIDTH_FOR_TOP_LABEL = 14; // below this, no top label
 
-  // very small bar → skip label to avoid overlapping axis
-  if (!height || height < MIN_BAR_HEIGHT_FOR_LABEL) return null;
+function calcTopFontSize(width, height) {
+  // scale with bar size (graph size)
+  const w = Number(width) || 0;
+  const h = Number(height) || 0;
 
-  const cx = x + width / 2;
-  const cy = y + height / 2; // center of bar
-
-  return (
-    <text
-      x={cx}
-      y={cy}
-      fill={labelColor}
-      textAnchor="middle"
-      fontSize={30}
-      transform={`rotate(-90, ${cx}, ${cy})`}
-    >
-      {formatNumber(num, 1)}%
-    </text>
-  );
-};
+  // prefer width-based scaling; add small influence from height
+  const size = w * 0.28 + h * 0.02;
+  return clamp(size, 10, 18);
+}
 
 // 🔹 Vertical qty label (inside bar, centered by bar height)
 const renderQtyLabelVertical = (props) => {
@@ -103,6 +105,35 @@ const renderQtyLabelVertical = (props) => {
   );
 };
 
+// ✅ Top % label (above bar) — font size scales with graph/bar size
+const renderPercentLabelTop = (props) => {
+  const { x, y, width, height, value } = props;
+  const num = Number(value);
+  if (!Number.isFinite(num)) return null;
+
+  if (!width || width < MIN_BAR_WIDTH_FOR_TOP_LABEL) return null;
+
+  const cx = x + width / 2;
+
+  // put slightly above bar; keep inside chart area
+  const fs = calcTopFontSize(width, height);
+  const yy = Math.max(fs + 2, (Number(y) || 0) - 6);
+
+  return (
+    <text
+      x={cx}
+      y={yy}
+      fill={topLabelColor}
+      textAnchor="middle"
+      fontSize={fs}
+      fontWeight={800}
+      style={{ filter: "drop-shadow(0px 2px 4px rgba(0,0,0,0.65))" }}
+    >
+      {formatNumber(num, 1)}%
+    </text>
+  );
+};
+
 // ✅ Crown label (shows only on the "best" label in achieved bar)
 function makeCrownLabel(bestLabel) {
   return function renderCrownLabel(props) {
@@ -113,23 +144,23 @@ function makeCrownLabel(bestLabel) {
     if (!height || height < 6) return null;
 
     const cx = x + width / 2;
-    const cy = Math.max(24, y - 10); // ✅ a bit higher & safer
+    // move crown higher so it doesn't clash with top % label
+    const cy = Math.max(20, (Number(y) || 0) - 26);
 
     return (
       <text
         x={cx}
         y={cy}
         textAnchor="middle"
-        fontSize={26} // ✅ bigger crown
+        fontSize={24}
         fill="#fbbf24"
-        style={{ filter: "drop-shadow(0px 3px 6px rgba(0,0,0,0.75))" }} // ✅ stronger shadow
+        style={{ filter: "drop-shadow(0px 3px 6px rgba(0,0,0,0.75))" }}
       >
         👑
       </text>
     );
   };
 }
-
 
 // 🔹 helper: get serial order index for label
 function getLabelOrderIndex(label, isAllBuildings) {
@@ -155,7 +186,7 @@ function getBestLabelFromQtyData(qtyData) {
   for (const d of qtyData || []) {
     const target = Number(d?.target ?? 0);
     const achieved = Number(d?.achieved ?? 0);
-    const plan = target > 0 ? achieved / target : 0; // 0..1..1.2 etc
+    const plan = target > 0 ? achieved / target : 0;
 
     // plan% dominates, achieved breaks ties
     const score = plan * 1_000_000 + achieved;
@@ -274,11 +305,18 @@ export default function FloorSummaryPage() {
   // 🔹 Qty chart data (sorted same order)
   const qtyChartData = useMemo(() => {
     const src = isAllBuildings ? buildingsData : lines;
-    const mapped = (src || []).map((item) => ({
-      label: isAllBuildings ? item.building : item.line,
-      target: Number(item.production?.targetQty ?? 0),
-      achieved: Number(item.production?.achievedQty ?? 0),
-    }));
+    const mapped = (src || []).map((item) => {
+      const target = Number(item.production?.targetQty ?? 0);
+      const achieved = Number(item.production?.achievedQty ?? 0);
+      const planPercent = target > 0 ? (achieved / target) * 100 : null; // ✅ achievement % based on target
+
+      return {
+        label: isAllBuildings ? item.building : item.line,
+        target,
+        achieved,
+        planPercent,
+      };
+    });
 
     return mapped.sort(
       (a, b) =>
@@ -296,7 +334,9 @@ export default function FloorSummaryPage() {
   const overallPlanPercent =
     Number(production.totalTargetQty) > 0
       ? clampPercent(
-          (Number(production.totalAchievedQty) / Number(production.totalTargetQty)) * 100
+          (Number(production.totalAchievedQty) /
+            Number(production.totalTargetQty)) *
+            100
         )
       : 0;
 
@@ -511,17 +551,16 @@ export default function FloorSummaryPage() {
             <div className="rounded-2xl border border-slate-800 bg-slate-900/80 p-3">
               <div className="flex items-center justify-between mb-2">
                 <div className="text-[11px] uppercase tracking-wide text-sky-300">
-                  {isAllBuildings
-                    ? "Floor Efficiency (Hr vs Avg)"
-                    : "Line Efficiency (Hr vs Avg)"}
+                  {isAllBuildings ? "Floor Efficiency (Hr vs Avg)" : "Line Efficiency (Hr vs Avg)"}
                 </div>
                 <div className="text-[9px] text-slate-400">Bars capped at 0–150%</div>
               </div>
+
               <div className="h-60 w-full">
                 <ResponsiveContainer width="100%" height="100%">
                   <BarChart
                     data={effChartData}
-                    margin={{ top: 10, right: 10, left: 0, bottom: 30 }}
+                    margin={{ top: 24, right: 10, left: 0, bottom: 30 }} // ✅ more top space for % labels
                   >
                     <CartesianGrid strokeDasharray="3 3" stroke="#1f2937" />
                     <XAxis
@@ -545,18 +584,16 @@ export default function FloorSummaryPage() {
                       formatter={(value) => `${formatNumber(value, 1)} %`}
                     />
                     <Legend wrapperStyle={{ fontSize: 10, color: "#e5e7eb" }} />
-                    <Bar
-                      dataKey="hourlyEff"
-                      name="Hr Eff%"
-                      fill="#22c55e"
-                      radius={[4, 4, 0, 0]}
-                    />
-                    <Bar
-                      dataKey="avgEff"
-                      name="Avg Eff%"
-                      fill="#3b82f6"
-                      radius={[4, 4, 0, 0]}
-                    />
+
+                    <Bar dataKey="hourlyEff" name="Hr Eff%" fill="#22c55e" radius={[4, 4, 0, 0]}>
+                      {/* ✅ top % label */}
+                      <LabelList dataKey="hourlyEff" content={renderPercentLabelTop} />
+                    </Bar>
+
+                    <Bar dataKey="avgEff" name="Avg Eff%" fill="#3b82f6" radius={[4, 4, 0, 0]}>
+                      {/* ✅ top % label */}
+                      <LabelList dataKey="avgEff" content={renderPercentLabelTop} />
+                    </Bar>
                   </BarChart>
                 </ResponsiveContainer>
               </div>
@@ -574,12 +611,10 @@ export default function FloorSummaryPage() {
                   {isAllBuildings ? "Per-building quality percentages" : "Per-line quality percentages"}
                 </div>
               </div>
+
               <div className="h-60 w-full">
                 <ResponsiveContainer width="100%" height="100%">
-                  <BarChart
-                    data={qualityChartData}
-                    margin={{ top: 10, right: 10, left: 0, bottom: 30 }}
-                  >
+                  <BarChart data={qualityChartData} margin={{ top: 10, right: 10, left: 0, bottom: 30 }}>
                     <CartesianGrid strokeDasharray="3 3" stroke="#1f2937" />
                     <XAxis
                       dataKey="label"
@@ -604,12 +639,7 @@ export default function FloorSummaryPage() {
                     <Legend wrapperStyle={{ fontSize: 10, color: "#e5e7eb" }} />
                     <Bar dataKey="rft" name="RFT%" fill="#22c55e" radius={[4, 4, 0, 0]} />
                     <Bar dataKey="dhu" name="DHU%" fill="#eab308" radius={[4, 4, 0, 0]} />
-                    <Bar
-                      dataKey="defectRate"
-                      name="Defect Rate%"
-                      fill="#ef4444"
-                      radius={[4, 4, 0, 0]}
-                    />
+                    <Bar dataKey="defectRate" name="Defect Rate%" fill="#ef4444" radius={[4, 4, 0, 0]} />
                   </BarChart>
                 </ResponsiveContainer>
               </div>
@@ -619,9 +649,7 @@ export default function FloorSummaryPage() {
             <div className="rounded-2xl border border-slate-800 bg-slate-900/80 p-3 lg:col-span-2">
               <div className="flex items-center justify-between mb-2">
                 <div className="text-[11px] uppercase tracking-wide text-cyan-300">
-                  {isAllBuildings
-                    ? "Floor Target vs Achieved (Qty)"
-                    : "Line Target vs Achieved (Qty)"}
+                  {isAllBuildings ? "Floor Target vs Achieved (Qty)" : "Line Target vs Achieved (Qty)"}
                 </div>
 
                 {/* ✅ Show best label text */}
@@ -633,10 +661,7 @@ export default function FloorSummaryPage() {
 
               <div className="h-64 w-full">
                 <ResponsiveContainer width="100%" height="100%">
-                  <BarChart
-                    data={qtyChartData}
-                    margin={{ top: 18, right: 10, left: 0, bottom: 40 }}
-                  >
+                  <BarChart data={qtyChartData} margin={{ top: 28, right: 10, left: 0, bottom: 40 }}>
                     <CartesianGrid strokeDasharray="3 3" stroke="#1f2937" />
                     <XAxis
                       dataKey="label"
@@ -644,10 +669,7 @@ export default function FloorSummaryPage() {
                       interval={0}
                       height={60}
                     />
-                    <YAxis
-                      tick={{ fill: "#e5e7eb", fontSize: 10 }}
-                      tickFormatter={(v) => formatNumber(v, 0)}
-                    />
+                    <YAxis tick={{ fill: "#e5e7eb", fontSize: 10 }} tickFormatter={(v) => formatNumber(v, 0)} />
                     <Tooltip
                       contentStyle={{
                         backgroundColor: "#020617",
@@ -674,8 +696,12 @@ export default function FloorSummaryPage() {
                       fill="oklch(60.3% 0.11 240.79)"
                       radius={[4, 4, 0, 0]}
                     >
-                      {/* qty label */}
+                      {/* qty label (inside) */}
                       <LabelList dataKey="achieved" content={renderQtyLabelVertical} />
+
+                      {/* ✅ achievement % on top (based on target) */}
+                      <LabelList dataKey="planPercent" content={renderPercentLabelTop} />
+
                       {/* ✅ crown label (value comes from item.label) */}
                       <LabelList dataKey="label" content={makeCrownLabel(bestQtyLabel)} />
                     </Bar>
@@ -687,9 +713,7 @@ export default function FloorSummaryPage() {
         ) : (
           !loading &&
           !error && (
-            <p className="text-[11px] text-slate-500">
-              No data for this factory / building / date yet.
-            </p>
+            <p className="text-[11px] text-slate-500">No data for this factory / building / date yet.</p>
           )
         )}
       </div>
@@ -699,15 +723,9 @@ export default function FloorSummaryPage() {
 
 function MetricBox({ label, value, accent = "" }) {
   return (
-    <div
-      className={`rounded-xl border bg-slate-950/80 px-2 py-1.5 flex flex-col gap-0.5 ${accent}`}
-    >
-      <span className="text-[9px] uppercase tracking-wide text-slate-400">
-        {label}
-      </span>
+    <div className={`rounded-xl border bg-slate-950/80 px-2 py-1.5 flex flex-col gap-0.5 ${accent}`}>
+      <span className="text-[9px] uppercase tracking-wide text-slate-400">{label}</span>
       <span className="text-[12px] font-semibold">{value}</span>
     </div>
   );
 }
-
-

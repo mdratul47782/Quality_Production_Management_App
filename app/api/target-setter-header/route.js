@@ -43,13 +43,33 @@ export async function GET(req) {
     const Item = searchParams.get("Item");
     const factory = searchParams.get("factory");
 
+    // ✅ new: prefill support
+    const latest = searchParams.get("latest"); // "1"
+    const beforeDate = searchParams.get("beforeDate"); // YYYY-MM-DD
+
     if (assigned_building) filters.assigned_building = assigned_building;
     if (line) filters.line = line;
-    if (date) filters.date = date;
     if (buyer) filters.buyer = buyer;
     if (style) filters.style = style;
     if (Item) filters.Item = Item;
     if (factory) filters.factory = factory;
+
+    // ✅ if latest=1 -> return latest previous doc (date < beforeDate)
+    if (latest === "1") {
+      if (beforeDate) {
+        filters.date = { $lt: beforeDate };
+      }
+
+      const doc = await TargetSetterHeader.findOne(filters).sort({
+        date: -1,
+        createdAt: -1,
+      });
+
+      return NextResponse.json({ success: true, data: doc || null });
+    }
+
+    // normal list (exact date)
+    if (date) filters.date = date;
 
     const headers = await TargetSetterHeader.find(filters).sort({ createdAt: -1 });
 

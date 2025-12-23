@@ -1,7 +1,7 @@
 // app/components/ProductionInputForm.jsx
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useAuth } from "../hooks/useAuth";
 
 const lines = [
@@ -92,11 +92,14 @@ function getAuthUserInfo(auth) {
 
   if (!id) return null;
 
-  return {
-    id,
-    user_name,
-    role,
-  };
+  return { id, user_name, role };
+}
+
+function computeAbsent(total, present) {
+  const t = Number(total);
+  const p = Number(present);
+  if (!Number.isFinite(t) || !Number.isFinite(p)) return "";
+  return String(Math.max(0, t - p));
 }
 
 export default function ProductionInputForm() {
@@ -125,9 +128,16 @@ export default function ProductionInputForm() {
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
 
+  // ✅ prefill state
+  const [prefillLoading, setPrefillLoading] = useState(false);
+  const [prefillFromDate, setPrefillFromDate] = useState("");
+
+  // track if user already typed (so we don't overwrite)
+  const formDirtyRef = useRef(false);
+  const lastPrefillKeyRef = useRef("");
+
   const assignedBuilding =
     auth?.assigned_building || auth?.user?.assigned_building || "";
-  // 🔹 factory from auth
   const factory =
     auth?.factory || auth?.user?.factory || auth?.assigned_factory || "";
 
@@ -142,16 +152,23 @@ export default function ProductionInputForm() {
     ]
   );
 
-  const busy = saving || loadingHeaders || authLoading;
+  const busy = saving || loadingHeaders || authLoading || prefillLoading;
 
   const resetForm = () => {
     setForm(initialForm);
     setEditingId(null);
+    setPrefillFromDate("");
+    formDirtyRef.current = false;
   };
 
   // ---------- input change ----------
   const handleChange = (e) => {
     const { name, value } = e.target;
+
+    // mark dirty for real editable inputs
+    if (name !== "manpower_absent" && name !== "target_preview") {
+      formDirtyRef.current = true;
+    }
 
     setForm((prev) => {
       const nextValue =
@@ -244,6 +261,87 @@ export default function ProductionInputForm() {
 
     fetchHeaders();
   }, [authLoading, assignedBuilding, factory, selectedLine, selectedDate]);
+
+  // ✅ AUTO-PREFILL: when no data exists for selectedDate, pull latest previous day for same line
+  useEffect(() => {
+    if (authLoading) return;
+    if (!assignedBuilding || !factory || !selectedLine || !selectedDate) return;
+    if (editingId) return; // don't override edit mode
+    if (loadingHeaders) return; // wait list load finished
+    if (headers.length > 0) return; // today already has target, don't prefill
+    if (formDirtyRef.current) return; // user already started typing, don't overwrite
+
+    const key = `${factory}|${assignedBuilding}|${selectedLine}|${selectedDate}`;
+    if (lastPrefillKeyRef.current === key) return; // avoid duplicate calls for same selection
+
+    lastPrefillKeyRef.current = key;
+
+    const run = async () => {
+      try {
+        setPrefillLoading(true);
+        setPrefillFromDate("");
+
+        const url = new URL("/api/target-setter-header", window.location.origin);
+        url.searchParams.set("assigned_building", assignedBuilding);
+        url.searchParams.set("line", selectedLine);
+        url.searchParams.set("factory", factory);
+        url.searchParams.set("latest", "1");
+        url.searchParams.set("beforeDate", selectedDate); // pull previous (< selectedDate)
+
+        const res = await fetch(url, { cache: "no-store" });
+        const json = await res.json();
+
+        if (!res.ok || !json.success) return;
+        const prev = json.data;
+        if (!prev) return;
+
+        // ✅ Fill everything, but keep run_day blank (must enter each working day)
+        const total = prev.total_manpower != null ? String(prev.total_manpower) : "";
+        const present =
+          prev.manpower_present != null ? String(prev.manpower_present) : "";
+        const absent = computeAbsent(total, present);
+
+        setForm({
+          buyer: prev.buyer || "",
+          style: prev.style || "",
+          Item: (prev.Item || "").toUpperCase(),
+          run_day: "", // ❗ user must input every day
+          color_model: (prev.color_model || "").toUpperCase(),
+          total_manpower: total,
+          manpower_present: present,
+          manpower_absent: absent,
+          working_hour:
+            prev.working_hour != null ? String(prev.working_hour) : "",
+          plan_quantity:
+            prev.plan_quantity != null ? String(prev.plan_quantity) : "",
+          plan_efficiency_percent:
+            prev.plan_efficiency_percent != null
+              ? String(prev.plan_efficiency_percent)
+              : "",
+          smv: prev.smv != null ? String(prev.smv) : "",
+          capacity: prev.capacity != null ? String(prev.capacity) : "",
+        });
+
+        formDirtyRef.current = false; // still clean after prefill
+        setPrefillFromDate(prev.date || "");
+      } catch (e) {
+        console.error("Prefill error:", e);
+      } finally {
+        setPrefillLoading(false);
+      }
+    };
+
+    run();
+  }, [
+    authLoading,
+    assignedBuilding,
+    factory,
+    selectedLine,
+    selectedDate,
+    loadingHeaders,
+    headers.length,
+    editingId,
+  ]);
 
   // ---------- submit (create / update) ----------
   const handleSubmit = async (e) => {
@@ -339,7 +437,9 @@ export default function ProductionInputForm() {
           ? "Target header updated successfully."
           : "Target header created successfully."
       );
+
       resetForm();
+      lastPrefillKeyRef.current = ""; // allow prefill again if user changes date/line
 
       // refetch list
       if (assignedBuilding && selectedLine && selectedDate && factory) {
@@ -374,7 +474,10 @@ export default function ProductionInputForm() {
   const handleEdit = (header) => {
     setError("");
     setSuccess("");
+    setPrefillFromDate("");
     setEditingId(header._id);
+
+    formDirtyRef.current = false;
 
     setForm({
       buyer: header.buyer || "",
@@ -525,6 +628,25 @@ export default function ProductionInputForm() {
             </div>
           )}
 
+          {/* ✅ Prefill message */}
+          {!editingId && selectedLine && selectedDate && headers.length === 0 && (
+            <div className="text-[11px] text-slate-700 font-semibold">
+              {prefillLoading ? (
+                <span className="badge badge-sm bg-slate-200 text-slate-800 border-0">
+                  Prefilling from previous day...
+                </span>
+              ) : prefillFromDate ? (
+                <span className="badge badge-sm bg-emerald-100 text-emerald-900 border-0">
+                  Auto filled from {prefillFromDate} (Run day is blank)
+                </span>
+              ) : (
+                <span className="badge badge-sm bg-amber-100 text-amber-900 border-0">
+                  No previous target found for this line
+                </span>
+              )}
+            </div>
+          )}
+
           {/* Form + Existing list side by side */}
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-3 items-start">
             {/* Form section (left) */}
@@ -538,10 +660,10 @@ export default function ProductionInputForm() {
                   {editingId ? "Edit Target Header" : "New Target Header"}
                 </h3>
                 <div className="flex flex-wrap gap-1 text-[10px] text-slate-600">
-                  <span className="badge badge-ghost badge-xs border-slate-200 font-semibold text-slate-1000 px-2 py-0.5">
+                  <span className="badge badge-ghost badge-xs border-slate-200 font-semibold px-2 py-0.5">
                     {selectedDate || "Select date"}
                   </span>
-                  <span className="badge badge-ghost badge-xs border-slate-200 font-semibold text-slate-10000 px-2 py-0.5">
+                  <span className="badge badge-ghost badge-xs border-slate-200 font-semibold px-2 py-0.5">
                     {selectedLine || "Select line"}
                   </span>
                 </div>
@@ -589,7 +711,7 @@ export default function ProductionInputForm() {
                   name="run_day"
                   value={form.run_day}
                   onChange={handleChange}
-                  placeholder="0"
+                  placeholder="(Required daily)"
                   type="number"
                 />
 

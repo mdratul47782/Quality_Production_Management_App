@@ -54,7 +54,7 @@ export default function HourlyProductionBoard() {
   const assignedBuilding =
     auth?.assigned_building || auth?.user?.assigned_building || "";
 
-  // 🔹 NEW: factory from auth (you can adjust keys as per your auth shape)
+  // 🔹 factory from auth (adjust keys if needed)
   const factory =
     auth?.factory ||
     auth?.assigned_factory ||
@@ -84,10 +84,7 @@ export default function HourlyProductionBoard() {
           date: selectedDate,
         });
 
-        // 🔹 include factory if available (backend GET can filter on this)
-        if (factory) {
-          params.set("factory", factory);
-        }
+        if (factory) params.set("factory", factory);
 
         const res = await fetch(
           `/api/target-setter-header?${params.toString()}`,
@@ -224,7 +221,7 @@ export default function HourlyProductionBoard() {
         </div>
       </div>
 
-      {/* One card per header (e.g. 2h + 6h for same day) */}
+      {/* One card per header */}
       {headers.map((header) => (
         <HourlyHeaderCard key={header._id} header={header} auth={auth} />
       ))}
@@ -250,22 +247,20 @@ function HourlyHeaderCard({ header, auth }) {
   const [loadingRecords, setLoadingRecords] = useState(false);
   const [saving, setSaving] = useState(false);
   const [editingRecordId, setEditingRecordId] = useState(null);
-  const [deletingLatest, setDeletingLatest] = useState(false);
   const [error, setError] = useState("");
   const [message, setMessage] = useState("");
 
-  // Capacity + WIP state
-  const [capacityInput, setCapacityInput] = useState("");
-  const [capacityRecord, setCapacityRecord] = useState(null);
-  const [capacitySaving, setCapacitySaving] = useState(false);
-  const [capacityLoading, setCapacityLoading] = useState(false);
+  // Total Input + WIP state
+  const [totalInput, setTotalInput] = useState("");
+  const [totalInputSaving, setTotalInputSaving] = useState(false);
+  const [totalInputLoading, setTotalInputLoading] = useState(false);
   const [wipInfo, setWipInfo] = useState(null);
   const [wipLoading, setWipLoading] = useState(false);
 
   const productionUserId =
     auth?.user?.id || auth?.user?._id || auth?.id || auth?._id || "";
 
-  // 🔹 factory resolved from header > auth
+  // factory resolved from header > auth
   const factory =
     header?.factory ||
     auth?.factory ||
@@ -274,7 +269,7 @@ function HourlyHeaderCard({ header, auth }) {
     auth?.user?.assigned_factory ||
     "";
 
-  // 🔁 helper – reload only WIP (for realtime update after save)
+  // reload only WIP
   const refreshWip = async () => {
     if (!header || !factory) return;
 
@@ -296,9 +291,7 @@ function HourlyHeaderCard({ header, auth }) {
 
       if (resWip.ok) {
         const jsonWip = await resWip.json();
-        if (jsonWip.success) {
-          setWipInfo(jsonWip.data);
-        }
+        if (jsonWip.success) setWipInfo(jsonWip.data);
       }
     } catch (err) {
       console.error(err);
@@ -316,8 +309,7 @@ function HourlyHeaderCard({ header, auth }) {
     setError("");
     setMessage("");
 
-    setCapacityInput("");
-    setCapacityRecord(null);
+    setTotalInput("");
     setWipInfo(null);
   }, [header?._id]);
 
@@ -336,8 +328,6 @@ function HourlyHeaderCard({ header, auth }) {
         const params = new URLSearchParams({
           headerId: header._id,
           productionUserId: productionUserId,
-          // ❗ we could pass factory, but for headerId-specific fetch
-          // backend already knows the context, so it's optional.
         });
 
         const res = await fetch(
@@ -370,7 +360,7 @@ function HourlyHeaderCard({ header, auth }) {
     return () => controller.abort();
   }, [header?._id, productionUserId]);
 
-  // Capacity + WIP fetch for this factory/style/building/line/buyer/date (initial)
+  // Total Input + WIP fetch (initial)
   useEffect(() => {
     if (!header) return;
 
@@ -378,7 +368,7 @@ function HourlyHeaderCard({ header, auth }) {
 
     const fetchCapacityAndWip = async () => {
       try {
-        setCapacityLoading(true);
+        setTotalInputLoading(true);
         setWipLoading(true);
 
         const baseParams = new URLSearchParams({
@@ -388,35 +378,27 @@ function HourlyHeaderCard({ header, auth }) {
           style: header.style,
         });
 
-        if (factory) {
-          baseParams.set("factory", factory);
-        }
+        if (factory) baseParams.set("factory", factory);
 
-        // Capacity
+        // Total Input (stored in style-capacities as "capacity")
         try {
           const resCap = await fetch(
             `/api/style-capacities?${baseParams.toString()}`,
-            {
-              cache: "no-store",
-              signal: controller.signal,
-            }
+            { cache: "no-store", signal: controller.signal }
           );
 
           if (resCap.ok) {
             const jsonCap = await resCap.json();
             if (jsonCap.success) {
               const doc = jsonCap.data?.[0] || null;
-              setCapacityRecord(doc);
-              setCapacityInput(
-                doc?.capacity != null ? String(doc.capacity) : ""
-              );
+              setTotalInput(doc?.capacity != null ? String(doc.capacity) : "");
             }
           }
         } catch (err) {
           if (err.name !== "AbortError") console.error(err);
         }
 
-        // WIP (factory required in backend)
+        // WIP
         try {
           if (!factory) {
             console.warn("No factory set – WIP cannot be calculated");
@@ -432,24 +414,19 @@ function HourlyHeaderCard({ header, auth }) {
 
             const resWip = await fetch(
               `/api/style-wip?${wipParams.toString()}`,
-              {
-                cache: "no-store",
-                signal: controller.signal,
-              }
+              { cache: "no-store", signal: controller.signal }
             );
 
             if (resWip.ok) {
               const jsonWip = await resWip.json();
-              if (jsonWip.success) {
-                setWipInfo(jsonWip.data);
-              }
+              if (jsonWip.success) setWipInfo(jsonWip.data);
             }
           }
         } catch (err) {
           if (err.name !== "AbortError") console.error(err);
         }
       } finally {
-        setCapacityLoading(false);
+        setTotalInputLoading(false);
         setWipLoading(false);
       }
     };
@@ -463,6 +440,7 @@ function HourlyHeaderCard({ header, auth }) {
     header?.buyer,
     header?.style,
     header?.date,
+    header,
     factory,
   ]);
 
@@ -475,7 +453,7 @@ function HourlyHeaderCard({ header, auth }) {
   const planEfficiencyPercent = header.plan_efficiency_percent ?? 0;
   const planEffDecimal = planEfficiencyPercent / 100;
   const targetFullDay = header.target_full_day ?? 0;
-  const CapacityFromHeader = header.capacity ?? 0;
+  const capacityFromHeader = header.capacity ?? 0;
   const plan_quantity = header.plan_quantity ?? 0;
 
   const hoursOptions = Array.from(
@@ -541,7 +519,7 @@ function HourlyHeaderCard({ header, auth }) {
     };
   });
 
-  // 👉 TOTALS for summary row
+  // totals for summary row
   const hasRecords = recordsDecorated.length > 0;
 
   const totalAchievedAll = hasRecords
@@ -554,6 +532,7 @@ function HourlyHeaderCard({ header, auth }) {
   const lastRecord = hasRecords
     ? recordsDecorated[recordsDecorated.length - 1]
     : null;
+
   const latestRecord = lastRecord;
 
   const totalNetVarVsBaseToDate = lastRecord?._netVarVsBaseToDate ?? 0;
@@ -622,16 +601,14 @@ function HourlyHeaderCard({ header, auth }) {
       setError("");
       setMessage("");
 
-      if (!header?._id) {
-        throw new Error("Missing headerId");
-      }
+      if (!header?._id) throw new Error("Missing headerId");
 
       const hourNum = Number(selectedHour);
 
-      const existing = hourlyRecords.find(
-        (rec) => Number(rec.hour) === hourNum
-      );
+      const existing = hourlyRecords.find((rec) => Number(rec.hour) === hourNum);
+
       if (editingRecordId) {
+        // edit only latest
         if (!latestRecord || editingRecordId !== latestRecord._id) {
           setError("Only the last saved hour can be edited.");
           return;
@@ -644,7 +621,7 @@ function HourlyHeaderCard({ header, auth }) {
         }
       } else if (existing) {
         setError(
-          `Hour ${hourNum} is already saved. Use "Edit last hour" to change the latest entry or delete it first.`
+          `Hour ${hourNum} is already saved. Use "Edit last hour" to change the latest entry.`
         );
         return;
       }
@@ -680,6 +657,10 @@ function HourlyHeaderCard({ header, auth }) {
 
       const json = await res.json();
 
+      // ✅ show full response with _id (if backend returns data)
+      console.log("Hourly save response:", json);
+      console.log("Saved _id:", json?.data?._id);
+
       if (!res.ok || !json.success) {
         throw new Error(
           json?.errors?.join(", ") ||
@@ -694,20 +675,19 @@ function HourlyHeaderCard({ header, auth }) {
         productionUserId: productionUserId,
       });
 
-      const resList = await fetch(
-        `/api/hourly-productions?${params.toString()}`
-      );
+      const resList = await fetch(`/api/hourly-productions?${params.toString()}`);
       const jsonList = await resList.json();
+
       if (resList.ok && jsonList.success) {
         setHourlyRecords(jsonList.data || []);
       }
 
-      // 🔁 realtime WIP refresh after new production saved
+      // realtime WIP refresh
       await refreshWip();
 
       setAchievedInput("");
       setEditingRecordId(null);
-      setMessage("Hourly record saved successfully.");
+      setMessage(editingRecordId ? "Last hour updated successfully." : "Hourly record saved successfully.");
     } catch (err) {
       console.error(err);
       setError(err.message || "Failed to save hourly record");
@@ -734,92 +714,24 @@ function HourlyHeaderCard({ header, auth }) {
     setMessage(`Editing last saved hour (${latestRecord._hourNum}).`);
   };
 
-  const handleDeleteLastHour = async () => {
-    if (!latestRecord) {
-      setError("No hourly record found to delete.");
-      return;
-    }
-    const ok = window.confirm(
-      `Delete last saved hour (${latestRecord._hourNum})?`
-    );
-    if (!ok) return;
-
-    try {
-      setError("");
-      setMessage("");
-      setDeletingLatest(true);
-
-      const query = factory ? `?factory=${encodeURIComponent(factory)}` : "";
-
-      const res = await fetch(
-        `/api/hourly-productions/${latestRecord._id}${query}`,
-        { method: "DELETE" }
-      );
-
-      const json = await res.json().catch(() => ({}));
-      if (!res.ok || !json.success) {
-        throw new Error(json.message || "Failed to delete last hour record.");
-      }
-
-      // reload list after delete
-      const params = new URLSearchParams({
-        headerId: header._id,
-        productionUserId: productionUserId,
-      });
-
-      const resList = await fetch(
-        `/api/hourly-productions?${params.toString()}`
-      );
-      const jsonList = await resList.json();
-      const newList = resList.ok && jsonList.success ? jsonList.data || [] : [];
-      setHourlyRecords(newList);
-
-      // reset form to next hour (or 1 if none)
-      const sorted = [...newList]
-        .map((rec) => ({ ...rec, _hourNum: Number(rec.hour) }))
-        .filter((rec) => Number.isFinite(rec._hourNum))
-        .sort((a, b) => a._hourNum - b._hourNum);
-      const newLast = sorted.length ? sorted[sorted.length - 1] : null;
-      setSelectedHour(newLast ? newLast._hourNum : 1);
-      setAchievedInput("");
-      setEditingRecordId(null);
-
-      await refreshWip();
-      setMessage("Last hour record deleted.");
-    } catch (err) {
-      console.error(err);
-      setError(err.message || "Failed to delete last hour record.");
-    } finally {
-      setDeletingLatest(false);
-    }
-  };
-
-  // ---------- Capacity save handler ----------
-  const handleCapacitySave = async () => {
+  // ---------- Total Input save handler ----------
+  const handleTotalInputSave = async () => {
     try {
       setError("");
       setMessage("");
 
-      if (!auth) {
-        throw new Error("User not authenticated");
-      }
+      if (!auth) throw new Error("User not authenticated");
+      if (!factory) throw new Error("Factory not set. Cannot save capacity.");
 
-      if (!factory) {
-        throw new Error("Factory not set. Cannot save capacity.");
-      }
-
-      const capNum = Number(capacityInput);
+      const capNum = Number(totalInput);
       if (!Number.isFinite(capNum) || capNum < 0) {
-        throw new Error("Capacity must be a non-negative number.");
+        throw new Error("Total input must be a non-negative number.");
       }
 
       const userId = auth?.user?.id || auth?.user?._id || auth?.id || auth?._id;
+      if (!userId) throw new Error("Missing user id for capacity user.");
 
-      if (!userId) {
-        throw new Error("Missing user id for capacity user.");
-      }
-
-      setCapacitySaving(true);
+      setTotalInputSaving(true);
 
       const payload = {
         factory,
@@ -846,28 +758,20 @@ function HourlyHeaderCard({ header, auth }) {
 
       if (!res.ok || !json.success) {
         throw new Error(
-          json?.errors?.join(", ") ||
-            json?.message ||
-            "Failed to save capacity."
+          json?.errors?.join(", ") || json?.message || "Failed to save capacity."
         );
       }
 
       const savedDoc = json.data;
+      setTotalInput(savedDoc?.capacity != null ? String(savedDoc.capacity) : "");
 
-      setCapacityRecord(savedDoc);
-      setCapacityInput(
-        savedDoc?.capacity != null ? String(savedDoc.capacity) : ""
-      );
-
-      // 🔁 realtime WIP refresh after capacity change
       await refreshWip();
-
-      setMessage("Capacity saved/updated successfully.");
+      setMessage("Total input saved/updated successfully.");
     } catch (err) {
       console.error(err);
-      setError(err.message || "Failed to save capacity.");
+      setError(err.message || "Failed to save total input.");
     } finally {
-      setCapacitySaving(false);
+      setTotalInputSaving(false);
     }
   };
 
@@ -921,8 +825,8 @@ function HourlyHeaderCard({ header, auth }) {
             </div>
             <div>
               <span className="font-semibold text-slate-1000">
-                Capacity : {CapacityFromHeader}
-              </span>{" "}
+                Total Input: {capacityFromHeader}
+              </span>
             </div>
             <div>
               <span className="font-semibold text-slate-1000">
@@ -1123,26 +1027,19 @@ function HourlyHeaderCard({ header, auth }) {
           </table>
         </div>
 
-        {/* Save button */}
+        {/* Buttons (✅ Delete removed, everything else same) */}
         <div className="flex flex-wrap items-center justify-end gap-2 text-xs">
           <button
             type="button"
             onClick={startEditLastHour}
             className="btn btn-xxs btn-outline border-amber-400 text-amber-800"
-            disabled={!latestRecord || saving || deletingLatest}
+            disabled={!latestRecord || saving}
           >
             {latestRecord
               ? `Edit last hour (${latestRecord._hourNum})`
               : "Edit last hour"}
           </button>
-          <button
-            type="button"
-            onClick={handleDeleteLastHour}
-            className="btn btn-xxs btn-outline border-red-400 text-red-700"
-            disabled={!latestRecord || saving || deletingLatest}
-          >
-            {deletingLatest ? "Deleting..." : "Delete last hour"}
-          </button>
+
           <button
             type="button"
             onClick={handleSave}
@@ -1163,7 +1060,6 @@ function HourlyHeaderCard({ header, auth }) {
             <div className="flex items-center gap-3">
               <span className="text-slate-1000 font-bold">
                 Total Input :
-                {/*It is mainly Capacity .previously i used it as capacity but then tolf me that it will be total input not capacity ,but i already did the code with capacity so i did no change */}
               </span>
 
               <input
@@ -1171,17 +1067,17 @@ function HourlyHeaderCard({ header, auth }) {
                 min="0"
                 step="1"
                 className="input input-xxs input-bordered w-15 h-10 text-[12px] font-bold "
-                value={capacityInput}
-                onChange={(e) => setCapacityInput(e.target.value)}
+                value={totalInput}
+                onChange={(e) => setTotalInput(e.target.value)}
                 placeholder="0"
               />
               <button
                 type="button"
-                onClick={handleCapacitySave}
+                onClick={handleTotalInputSave}
                 className="btn btn-xs btn-primary"
-                disabled={capacitySaving || wipLoading}
+                disabled={totalInputSaving || wipLoading}
               >
-                {capacitySaving ? "Saving..." : "Save / Update"}
+                {totalInputSaving ? "Saving..." : "Save / Update"}
               </button>
             </div>
           </div>
@@ -1192,7 +1088,7 @@ function HourlyHeaderCard({ header, auth }) {
                 Uptodate Production :
               </span>
               <span className="font-bold text-slate-1000">
-                {wipLoading || capacityLoading
+                {wipLoading || totalInputLoading
                   ? "..."
                   : wipInfo
                   ? formatNumber(wipInfo.totalAchieved, 0)
@@ -1209,7 +1105,7 @@ function HourlyHeaderCard({ header, auth }) {
                     : "text-emerald-1000"
                 }`}
               >
-                {wipLoading || capacityLoading
+                {wipLoading || totalInputLoading
                   ? "..."
                   : wipInfo
                   ? formatNumber(wipInfo.wip, 0)

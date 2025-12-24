@@ -249,6 +249,8 @@ function HourlyHeaderCard({ header, auth }) {
   const [hourlyRecords, setHourlyRecords] = useState([]);
   const [loadingRecords, setLoadingRecords] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [editingRecordId, setEditingRecordId] = useState(null);
+  const [deletingLatest, setDeletingLatest] = useState(false);
   const [error, setError] = useState("");
   const [message, setMessage] = useState("");
 
@@ -310,6 +312,7 @@ function HourlyHeaderCard({ header, auth }) {
     setSelectedHour(1);
     setAchievedInput("");
     setHourlyRecords([]);
+    setEditingRecordId(null);
     setError("");
     setMessage("");
 
@@ -543,14 +546,15 @@ function HourlyHeaderCard({ header, auth }) {
 
   const totalAchievedAll = hasRecords
     ? recordsDecorated.reduce(
-      (sum, rec) => sum + (rec._achievedRounded ?? 0),
-      0
-    )
+        (sum, rec) => sum + (rec._achievedRounded ?? 0),
+        0
+      )
     : 0;
 
   const lastRecord = hasRecords
     ? recordsDecorated[recordsDecorated.length - 1]
     : null;
+  const latestRecord = lastRecord;
 
   const totalNetVarVsBaseToDate = lastRecord?._netVarVsBaseToDate ?? 0;
   const totalAvgEffPercent = hasRecords
@@ -604,13 +608,12 @@ function HourlyHeaderCard({ header, auth }) {
     (sum, rec) => sum + (rec._achievedRounded ?? 0),
     0
   );
-  const totalAchievedPreview =
-    totalAchievedBeforeSelected + achievedThisHour;
+  const totalAchievedPreview = totalAchievedBeforeSelected + achievedThisHour;
 
   const achieveEfficiency =
     manpowerPresent > 0 && smv > 0 && selectedHourInt > 0
       ? (totalAchievedPreview * smv * 100) /
-      (manpowerPresent * 60 * selectedHourInt)
+        (manpowerPresent * 60 * selectedHourInt)
       : 0;
 
   // ---------- save handler ----------
@@ -628,8 +631,21 @@ function HourlyHeaderCard({ header, auth }) {
       const existing = hourlyRecords.find(
         (rec) => Number(rec.hour) === hourNum
       );
-      if (existing) {
-        setError(`You already saved data for hour ${hourNum}.`);
+      if (editingRecordId) {
+        if (!latestRecord || editingRecordId !== latestRecord._id) {
+          setError("Only the last saved hour can be edited.");
+          return;
+        }
+        if (hourNum !== latestRecord._hourNum) {
+          setError(
+            `Editing is locked to hour ${latestRecord._hourNum}. Change is not allowed.`
+          );
+          return;
+        }
+      } else if (existing) {
+        setError(
+          `Hour ${hourNum} is already saved. Use "Edit last hour" to change the latest entry or delete it first.`
+        );
         return;
       }
 
@@ -667,8 +683,8 @@ function HourlyHeaderCard({ header, auth }) {
       if (!res.ok || !json.success) {
         throw new Error(
           json?.errors?.join(", ") ||
-          json?.message ||
-          "Failed to save hourly production record"
+            json?.message ||
+            "Failed to save hourly production record"
         );
       }
 
@@ -690,12 +706,91 @@ function HourlyHeaderCard({ header, auth }) {
       await refreshWip();
 
       setAchievedInput("");
+      setEditingRecordId(null);
       setMessage("Hourly record saved successfully.");
     } catch (err) {
       console.error(err);
       setError(err.message || "Failed to save hourly record");
     } finally {
       setSaving(false);
+    }
+  };
+
+  // ---------- edit last hour helpers ----------
+  const startEditLastHour = () => {
+    if (!latestRecord) {
+      setError("No hourly record found to edit.");
+      return;
+    }
+    setError("");
+    setMessage("");
+    setEditingRecordId(latestRecord._id);
+    setSelectedHour(latestRecord._hourNum);
+    setAchievedInput(
+      latestRecord._achievedRounded != null
+        ? String(latestRecord._achievedRounded)
+        : ""
+    );
+    setMessage(`Editing last saved hour (${latestRecord._hourNum}).`);
+  };
+
+  const handleDeleteLastHour = async () => {
+    if (!latestRecord) {
+      setError("No hourly record found to delete.");
+      return;
+    }
+    const ok = window.confirm(
+      `Delete last saved hour (${latestRecord._hourNum})?`
+    );
+    if (!ok) return;
+
+    try {
+      setError("");
+      setMessage("");
+      setDeletingLatest(true);
+
+      const query = factory ? `?factory=${encodeURIComponent(factory)}` : "";
+
+      const res = await fetch(
+        `/api/hourly-productions/${latestRecord._id}${query}`,
+        { method: "DELETE" }
+      );
+
+      const json = await res.json().catch(() => ({}));
+      if (!res.ok || !json.success) {
+        throw new Error(json.message || "Failed to delete last hour record.");
+      }
+
+      // reload list after delete
+      const params = new URLSearchParams({
+        headerId: header._id,
+        productionUserId: productionUserId,
+      });
+
+      const resList = await fetch(
+        `/api/hourly-productions?${params.toString()}`
+      );
+      const jsonList = await resList.json();
+      const newList = resList.ok && jsonList.success ? jsonList.data || [] : [];
+      setHourlyRecords(newList);
+
+      // reset form to next hour (or 1 if none)
+      const sorted = [...newList]
+        .map((rec) => ({ ...rec, _hourNum: Number(rec.hour) }))
+        .filter((rec) => Number.isFinite(rec._hourNum))
+        .sort((a, b) => a._hourNum - b._hourNum);
+      const newLast = sorted.length ? sorted[sorted.length - 1] : null;
+      setSelectedHour(newLast ? newLast._hourNum : 1);
+      setAchievedInput("");
+      setEditingRecordId(null);
+
+      await refreshWip();
+      setMessage("Last hour record deleted.");
+    } catch (err) {
+      console.error(err);
+      setError(err.message || "Failed to delete last hour record.");
+    } finally {
+      setDeletingLatest(false);
     }
   };
 
@@ -718,8 +813,7 @@ function HourlyHeaderCard({ header, auth }) {
         throw new Error("Capacity must be a non-negative number.");
       }
 
-      const userId =
-        auth?.user?.id || auth?.user?._id || auth?.id || auth?._id;
+      const userId = auth?.user?.id || auth?.user?._id || auth?.id || auth?._id;
 
       if (!userId) {
         throw new Error("Missing user id for capacity user.");
@@ -753,8 +847,8 @@ function HourlyHeaderCard({ header, auth }) {
       if (!res.ok || !json.success) {
         throw new Error(
           json?.errors?.join(", ") ||
-          json?.message ||
-          "Failed to save capacity."
+            json?.message ||
+            "Failed to save capacity."
         );
       }
 
@@ -788,8 +882,7 @@ function HourlyHeaderCard({ header, auth }) {
               {header.line} • {header.date}
             </div>
             <div className="text-[13px] text-slate-1000">
-              <span className="font-semibold">Factory:</span>{" "}
-              {factory || "-"}
+              <span className="font-semibold">Factory:</span> {factory || "-"}
               <span className="mx-1 text-slate-1000">•</span>
               <span className="font-semibold">Building:</span>{" "}
               {header.assigned_building}
@@ -799,40 +892,31 @@ function HourlyHeaderCard({ header, auth }) {
               <span className="mx-1 text-slate-1000">•</span>
               <span className="font-semibold">Style:</span> {header.style}
               <span className="mx-1 text-slate-1000">•</span>
-              <span className="font-semibold">Color:</span>{" "}
-              {header.color_model}
+              <span className="font-semibold">Color:</span> {header.color_model}
             </div>
             <div className="text-[15px] text-slate-1000">
               <span className="font-semibold">Run day:</span> {header.run_day}
               <span className="mx-1 text-slate-1000">•</span>
               <span className="font-semibold">Working hour:</span>{" "}
               {header.working_hour}h
-              <span className="font-semibold"> • Item:</span>{" "}
-              {header.Item}
+              <span className="font-semibold"> • Item:</span> {header.Item}
             </div>
           </div>
 
           <div className="text-[13px] text-right text-slate-1000 space-y-0.5">
             <div>
-              <span className="font-semibold text-slate-1000">
-                Present MP:
-              </span>{" "}
+              <span className="font-semibold text-slate-1000">Present MP:</span>{" "}
               {manpowerPresent}
             </div>
             <div>
-              <span className="font-semibold text-slate-1000">
-                Plan Eff:
-              </span>{" "}
+              <span className="font-semibold text-slate-1000">Plan Eff:</span>{" "}
               {planEfficiencyPercent}%
             </div>
             <div>
-              <span className="font-semibold text-slate-1000">SMV:</span>{" "}
-              {smv}
+              <span className="font-semibold text-slate-1000">SMV:</span> {smv}
             </div>
             <div>
-              <span className="font-semibold text-slate-1000">
-                Day Target:
-              </span>{" "}
+              <span className="font-semibold text-slate-1000">Day Target:</span>{" "}
               {targetFullDay}
             </div>
             <div>
@@ -888,10 +972,7 @@ function HourlyHeaderCard({ header, auth }) {
                 Carry (shortfall vs base up to prev):
               </span>{" "}
               <span className="font-semibold text-amber-700">
-                {formatNumber(
-                  cumulativeShortfallVsBasePrevForSelected,
-                  0
-                )}
+                {formatNumber(cumulativeShortfallVsBasePrevForSelected, 0)}
               </span>
             </div>
 
@@ -909,10 +990,11 @@ function HourlyHeaderCard({ header, auth }) {
                 Net variance vs base (to date):
               </span>{" "}
               <span
-                className={`font-semibold ${netVarVsBaseToDateSelected >= 0
+                className={`font-semibold ${
+                  netVarVsBaseToDateSelected >= 0
                     ? "text-green-700"
                     : "text-red-700"
-                  }`}
+                }`}
               >
                 {formatNumber(netVarVsBaseToDateSelected, 0)}
               </span>
@@ -923,10 +1005,11 @@ function HourlyHeaderCard({ header, auth }) {
                 Cumulative variance (prev vs dynamic):
               </span>{" "}
               <span
-                className={`font-semibold ${cumulativeVarianceDynamicPrev >= 0
+                className={`font-semibold ${
+                  cumulativeVarianceDynamicPrev >= 0
                     ? "text-green-700"
                     : "text-red-700"
-                  }`}
+                }`}
               >
                 {formatNumber(cumulativeVarianceDynamicPrev, 0)}
               </span>
@@ -938,10 +1021,9 @@ function HourlyHeaderCard({ header, auth }) {
                   Last hour variance (Δ vs dynamic):
                 </span>{" "}
                 <span
-                  className={`font-semibold ${previousVariance >= 0
-                      ? "text-green-700"
-                      : "text-red-700"
-                    }`}
+                  className={`font-semibold ${
+                    previousVariance >= 0 ? "text-green-700" : "text-red-700"
+                  }`}
                 >
                   {formatNumber(previousVariance, 0)}
                 </span>
@@ -1042,14 +1124,36 @@ function HourlyHeaderCard({ header, auth }) {
         </div>
 
         {/* Save button */}
-        <div className="flex items-center justify-end gap-2 text-xs">
+        <div className="flex flex-wrap items-center justify-end gap-2 text-xs">
+          <button
+            type="button"
+            onClick={startEditLastHour}
+            className="btn btn-xxs btn-outline border-amber-400 text-amber-800"
+            disabled={!latestRecord || saving || deletingLatest}
+          >
+            {latestRecord
+              ? `Edit last hour (${latestRecord._hourNum})`
+              : "Edit last hour"}
+          </button>
+          <button
+            type="button"
+            onClick={handleDeleteLastHour}
+            className="btn btn-xxs btn-outline border-red-400 text-red-700"
+            disabled={!latestRecord || saving || deletingLatest}
+          >
+            {deletingLatest ? "Deleting..." : "Delete last hour"}
+          </button>
           <button
             type="button"
             onClick={handleSave}
             className="btn btn-xs btn-primary px-3"
             disabled={saving}
           >
-            {saving ? "Saving..." : "Save Hour"}
+            {saving
+              ? "Saving..."
+              : editingRecordId
+              ? "Update Last Hour"
+              : "Save Hour"}
           </button>
         </div>
 
@@ -1058,7 +1162,8 @@ function HourlyHeaderCard({ header, auth }) {
           <div className="flex items-center gap-2">
             <div className="flex items-center gap-3">
               <span className="text-slate-1000 font-bold">
-                Total Input :{/*It is mainly Capacity .previously i used it as capacity but then tolf me that it will be total input not capacity ,but i already did the code with capacity so i did no change */}
+                Total Input :
+                {/*It is mainly Capacity .previously i used it as capacity but then tolf me that it will be total input not capacity ,but i already did the code with capacity so i did no change */}
               </span>
 
               <input
@@ -1090,27 +1195,25 @@ function HourlyHeaderCard({ header, auth }) {
                 {wipLoading || capacityLoading
                   ? "..."
                   : wipInfo
-                    ? formatNumber(wipInfo.totalAchieved, 0)
-                    : "-"}
+                  ? formatNumber(wipInfo.totalAchieved, 0)
+                  : "-"}
               </span>
             </div>
 
             <div>
-              <span className="text-slate-1000 mr-1 font-bold 0">
-                {" "}
-                WIP:
-              </span>
+              <span className="text-slate-1000 mr-1 font-bold 0"> WIP:</span>
               <span
-                className={`font-bold ${(wipInfo?.wip ?? 0) > 0
+                className={`font-bold ${
+                  (wipInfo?.wip ?? 0) > 0
                     ? "text-amber-1000"
                     : "text-emerald-1000"
-                  }`}
+                }`}
               >
                 {wipLoading || capacityLoading
                   ? "..."
                   : wipInfo
-                    ? formatNumber(wipInfo.wip, 0)
-                    : "-"}
+                  ? formatNumber(wipInfo.wip, 0)
+                  : "-"}
               </span>
             </div>
           </div>
@@ -1119,9 +1222,7 @@ function HourlyHeaderCard({ header, auth }) {
         {/* Posted hourly records */}
         <div className="mt-1">
           <div className="flex items-center justify-between text-xs mb-1.5">
-            <h3 className="font-semibold text-[12px]">
-              Posted hourly records
-            </h3>
+            <h3 className="font-semibold text-[12px]">Posted hourly records</h3>
             {loadingRecords && (
               <span className="flex items-center gap-1 text-[10px] text-slate-500">
                 <span className="loading loading-spinner loading-xs" />
@@ -1156,22 +1257,22 @@ function HourlyHeaderCard({ header, auth }) {
                       <td className="px-2 py-1">
                         {formatNumber(rec._dynTargetRounded, 0)}
                       </td>
-                      <td className="px-2 py-1">
-                        {rec._achievedRounded}
-                      </td>
+                      <td className="px-2 py-1">{rec._achievedRounded}</td>
                       <td
-                        className={`px-2 py-1 ${(rec._perHourVarDynamic ?? 0) >= 0
+                        className={`px-2 py-1 ${
+                          (rec._perHourVarDynamic ?? 0) >= 0
                             ? "text-green-700"
                             : "text-red-700"
-                          }`}
+                        }`}
                       >
                         {formatNumber(rec._perHourVarDynamic ?? 0, 0)}
                       </td>
                       <td
-                        className={`px-2 py-1 ${(rec._netVarVsBaseToDate ?? 0) >= 0
+                        className={`px-2 py-1 ${
+                          (rec._netVarVsBaseToDate ?? 0) >= 0
                             ? "text-green-700"
                             : "text-red-700"
-                          }`}
+                        }`}
                       >
                         {formatNumber(rec._netVarVsBaseToDate ?? 0, 0)}
                       </td>
@@ -1201,10 +1302,11 @@ function HourlyHeaderCard({ header, auth }) {
                       </td>
                       <td className="px-2 py-1 ">-</td>
                       <td
-                        className={`px-2 py-1   ${totalNetVarVsBaseToDate >= 0
+                        className={`px-2 py-1   ${
+                          totalNetVarVsBaseToDate >= 0
                             ? "text-green-700"
                             : "text-red-700"
-                          }`}
+                        }`}
                       >
                         {formatNumber(totalNetVarVsBaseToDate, 0)}
                       </td>

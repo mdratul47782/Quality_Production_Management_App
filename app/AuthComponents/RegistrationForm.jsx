@@ -8,6 +8,8 @@ import { registerUser } from "@/app/actions";
 
 const initialState = { success: false, message: "", fieldErrors: {} };
 
+const ROLE_OPTIONS = ["Management", "Data tracker", "Developer", "Others"];
+
 export default function RegistrationForm() {
   const [state, formAction] = React.useActionState(registerUser, initialState);
 
@@ -52,7 +54,10 @@ export default function RegistrationForm() {
 
           <form action={formAction} className="space-y-5">
             <div>
-              <label htmlFor="user_name" className="block text-sm font-medium text-gray-700 mb-1">
+              <label
+                htmlFor="user_name"
+                className="block text-sm font-medium text-gray-700 mb-1"
+              >
                 User Name
               </label>
               <input
@@ -71,7 +76,10 @@ export default function RegistrationForm() {
             </div>
 
             <div>
-              <label htmlFor="password" className="block text-sm font-medium text-gray-700 mb-1">
+              <label
+                htmlFor="password"
+                className="block text-sm font-medium text-gray-700 mb-1"
+              >
                 Password
               </label>
               <input
@@ -85,22 +93,40 @@ export default function RegistrationForm() {
               />
             </div>
 
+            {/* ✅ Role dropdown */}
             <div>
-              <label htmlFor="role" className="block text-sm font-medium text-gray-700 mb-1">
+              <label
+                htmlFor="role"
+                className="block text-sm font-medium text-gray-700 mb-1"
+              >
                 Role
               </label>
-              <input
-                type="text"
+              <select
                 id="role"
                 name="role"
                 className={inputClass("role")}
-                placeholder="Enter your role"
                 required
-              />
+                defaultValue=""
+              >
+                <option value="" disabled>
+                  Select a role
+                </option>
+                {ROLE_OPTIONS.map((r) => (
+                  <option key={r} value={r}>
+                    {r}
+                  </option>
+                ))}
+              </select>
+              {fe.role && (
+                <p className="mt-1 text-xs text-red-600">{fe.role}</p>
+              )}
             </div>
 
             <div>
-              <label htmlFor="assigned_building" className="block text-sm font-medium text-gray-700 mb-1">
+              <label
+                htmlFor="assigned_building"
+                className="block text-sm font-medium text-gray-700 mb-1"
+              >
                 Assigned Building
               </label>
               <select
@@ -127,7 +153,10 @@ export default function RegistrationForm() {
             </div>
 
             <div>
-              <label htmlFor="factory" className="block text-sm font-medium text-gray-700 mb-1">
+              <label
+                htmlFor="factory"
+                className="block text-sm font-medium text-gray-700 mb-1"
+              >
                 Factory
               </label>
               <select
@@ -153,7 +182,10 @@ export default function RegistrationForm() {
 
           <div className="mt-6 text-center text-sm text-gray-600">
             Already have an account?{" "}
-            <Link href="/login" className="text-indigo-600 font-medium hover:underline">
+            <Link
+              href="/login"
+              className="text-indigo-600 font-medium hover:underline"
+            >
               Login here
             </Link>
           </div>

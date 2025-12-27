@@ -28,23 +28,58 @@ export default function SideNavbar() {
     router.push("/login");
   };
 
-  const navItems = [
-    { href: "/floor-dashboard", icon: MonitorCloud },
-    { href: "/floor-summary", icon: ChartNoAxesCombined },
-    { href: "/floor-compare", icon: GitCompare },
-    { href: "/ProductionInput", icon: Activity },
-    { href: "/QualityInput", icon: ClipboardList },
-    { href: "/QualitySummaryTable", icon: Table2 },
-    { href: "/style-media-register", icon: FileText },
-  ];
-
   // ✅ Safely read user info from auth (support both shapes)
   const user = auth?.user || auth || {};
   const userName = user?.user_name || "";
   const userRole = user?.role || "";
+  const trackerType = user?.tracker_type || ""; // ✅ NEW
   const userFactory = user?.factory || "";
   const userBuilding = user?.assigned_building || user?.building || "";
-  const userId = user?.id || user?._id || "";
+
+  // base nav
+  const navItems = [
+    { href: "/floor-dashboard", icon: MonitorCloud },
+    { href: "/floor-summary", icon: ChartNoAxesCombined },
+    { href: "/floor-compare", icon: GitCompare },
+
+    // production
+    { href: "/ProductionInput", icon: Activity },
+
+    // quality
+    { href: "/QualityInput", icon: ClipboardList },
+    { href: "/QualitySummaryTable", icon: Table2 },
+
+    { href: "/style-media-register", icon: FileText },
+  ];
+
+  // ✅ NEW: hide buttons based on tracker type
+  const filteredNavItems = navItems.filter((it) => {
+    if (userRole !== "Data tracker") return true;
+
+    if (trackerType === "Quality") {
+      // quality tracker -> no production button
+      if (it.href === "/ProductionInput") return false;
+      return true;
+    }
+
+    if (trackerType === "Production") {
+      // production tracker -> no quality buttons
+      if (it.href === "/QualityInput") return false;
+      if (it.href === "/QualitySummaryTable") return false;
+      return true;
+    }
+
+    // if tracker type missing, still show minimum pages only
+    if (it.href === "/ProductionInput") return false;
+    if (it.href === "/QualityInput") return false;
+    if (it.href === "/QualitySummaryTable") return false;
+    return true;
+  });
+
+  const roleLabel =
+    userRole === "Data tracker" && trackerType
+      ? `Data tracker (${trackerType})`
+      : userRole || "Role";
 
   return (
     <aside
@@ -77,7 +112,7 @@ export default function SideNavbar() {
 
           {/* NAV ICONS */}
           <div className="flex flex-col items-center gap-3 mt-1">
-            {navItems.map(({ href, icon: Icon }) => {
+            {filteredNavItems.map(({ href, icon: Icon }) => {
               const active = pathname === href;
               return (
                 <Link
@@ -103,14 +138,12 @@ export default function SideNavbar() {
 
         {/* BOTTOM: User info + auth icon */}
         <div className="flex flex-col items-center gap-2 pb-1">
-          {/* ✅ User head with hover tooltip */}
           {auth && (
             <div className="relative group">
               <div className="h-8 w-8 rounded-full bg-slate-900 border border-slate-600 flex items-center justify-center text-slate-100">
                 <User size={16} />
               </div>
 
-              {/* Tooltip */}
               <div
                 className="
                   pointer-events-none
@@ -127,7 +160,7 @@ export default function SideNavbar() {
                       {userName || "User"}
                     </div>
                     <div className="text-[10px] text-slate-300/70 truncate">
-                      {userRole || "Role"}
+                      {roleLabel}
                     </div>
                   </div>
 
@@ -144,30 +177,27 @@ export default function SideNavbar() {
                         {userBuilding || "-"}
                       </span>
                     </div>
-                    <div className="flex items-center justify-between gap-2 text-[10px]">
-                      {/* <span className="text-slate-300/70">User ID</span>
-                      <span className="text-slate-100 font-semibold truncate">
-                        {userId ? String(userId).slice(-8) : "-"}
-                      </span> */}
-                    </div>
+                    {userRole === "Data tracker" ? (
+                      <div className="flex items-center justify-between gap-2 text-[10px]">
+                        <span className="text-slate-300/70">Tracker</span>
+                        <span className="text-slate-100 font-semibold truncate">
+                          {trackerType || "-"}
+                        </span>
+                      </div>
+                    ) : null}
                   </div>
                 </div>
 
-                {/* caret */}
                 <div className="absolute left-[-6px] top-4 h-3 w-3 rotate-45 border-l border-b border-white/10 bg-slate-950/95" />
               </div>
 
-              {/* tiny label under icon (optional) */}
               <div className="mt-1 text-[9px] text-center leading-tight text-slate-100 max-w-[52px]">
                 <div className="font-semibold truncate">{userName || "User"}</div>
-                {userRole ? (
-                  <div className="text-[8px] text-slate-400 truncate">{userRole}</div>
-                ) : null}
+                <div className="text-[8px] text-slate-400 truncate">{roleLabel}</div>
               </div>
             </div>
           )}
 
-          {/* Auth icon (login/logout) */}
           {auth ? (
             <button
               onClick={handleLogout}

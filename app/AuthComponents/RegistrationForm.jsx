@@ -1,7 +1,7 @@
 // app/registration/page.jsx
 "use client";
 
-import React from "react";
+import React, { useMemo, useState } from "react";
 import Image from "next/image";
 import Link from "next/link";
 import { registerUser } from "@/app/actions";
@@ -9,9 +9,14 @@ import { registerUser } from "@/app/actions";
 const initialState = { success: false, message: "", fieldErrors: {} };
 
 const ROLE_OPTIONS = ["Management", "Data tracker", "Developer", "Others"];
+const TRACKER_TYPE_OPTIONS = [
+  { label: "Quality Data Tracker", value: "Quality" },
+  { label: "Production Data Tracker", value: "Production" },
+];
 
 export default function RegistrationForm() {
   const [state, formAction] = React.useActionState(registerUser, initialState);
+  const [role, setRole] = useState("");
 
   const fe = state?.fieldErrors || {};
   const inputClass = (name) =>
@@ -20,6 +25,8 @@ export default function RegistrationForm() {
         ? "border-red-400 focus:ring-2 focus:ring-red-300 focus:border-red-400"
         : "border-gray-300 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
     } text-gray-800`;
+
+  const showTrackerType = useMemo(() => role === "Data tracker", [role]);
 
   return (
     <section className="min-h-screen flex items-center justify-center bg-gradient-to-br from-indigo-50 via-white to-indigo-100 px-4">
@@ -45,7 +52,6 @@ export default function RegistrationForm() {
             </p>
           </div>
 
-          {/* ✅ show server-action message (duplicate / validation) */}
           {state?.message ? (
             <div className="mb-4 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
               {state.message}
@@ -54,10 +60,7 @@ export default function RegistrationForm() {
 
           <form action={formAction} className="space-y-5">
             <div>
-              <label
-                htmlFor="user_name"
-                className="block text-sm font-medium text-gray-700 mb-1"
-              >
+              <label htmlFor="user_name" className="block text-sm font-medium text-gray-700 mb-1">
                 User Name
               </label>
               <input
@@ -76,10 +79,7 @@ export default function RegistrationForm() {
             </div>
 
             <div>
-              <label
-                htmlFor="password"
-                className="block text-sm font-medium text-gray-700 mb-1"
-              >
+              <label htmlFor="password" className="block text-sm font-medium text-gray-700 mb-1">
                 Password
               </label>
               <input
@@ -95,10 +95,7 @@ export default function RegistrationForm() {
 
             {/* ✅ Role dropdown */}
             <div>
-              <label
-                htmlFor="role"
-                className="block text-sm font-medium text-gray-700 mb-1"
-              >
+              <label htmlFor="role" className="block text-sm font-medium text-gray-700 mb-1">
                 Role
               </label>
               <select
@@ -106,7 +103,8 @@ export default function RegistrationForm() {
                 name="role"
                 className={inputClass("role")}
                 required
-                defaultValue=""
+                value={role}
+                onChange={(e) => setRole(e.target.value)}
               >
                 <option value="" disabled>
                   Select a role
@@ -117,10 +115,42 @@ export default function RegistrationForm() {
                   </option>
                 ))}
               </select>
-              {fe.role && (
-                <p className="mt-1 text-xs text-red-600">{fe.role}</p>
-              )}
+              {fe.role && <p className="mt-1 text-xs text-red-600">{fe.role}</p>}
             </div>
+
+            {/* ✅ NEW: Tracker Type dropdown (only when role = Data tracker) */}
+            {showTrackerType && (
+              <div>
+                <label
+                  htmlFor="tracker_type"
+                  className="block text-sm font-medium text-gray-700 mb-1"
+                >
+                  Data Tracker Type
+                </label>
+                <select
+                  id="tracker_type"
+                  name="tracker_type"
+                  className={inputClass("tracker_type")}
+                  required={showTrackerType}
+                  defaultValue=""
+                >
+                  <option value="" disabled>
+                    Select tracker type
+                  </option>
+                  {TRACKER_TYPE_OPTIONS.map((t) => (
+                    <option key={t.value} value={t.value}>
+                      {t.label}
+                    </option>
+                  ))}
+                </select>
+
+                {fe.tracker_type && (
+                  <p className="mt-1 text-xs text-red-600">
+                    Tracker Type নির্বাচন করুন।
+                  </p>
+                )}
+              </div>
+            )}
 
             <div>
               <label
@@ -145,26 +175,20 @@ export default function RegistrationForm() {
                 <option value="A-5">A-5</option>
                 <option value="B-5">B-5</option>
               </select>
-              {(fe.factory || fe.assigned_building) && (
+
+              {/* ✅ show duplicate tracker slot msg */}
+              {(fe.factory || fe.assigned_building || fe.tracker_type) && (
                 <p className="mt-1 text-xs text-red-600">
-                  একই Factory + Building আগে থেকেই registered.
+                  (Data tracker হলে) একই Factory + Building এ Quality/Production একবারই হবে।
                 </p>
               )}
             </div>
 
             <div>
-              <label
-                htmlFor="factory"
-                className="block text-sm font-medium text-gray-700 mb-1"
-              >
+              <label htmlFor="factory" className="block text-sm font-medium text-gray-700 mb-1">
                 Factory
               </label>
-              <select
-                id="factory"
-                name="factory"
-                className={inputClass("factory")}
-                required
-              >
+              <select id="factory" name="factory" className={inputClass("factory")} required>
                 <option value="">Select a factory</option>
                 <option value="K-1">K-1</option>
                 <option value="K-2">K-2</option>
@@ -182,10 +206,7 @@ export default function RegistrationForm() {
 
           <div className="mt-6 text-center text-sm text-gray-600">
             Already have an account?{" "}
-            <Link
-              href="/login"
-              className="text-indigo-600 font-medium hover:underline"
-            >
+            <Link href="/login" className="text-indigo-600 font-medium hover:underline">
               Login here
             </Link>
           </div>

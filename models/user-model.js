@@ -6,7 +6,7 @@ const userSchema = new mongoose.Schema(
     user_name: {
       type: String,
       required: [true, "Username is required"],
-      unique: true, // ✅ এটিই যথেষ্ট
+      unique: true,
       trim: true,
       minlength: [3, "Username must be at least 3 characters long"],
       maxlength: [50, "Username cannot exceed 50 characters"],
@@ -16,7 +16,25 @@ const userSchema = new mongoose.Schema(
       required: [true, "Password is required"],
       minlength: [6, "Password must be at least 6 characters long"],
     },
-    role: { type: String, required: [true, "Role is required"], trim: true },
+
+    role: {
+      type: String,
+      required: [true, "Role is required"],
+      trim: true,
+      enum: ["Management", "Data tracker", "Developer", "Others"],
+    },
+
+    // ✅ NEW: only for role === "Data tracker"
+    tracker_type: {
+      type: String,
+      trim: true,
+      enum: ["", "Quality", "Production"],
+      default: "",
+      required: function () {
+        return this.role === "Data tracker";
+      },
+    },
+
     assigned_building: {
       type: String,
       required: [true, "Assigned building is required"],
@@ -28,12 +46,27 @@ const userSchema = new mongoose.Schema(
       enum: ["K-1", "K-2", "K-3"],
     },
   },
-  { timestamps: true }
+  { timestamps: true, collection: "users" } // keep collection name same
 );
 
-// ✅ যদি তুমি “একই Factory+Building এ একাধিক user” allow করতে চাও,
-// তাহলে এই unique index টা REMOVE করো (না হলে 2nd user ব্লক হবে)
-// userSchema.index({ factory: 1, assigned_building: 1 }, { unique: true });
+/**
+ * ✅ RULE: Same Factory + Building can have:
+ * - 1 Quality Data Tracker
+ * - 1 Production Data Tracker
+ * (user_name must be unique anyway)
+ *
+ * This unique index applies ONLY to Data tracker role.
+ */
+userSchema.index(
+  { factory: 1, assigned_building: 1, tracker_type: 1 },
+  {
+    unique: true,
+    partialFilterExpression: {
+      role: "Data tracker",
+      tracker_type: { $in: ["Quality", "Production"] },
+    },
+  }
+);
 
 export const userModel =
-  mongoose.models.users || mongoose.model("users", userSchema);
+  mongoose.models.User || mongoose.model("User", userSchema);

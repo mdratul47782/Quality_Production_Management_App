@@ -126,6 +126,12 @@ The app is designed for **ready-made garments (RMG) factories**, with:
         └── 📁actions
             ├── index.js
         └── 📁api
+            └── 📁floor-compare
+                ├── route.js
+            └── 📁floor-dashboard
+                ├── route.js
+            └── 📁floor-summary
+                ├── route.js
             └── 📁hourly-inspections
                 ├── route.js
             └── 📁hourly-productions
@@ -134,9 +140,13 @@ The app is designed for **ready-made garments (RMG) factories**, with:
                 ├── route.js
             └── 📁line-info-register
                 ├── route.js
+            └── 📁seed-demo
+                ├── route.js
             └── 📁style-capacities
                 └── 📁[id]
                     ├── route.js
+                ├── route.js
+            └── 📁style-media
                 ├── route.js
             └── 📁style-wip
                 ├── route.js
@@ -150,11 +160,26 @@ The app is designed for **ready-made garments (RMG) factories**, with:
             ├── SignInOut.jsx
         └── 📁contexts
             ├── index.js
+        └── 📁floor-compare
+            ├── page.js
+        └── 📁floor-dashboard
+            └── 📁full
+                ├── page.js
+            ├── page.js
+        └── 📁floor-summary
+            ├── page.js
+        └── 📁FloorDashBoardComponents
+            ├── FloorDashBoardFullView.jsx
+            ├── floorDashboardShared.js
+            ├── FloorDashBoardTvView.jsx
+        └── 📁HomePageComponents
+            ├── HomePage.jsx
         └── 📁hooks
             ├── useAuth.js
         └── 📁line-info-register
             ├── page.js
         └── 📁LineInfoRegisterComponents
+            ├── ImageVideoLink.jsx
             ├── LineInfo.jsx
         └── 📁login
             ├── page.js
@@ -174,16 +199,29 @@ The app is designed for **ready-made garments (RMG) factories**, with:
             ├── page.js
         └── 📁register
             ├── page.js
+        └── 📁SideNavBarComponent
+            ├── SideNavbar.jsx
+        └── 📁style-media-register
+            ├── page.js
+        └── 📁user-manual
+            ├── page.js
         ├── favicon.ico
         ├── globals.css
         ├── layout.js
         ├── page.js
     └── 📁db
         ├── queries.js
+    └── 📁floor-dashboard-Test
+        ├── page.js
+    └── 📁lib
+        ├── generateDummyData.js
+    └── 📁media-links
+        ├── route.js
     └── 📁models
         ├── hourly-inspections.js
         ├── HourlyProduction-model.js
         ├── line-info-register-model.js
+        ├── style-media-model.js
         ├── StyleCapacity-model.js
         ├── TargetSetterHeader.js
         ├── user-model.js
@@ -195,6 +233,11 @@ The app is designed for **ready-made garments (RMG) factories**, with:
         ├── Performance overview-bro.svg
         ├── Progress overview-bro.svg
         ├── Sign up-rafiki.svg
+        ├── undraw_business-plan_wv9q.svg
+        ├── undraw_factory_4d61.svg
+        ├── undraw_financial-data_lbci.svg
+        ├── undraw_investing_uzcu.svg
+        ├── undraw_presentation_4ik4.svg
         ├── vercel.svg
     └── 📁services
         ├── mongo.js
@@ -204,12 +247,16 @@ The app is designed for **ready-made garments (RMG) factories**, with:
     ├── .gitignore
     ├── DefectsEntryForm.jsx
     ├── eslint.config.mjs
+    ├── floor-dashboardPrevious.jsx
+    ├── floor-summaryBestLineTest.jsx
+    ├── floorSummay-route.js
     ├── jsconfig.json
     ├── next.config.mjs
     ├── package-lock.json
     ├── package.json
     ├── postcss.config.mjs
     ├── README.md
+    ├── tailwind.config.js
     └── targetSetterPage.jsx
 
 
